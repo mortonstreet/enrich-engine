@@ -190,3 +190,87 @@ model Example {
 
   @@map("example")
 }
+
+model Enrichment {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  linkedinUrl    String
+  status         String    // pending, completed, not_found, error
+  enrichMobile   Boolean   @default(true)
+
+  // Results
+  email          String?
+  emailVerified  Boolean?
+  mobile         String?
+  firstName      String?
+  lastName       String?
+  title          String?
+  companyName    String?
+  companyDomain  String?
+
+  // Meta
+  rawResponse    Json?
+  errorCode      String?
+  creditsCost    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  completedAt    DateTime?
+
+  @@index([organizationId])
+  @@map("enrichment")
+}
+
+model BulkEnrichmentJob {
+  id               String   @id @default(uuid())
+  organizationId   String
+  userId           String
+  status           String   // pending, processing, completed, failed
+  totalRecords     Int
+  processedRecords Int      @default(0)
+  matchedRecords   Int      @default(0)
+  failedRecords    Int      @default(0)
+  originalFileName String
+  totalCreditsCost Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  completedAt      DateTime?
+
+  items BulkEnrichmentItem[]
+
+  @@index([organizationId])
+  @@map("bulk_enrichment_job")
+}
+
+model BulkEnrichmentItem {
+  id          String   @id @default(uuid())
+  jobId       String
+  identifier  String
+  linkedinUrl String
+  status      String   // pending, matched, not_matched, error
+
+  email       String?
+  mobile      String?
+  firstName   String?
+  lastName    String?
+  title       String?
+  companyName String?
+  errorCode   String?
+  rawResponse Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  job BulkEnrichmentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("bulk_enrichment_item")
+}
+
+model Waitlist {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@map("waitlist")
+}

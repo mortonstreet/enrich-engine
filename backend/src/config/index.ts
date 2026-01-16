@@ -1,21 +1,21 @@
-import dotenv from 'dotenv'
-import { z } from 'zod'
+import dotenv from "dotenv";
+import { z } from "zod";
 
-dotenv.config()
+dotenv.config();
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(8000),
   NODE_ENV: z
-    .enum(['development', 'production', 'test'])
-    .default('development'),
+    .enum(["development", "production", "test"])
+    .default("development"),
   CORS_ORIGIN: z
     .string()
-    .default('*')
+    .default("*")
     .transform((val) => {
-      if (val === '*') return '*'
-      return val.includes(',') ? val.split(',').map((s) => s.trim()) : val
+      if (val === "*") return "*";
+      return val.includes(",") ? val.split(",").map((s) => s.trim()) : val;
     }),
-  BACKEND_URL: z.string().url().default('http://localhost:8000'),
+  BACKEND_URL: z.string().url().default("http://localhost:8000"),
   FRONTEND_URL: z.string().url(),
   DATABASE_URL: z.string().url(),
   DB_HOST: z.string(),
@@ -23,7 +23,7 @@ const envSchema = z.object({
   DB_USER: z.string(),
   DB_PASSWORD: z.string(),
   DB_NAME: z.string(),
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.string().url().default("redis://localhost:6379"),
   BETTERSTACK_TOKEN: z.string(),
   BETTERSTACK_HOST: z.string(),
   AXIOM_DATASET: z.string(),
@@ -38,29 +38,30 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string(),
   RESEND_API_KEY: z.string(),
   MCP_API_KEY: z.string(),
+  PROSPEO_API_KEY: z.string(),
   // Pusher/Soketi
   PUSHER_ENABLED: z
     .string()
-    .default('false')
-    .transform((val) => val === 'true'),
-  PUSHER_APP_ID: z.string().default('app-id'),
-  PUSHER_KEY: z.string().default('app-key'),
-  PUSHER_SECRET: z.string().default('app-secret'),
-  PUSHER_HOST: z.string().default('localhost'),
+    .default("false")
+    .transform((val) => val === "true"),
+  PUSHER_APP_ID: z.string().default("app-id"),
+  PUSHER_KEY: z.string().default("app-key"),
+  PUSHER_SECRET: z.string().default("app-secret"),
+  PUSHER_HOST: z.string().default("localhost"),
   PUSHER_PORT: z.coerce.number().default(6001),
   PUSHER_USE_TLS: z
     .string()
-    .default('false')
-    .transform((val) => val === 'true'),
-})
+    .default("false")
+    .transform((val) => val === "true"),
+});
 
-const env = envSchema.parse(process.env)
+const env = envSchema.parse(process.env);
 
 const getTrustedOrigins = (corsOrigin: string | string[]): string[] => {
-  if (corsOrigin === '*') return [env.FRONTEND_URL]
-  if (Array.isArray(corsOrigin)) return corsOrigin
-  return [corsOrigin]
-}
+  if (corsOrigin === "*") return [env.FRONTEND_URL];
+  if (Array.isArray(corsOrigin)) return corsOrigin;
+  return [corsOrigin];
+};
 
 export const config = {
   webhookApiKey: env.WEBHOOK_API_KEY,
@@ -83,7 +84,7 @@ export const config = {
   },
   redis: {
     url: env.REDIS_URL,
-    useTLS: env.REDIS_URL.startsWith('rediss://'),
+    useTLS: env.REDIS_URL.startsWith("rediss://"),
   },
   logger: {
     betterstackToken: env.BETTERSTACK_TOKEN,
@@ -111,6 +112,9 @@ export const config = {
   mcp: {
     apiKey: env.MCP_API_KEY,
   },
+  prospeo: {
+    apiKey: env.PROSPEO_API_KEY,
+  },
   pusher: {
     enabled: env.PUSHER_ENABLED,
     appId: env.PUSHER_APP_ID,
@@ -120,6 +124,6 @@ export const config = {
     port: env.PUSHER_PORT,
     useTLS: env.PUSHER_USE_TLS,
   },
-} as const
+} as const;
 
-export type Config = typeof config
+export type Config = typeof config;

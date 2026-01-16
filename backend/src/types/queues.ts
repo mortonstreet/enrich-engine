@@ -1,12 +1,12 @@
 export enum QueueName {
-  EXAMPLE = 'example',
+  EXAMPLE = "example",
 }
 
 export enum ExampleEventType {
-  GET_EXAMPLE = 'getExample',
+  GET_EXAMPLE = "getExample",
 }
 
 export interface ExampleEvent {
-  id: string
-  type: ExampleEventType
+  id: string;
+  type: ExampleEventType;
 }

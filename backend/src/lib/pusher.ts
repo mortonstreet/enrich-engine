@@ -1,10 +1,10 @@
-import Pusher from 'pusher'
-import { config } from '@/config'
+import Pusher from "pusher";
+import { config } from "@/config";
 
-let pusherInstance: Pusher | null = null
+let pusherInstance: Pusher | null = null;
 
 export const getPusher = (): Pusher | null => {
-  if (!config.pusher.enabled) return null
+  if (!config.pusher.enabled) return null;
 
   if (!pusherInstance) {
     pusherInstance = new Pusher({
@@ -14,10 +14,10 @@ export const getPusher = (): Pusher | null => {
       host: config.pusher.host,
       port: String(config.pusher.port),
       useTLS: config.pusher.useTLS,
-    })
+    });
   }
 
-  return pusherInstance
-}
+  return pusherInstance;
+};
 
-export default getPusher
+export default getPusher;

@@ -1,19 +1,19 @@
-import { transporter } from '@/lib/email'
+import { transporter } from "@/lib/email";
 
 export const sendEmail = async (to: string, subject: string, text: string) => {
   await transporter.sendMail({
-    from: 'noreply@update-me.com',
+    from: "noreply@update-me.com",
     to,
     subject,
     text,
-  })
-}
+  });
+};
 
 export const sendVerificationEmail = async (to: string, url: string) => {
   await transporter.sendMail({
-    from: 'update-me <noreply@update-me.com>',
+    from: "update-me <noreply@update-me.com>",
     to,
-    subject: 'Verify your email',
+    subject: "Verify your email",
     html: `
       <!DOCTYPE html>
       <html>
@@ -65,14 +65,14 @@ export const sendVerificationEmail = async (to: string, url: string) => {
       </body>
       </html>
     `,
-  })
-}
+  });
+};
 
 export const sendResetPasswordEmail = async (to: string, url: string) => {
   await transporter.sendMail({
-    from: 'update-me <noreply@update-me.com>',
+    from: "update-me <noreply@update-me.com>",
     to,
-    subject: 'Reset your password',
+    subject: "Reset your password",
     html: `
       <!DOCTYPE html>
       <html>
@@ -124,8 +124,8 @@ export const sendResetPasswordEmail = async (to: string, url: string) => {
       </body>
       </html>
     `,
-  })
-}
+  });
+};
 
 export const sendOrganizationInvitation = async ({
   email,
@@ -134,14 +134,14 @@ export const sendOrganizationInvitation = async ({
   teamName,
   inviteLink,
 }: {
-  email: string
-  invitedByUsername: string
-  invitedByEmail: string
-  teamName: string
-  inviteLink: string
+  email: string;
+  invitedByUsername: string;
+  invitedByEmail: string;
+  teamName: string;
+  inviteLink: string;
 }) => {
   await transporter.sendMail({
-    from: 'update-me <noreply@update-me.com>',
+    from: "update-me <noreply@update-me.com>",
     to: email,
     subject: `${invitedByUsername} invited you to join ${teamName} on update-me`,
     html: `
@@ -195,5 +195,5 @@ export const sendOrganizationInvitation = async ({
       </body>
       </html>
     `,
-  })
-}
+  });
+};

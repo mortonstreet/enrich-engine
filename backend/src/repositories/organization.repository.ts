@@ -1,18 +1,18 @@
-import { db } from '@/lib/db'
+import { db } from "@/lib/db";
 
 export const findById = async (id: string) => {
   return await db
-    .selectFrom('organization')
-    .where('id', '=', id)
+    .selectFrom("organization")
+    .where("id", "=", id)
     .selectAll()
-    .executeTakeFirstOrThrow()
-}
+    .executeTakeFirstOrThrow();
+};
 
 export const findMember = async (organizationId: string, userId: string) => {
   return await db
-    .selectFrom('member')
-    .where('organizationId', '=', organizationId)
-    .where('userId', '=', userId)
+    .selectFrom("member")
+    .where("organizationId", "=", organizationId)
+    .where("userId", "=", userId)
     .selectAll()
-    .executeTakeFirstOrThrow()
-}
+    .executeTakeFirstOrThrow();
+};

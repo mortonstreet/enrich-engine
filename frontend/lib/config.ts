@@ -53,6 +53,16 @@ export const ENDPOINTS = {
     MARK_READ: '/notifications/mark-read',
     MARK_ALL_READ: '/notifications/mark-all-read',
   },
+  ENRICHMENT: {
+    ENRICH: '/enrichment/enrich',
+    HISTORY: '/enrichment/history',
+    BULK: '/enrichment/bulk',
+    BULK_STATUS: (jobId: string) => `/enrichment/bulk/${jobId}`,
+    BULK_DOWNLOAD: (jobId: string) => `/enrichment/bulk/${jobId}/download`,
+  },
+  WAITLIST: {
+    ADD: '/waitlist',
+  },
 };
 
 export const QUERY_KEYS = {
@@ -67,4 +77,6 @@ export const QUERY_KEYS = {
   adminAddCredits: (organizationId?: string) => ['admin', 'organizations', organizationId, 'credits'] as const,
   notifications: () => ['notifications'] as const,
   notificationsUnreadCount: () => ['notifications', 'unread-count'] as const,
+  enrichmentHistory: () => ['enrichment', 'history'] as const,
+  bulkJobStatus: (jobId?: string) => ['enrichment', 'bulk', jobId] as const,
 };
