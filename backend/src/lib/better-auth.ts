@@ -27,6 +27,12 @@ export const auth = betterAuth({
   trustedOrigins: config.trustedOrigins,
   baseURL: config.backendUrl,
   basePath: "/api/auth",
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: config.nodeEnv === "production",
+      domain: ".enrichengine.xyz",
+    },
+  },
   databaseHooks: {
     session: {
       create: {
