@@ -6,9 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "build": "tsdown",
+    "build": "pnpm --filter @shared/db run db:generate && tsdown",
     "tsc": "tsc --noEmit",
-    "start": "npx prisma generate --schema=../shared/db/prisma/schema.prisma && node dist/server.mjs",
+    "start": "node dist/server.mjs",
     "cli:script": "tsx cli/script.ts",
     "cli:test-notifications": "tsx cli/test-notifications.ts"
   },
