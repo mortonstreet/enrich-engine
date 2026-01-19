@@ -39,11 +39,11 @@ const statusIcons = {
 };
 
 const itemStatusConfig = {
-  pending: { icon: Clock, className: "text-yellow-600", label: "Pending" },
+  pending: { icon: Clock, className: "text-yellow-600", label: "Pending", animate: false },
   processing: { icon: Loader2, className: "text-blue-600", label: "Processing", animate: true },
-  completed: { icon: CheckCircle, className: "text-green-600", label: "Completed" },
-  failed: { icon: XCircle, className: "text-red-600", label: "Failed" },
-  not_found: { icon: HelpCircle, className: "text-gray-500", label: "Not Found" },
+  completed: { icon: CheckCircle, className: "text-green-600", label: "Completed", animate: false },
+  failed: { icon: XCircle, className: "text-red-600", label: "Failed", animate: false },
+  not_found: { icon: HelpCircle, className: "text-gray-500", label: "Not Found", animate: false },
 };
 
 const strategyLabels = {
