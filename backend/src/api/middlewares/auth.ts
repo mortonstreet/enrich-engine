@@ -59,17 +59,18 @@ export const withBetterAuth = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const session = await auth.api.getSession({
+  const sessionResult = await auth.api.getSession({
     headers: fromNodeHeaders(req.headers),
   });
 
-  if (!session) {
+  if (!sessionResult) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   // attach to req so handlers can use it
-  (req as any).user = session.user;
-  (req as any).session = session;
+  // sessionResult has { user, session } structure - attach the inner session object
+  (req as any).user = sessionResult.user;
+  (req as any).session = sessionResult.session;
 
   next();
 };

@@ -5,3 +5,8 @@ export * from './pagination';
 export * from './organization';
 export * from './notification';
 export * from './enrichment';
+export * from './scrape';
+export * from './list';
+export * from './enrich';
+export * from './copyGenerator';
+export * from './emailGuess';

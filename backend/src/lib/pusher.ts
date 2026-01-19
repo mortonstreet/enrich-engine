@@ -20,4 +20,15 @@ export const getPusher = (): Pusher | null => {
   return pusherInstance;
 };
 
+export const sendPusherEvent = async (
+  channel: string,
+  event: string,
+  data: unknown
+): Promise<void> => {
+  const pusher = getPusher();
+  if (!pusher) return;
+
+  await pusher.trigger(channel, event, data);
+};
+
 export default getPusher;

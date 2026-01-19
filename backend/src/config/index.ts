@@ -39,6 +39,8 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string(),
   MCP_API_KEY: z.string(),
   PROSPEO_API_KEY: z.string(),
+  SERPER_API_KEY: z.string(),
+  ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be 32 bytes (64 hex chars)'),
   // Pusher/Soketi
   PUSHER_ENABLED: z
     .string()
@@ -114,6 +116,12 @@ export const config = {
   },
   prospeo: {
     apiKey: env.PROSPEO_API_KEY,
+  },
+  serper: {
+    apiKey: env.SERPER_API_KEY,
+  },
+  encryption: {
+    key: env.ENCRYPTION_KEY,
   },
   pusher: {
     enabled: env.PUSHER_ENABLED,

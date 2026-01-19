@@ -7,6 +7,10 @@ import notificationRoutes from "./notification";
 import pusherRoutes from "./pusher";
 import enrichmentRoutes from "./enrichment";
 import waitlistRoutes from "./waitlist";
+import scrapeRoutes from "./scrape";
+import listsRoutes from "./lists";
+import enrichRoutes from "./enrich";
+import copyGeneratorRoutes from "./copyGenerator";
 
 const router = Router();
 
@@ -22,6 +26,10 @@ router.use("/notifications", notificationRoutes);
 router.use("/pusher", pusherRoutes);
 router.use("/enrichment", enrichmentRoutes);
 router.use("/waitlist", waitlistRoutes);
+router.use("/scrape", scrapeRoutes);
+router.use("/lists", listsRoutes);
+router.use("/enrich", enrichRoutes);
+router.use("/copy-generator", copyGeneratorRoutes);
 router.use("/sentry", (req, res) => {
   throw new Error("Testing sentry error");
 });

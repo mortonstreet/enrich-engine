@@ -1,0 +1,164 @@
+import { config } from "@/config";
+import logger from "@/lib/logger";
+
+const SERPER_BASE_URL = "https://google.serper.dev/search";
+
+export interface SerperSearchResult {
+  title: string;
+  link: string;
+  snippet: string;
+  position: number;
+}
+
+export interface SerperResponse {
+  organic: SerperSearchResult[];
+  searchParameters: {
+    q: string;
+  };
+}
+
+async function serperFetch(query: string): Promise<SerperResponse> {
+  const response = await fetch(SERPER_BASE_URL, {
+    method: "POST",
+    headers: {
+      "X-API-KEY": config.serper.apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      q: query,
+      num: 10,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error({ status: response.status, errorText }, "Serper API error");
+    throw new Error(`Serper API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json() as Promise<SerperResponse>;
+}
+
+const LINKEDIN_PATTERN = /^https?:\/\/(www\.)?linkedin\.com\/in\//;
+
+export interface ExtractedLinkedInResult {
+  linkedinUrl: string;
+  firstName: string | null;
+  lastName: string | null;
+  title: string;
+}
+
+/**
+ * Extracts the person's name from a LinkedIn search result title.
+ * Titles are typically formatted as: "John Smith - Software Engineer at Company | LinkedIn"
+ * Also handles: "Eddie Anderson, RAC US - Regulatory Affairs Manager at ..."
+ */
+function parseNameFromTitle(title: string): { firstName: string | null; lastName: string | null } {
+  // Remove common suffixes
+  let cleanTitle = title
+    .replace(/\s*\|\s*LinkedIn\s*$/i, "")
+    .replace(/\s*-\s*LinkedIn\s*$/i, "")
+    .trim();
+
+  // The name is usually before the first " - " separator
+  const dashIndex = cleanTitle.indexOf(" - ");
+  if (dashIndex !== -1) {
+    cleanTitle = cleanTitle.substring(0, dashIndex).trim();
+  }
+
+  // Handle comma-separated credentials (e.g., "Eddie Anderson, RAC US")
+  // The name is before the comma, credentials are after
+  const commaIndex = cleanTitle.indexOf(",");
+  if (commaIndex !== -1) {
+    cleanTitle = cleanTitle.substring(0, commaIndex).trim();
+  }
+
+  // Split into words and try to extract first/last name
+  const nameParts = cleanTitle.split(/\s+/).filter((part) => {
+    // Filter out common non-name words and titles
+    return (
+      part.length > 0 &&
+      !/^(dr|mr|mrs|ms|prof|phd|md|mba|ceo|cto|cfo|coo|vp|svp|evp|jr|sr|ii|iii|iv)\.?$/i.test(part)
+    );
+  });
+
+  if (nameParts.length === 0) {
+    return { firstName: null, lastName: null };
+  }
+
+  if (nameParts.length === 1) {
+    return { firstName: nameParts[0], lastName: null };
+  }
+
+  // Assume first word is first name, last word is last name
+  return {
+    firstName: nameParts[0],
+    lastName: nameParts[nameParts.length - 1],
+  };
+}
+
+export function extractLinkedInUrl(results: SerperSearchResult[]): string | null {
+  for (const result of results) {
+    if (LINKEDIN_PATTERN.test(result.link)) {
+      return result.link;
+    }
+  }
+  return null;
+}
+
+export function extractLinkedInResult(results: SerperSearchResult[]): ExtractedLinkedInResult | null {
+  for (const result of results) {
+    if (LINKEDIN_PATTERN.test(result.link)) {
+      const { firstName, lastName } = parseNameFromTitle(result.title);
+      return {
+        linkedinUrl: result.link,
+        firstName,
+        lastName,
+        title: result.title,
+      };
+    }
+  }
+  return null;
+}
+
+export function buildNameQuery(firstName: string, lastName: string, company?: string): string {
+  let query = `site:linkedin.com/in/ "${firstName} ${lastName}"`;
+  if (company) {
+    query += ` "${company}"`;
+  }
+  return query;
+}
+
+export function buildRoleQuery(company: string, role: string): string {
+  return `site:linkedin.com/in/ "${role}" "${company}"`;
+}
+
+export async function searchLinkedIn(query: string): Promise<{
+  linkedinUrl: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  rawResponse: SerperResponse;
+}> {
+  logger.info({ query }, "Searching LinkedIn via Serper");
+
+  const response = await serperFetch(query);
+  const result = extractLinkedInResult(response.organic || []);
+
+  logger.info(
+    {
+      query,
+      found: !!result,
+      linkedinUrl: result?.linkedinUrl,
+      firstName: result?.firstName,
+      lastName: result?.lastName,
+    },
+    "Serper search complete"
+  );
+
+  return {
+    linkedinUrl: result?.linkedinUrl ?? null,
+    firstName: result?.firstName ?? null,
+    lastName: result?.lastName ?? null,
+    rawResponse: response,
+  };
+}

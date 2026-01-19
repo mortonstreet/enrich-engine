@@ -51,6 +51,35 @@ export type BulkEnrichmentJob = {
     updatedAt: Timestamp;
     completedAt: Timestamp | null;
 };
+export type CopyGeneratorJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    listId: string;
+    userPrompt: string;
+    status: Generated<string>;
+    totalRows: number;
+    processedRows: Generated<number>;
+    successCount: Generated<number>;
+    errorCount: Generated<number>;
+    tokensUsed: Generated<number>;
+    estimatedCost: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
+export type CopyGeneratorJobItem = {
+    id: string;
+    jobId: string;
+    leadId: string;
+    status: Generated<string>;
+    generatedLine: string | null;
+    tokensUsed: Generated<number>;
+    openrouterResponse: unknown | null;
+    errorMessage: string | null;
+    createdAt: Generated<Timestamp>;
+    processedAt: Timestamp | null;
+};
 export type CreditTransaction = {
     id: string;
     organizationId: string;
@@ -60,6 +89,26 @@ export type CreditTransaction = {
     metadata: unknown;
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
+};
+export type DomainEmailPattern = {
+    id: string;
+    domain: string;
+    patterns: unknown;
+    successCount: Generated<number>;
+    totalAttempts: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
+export type EmailValidationAttempt = {
+    id: string;
+    jobItemId: string;
+    leadId: string;
+    email: string;
+    pattern: string;
+    status: string;
+    validationResponse: unknown | null;
+    createdAt: Generated<Timestamp>;
+    processedAt: Timestamp | null;
 };
 export type Enrichment = {
     id: string;
@@ -99,6 +148,96 @@ export type Invitation = {
     createdAt: Timestamp;
     inviterId: string;
 };
+export type Lead = {
+    id: string;
+    listId: string;
+    organizationId: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+    company: string | null;
+    role: string | null;
+    linkedinUrl: string | null;
+    customFields: Generated<unknown>;
+    firstLine: string | null;
+    companyDomain: string | null;
+    emailBounced: Generated<boolean>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
+export type LeadList = {
+    id: string;
+    organizationId: string;
+    createdById: string;
+    name: string;
+    description: string | null;
+    folderId: string | null;
+    importStatus: Generated<string>;
+    leadCount: Generated<number>;
+    source: Generated<string>;
+    scrapeJobId: string | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
+export type LeadListFolder = {
+    id: string;
+    organizationId: string;
+    createdById: string;
+    name: string;
+    parentId: string | null;
+    order: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
+export type ListEnrichmentJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    listId: string;
+    vendor: Generated<string>;
+    enrichmentType: string;
+    status: Generated<string>;
+    totalRows: number;
+    processedRows: Generated<number>;
+    successCount: Generated<number>;
+    errorCount: Generated<number>;
+    creditsUsed: Generated<number>;
+    enrichmentStrategy: Generated<string>;
+    guessSuccessCount: Generated<number>;
+    fallbackCount: Generated<number>;
+    validationCredits: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
+export type ListEnrichmentJobItem = {
+    id: string;
+    jobId: string;
+    leadId: string;
+    linkedinUrl: string;
+    status: Generated<string>;
+    enrichedEmail: string | null;
+    enrichedPhone: string | null;
+    prospeoResponse: unknown | null;
+    errorMessage: string | null;
+    createdAt: Generated<Timestamp>;
+    processedAt: Timestamp | null;
+};
+export type ListFavorite = {
+    id: string;
+    userId: string;
+    listId: string | null;
+    folderId: string | null;
+    createdAt: Generated<Timestamp>;
+};
+export type ListOpen = {
+    id: string;
+    userId: string;
+    listId: string | null;
+    folderId: string | null;
+    openedAt: Generated<Timestamp>;
+};
 export type Member = {
     id: string;
     organizationId: string;
@@ -123,6 +262,34 @@ export type Organization = {
     logo: string | null;
     createdAt: Timestamp;
     metadata: string | null;
+};
+export type ScrapeJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    name: string;
+    status: Generated<string>;
+    totalRows: number;
+    processedRows: Generated<number>;
+    successCount: Generated<number>;
+    errorCount: Generated<number>;
+    inputType: string;
+    resultListId: string | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
+export type ScrapeJobItem = {
+    id: string;
+    jobId: string;
+    rowIndex: number;
+    inputData: unknown;
+    linkedinUrl: string | null;
+    status: Generated<string>;
+    serperResponse: unknown | null;
+    errorMessage: string | null;
+    createdAt: Generated<Timestamp>;
+    processedAt: Timestamp | null;
 };
 export type Session = {
     id: string;
@@ -165,6 +332,16 @@ export type User = {
     banReason: string | null;
     banExpires: Timestamp | null;
 };
+export type VendorApiKey = {
+    id: string;
+    organizationId: string;
+    vendor: string;
+    encryptedKey: string;
+    isActive: Generated<boolean>;
+    createdById: string;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
 export type Verification = {
     id: string;
     identifier: string;
@@ -183,16 +360,30 @@ export type DB = {
     account: Account;
     bulk_enrichment_item: BulkEnrichmentItem;
     bulk_enrichment_job: BulkEnrichmentJob;
+    copy_generator_job: CopyGeneratorJob;
+    copy_generator_job_item: CopyGeneratorJobItem;
     credit_transaction: CreditTransaction;
+    domain_email_pattern: DomainEmailPattern;
+    email_validation_attempt: EmailValidationAttempt;
     enrichment: Enrichment;
     example: Example;
     invitation: Invitation;
+    lead: Lead;
+    lead_list: LeadList;
+    lead_list_folder: LeadListFolder;
+    list_enrichment_job: ListEnrichmentJob;
+    list_enrichment_job_item: ListEnrichmentJobItem;
+    list_favorite: ListFavorite;
+    list_open: ListOpen;
     member: Member;
     notification: Notification;
     organization: Organization;
+    scrape_job: ScrapeJob;
+    scrape_job_item: ScrapeJobItem;
     session: Session;
     subscription: Subscription;
     user: User;
+    vendor_api_key: VendorApiKey;
     verification: Verification;
     waitlist: Waitlist;
 };

@@ -81,7 +81,7 @@ export default function HistoryPage() {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : data && data.data.length > 0 ? (
+          ) : (data?.data?.length ?? 0) > 0 ? (
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -96,7 +96,7 @@ export default function HistoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {data.data.map((enrichment) => {
+                    {data?.data?.map((enrichment) => {
                       const status =
                         statusConfig[enrichment.status as EnrichmentStatus] ||
                         statusConfig[EnrichmentStatus.PENDING];
@@ -182,7 +182,7 @@ export default function HistoryPage() {
                 </table>
               </div>
 
-              {data.pagination.totalPages > 1 && (
+              {data?.pagination && data.pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                   <p className="text-sm text-muted-foreground">
                     Showing {(page - 1) * limit + 1} to{" "}

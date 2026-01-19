@@ -10,6 +10,13 @@ import {
   BulkEnrichmentJob,
   BulkEnrichmentItem,
   Waitlist,
+  ScrapeJob,
+  ScrapeJobItem,
+  LeadList,
+  LeadListFolder,
+  ListFavorite,
+  ListOpen,
+  Lead,
 } from "./generated/types";
 
 
@@ -58,8 +65,43 @@ export type DBWaitlist = Selectable<Waitlist>;
 export type InsertDBWaitlist = Insertable<Waitlist>;
 export type CreateWaitlistInput = Omit<DBWaitlist, 'id' | 'createdAt'>;
 
+// Scrape job types
+export type DBScrapeJob = Selectable<ScrapeJob>;
+export type UpdateDBScrapeJob = Updateable<ScrapeJob>;
+export type InsertDBScrapeJob = Insertable<ScrapeJob>;
+export type CreateScrapeJobInput = Omit<DBScrapeJob, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type DBScrapeJobItem = Selectable<ScrapeJobItem>;
+export type UpdateDBScrapeJobItem = Updateable<ScrapeJobItem>;
+export type InsertDBScrapeJobItem = Insertable<ScrapeJobItem>;
+export type CreateScrapeJobItemInput = Omit<DBScrapeJobItem, 'id' | 'createdAt'>;
+
 export type DBPagination = {
   page: number;
   limit: number;
   offset: number;
 };
+
+// List types
+export type DBLeadList = Selectable<LeadList>;
+export type UpdateDBLeadList = Updateable<LeadList>;
+export type InsertDBLeadList = Insertable<LeadList>;
+export type CreateLeadListInput = Omit<DBLeadList, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type DBLeadListFolder = Selectable<LeadListFolder>;
+export type UpdateDBLeadListFolder = Updateable<LeadListFolder>;
+export type InsertDBLeadListFolder = Insertable<LeadListFolder>;
+export type CreateLeadListFolderInput = Omit<DBLeadListFolder, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type DBListFavorite = Selectable<ListFavorite>;
+export type InsertDBListFavorite = Insertable<ListFavorite>;
+export type CreateListFavoriteInput = Omit<DBListFavorite, 'id' | 'createdAt'>;
+
+export type DBListOpen = Selectable<ListOpen>;
+export type InsertDBListOpen = Insertable<ListOpen>;
+export type CreateListOpenInput = Omit<DBListOpen, 'id' | 'openedAt'>;
+
+export type DBLead = Selectable<Lead>;
+export type UpdateDBLead = Updateable<Lead>;
+export type InsertDBLead = Insertable<Lead>;
+export type CreateLeadInput = Omit<DBLead, 'id' | 'createdAt' | 'updatedAt'>;

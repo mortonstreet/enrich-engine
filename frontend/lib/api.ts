@@ -3,7 +3,13 @@
 import { env } from './config';
 
 export const get = <T>(url: string, options?: RequestInit): Promise<T> =>
-  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'GET', credentials: 'include' }).then(response => response.json());
+  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'GET', credentials: 'include' }).then(async response => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  });
 
 export const post = <T>(url: string, data?: any, options?: RequestInit): Promise<T> =>
   fetch(`${env.API_URL.toString()}${url}`, { 
@@ -40,17 +46,36 @@ export const put = <T>(url: string, data?: any, options?: RequestInit): Promise<
   });
 
 export const patch = <T>(url: string, data?: any, options?: RequestInit): Promise<T> =>
-  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'PATCH', body: data ? JSON.stringify(data) : undefined, credentials: 'include' }).then(response => {
+  fetch(`${env.API_URL.toString()}${url}`, {
+    ...options,
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  }).then(async response => {
     if (!response.ok) {
-      throw new Error(response.statusText);
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return undefined as T;
     }
     return response.json();
   });
 
 export const del = <T>(url: string, options?: RequestInit): Promise<T> =>
-  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'DELETE', credentials: 'include' }).then(response => {
+  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'DELETE', credentials: 'include' }).then(async response => {
     if (!response.ok) {
-      throw new Error(response.statusText);
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return undefined as T;
     }
     return response.json();
   });

@@ -125,3 +125,88 @@ export async function bulkEnrichPersons(
 
   return response;
 }
+
+// ============================================
+// Functions with custom API key (for org-specific keys)
+// ============================================
+
+async function prospeoFetchWithKey<T>(
+  endpoint: string,
+  body: Record<string, unknown>,
+  apiKey: string
+): Promise<T> {
+  const response = await fetch(`${PROSPEO_BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-KEY": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error({ status: response.status, errorText }, "Prospeo API error");
+    throw new Error(`Prospeo API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export interface ProspeoEmailFinderResponse {
+  success: boolean;
+  message?: string;
+  response?: {
+    email?: {
+      email: string;
+      verified: boolean;
+    };
+    first_name?: string;
+    last_name?: string;
+    title?: string;
+    company_name?: string;
+    company_domain?: string;
+  };
+  error?: string;
+  error_code?: string;
+}
+
+export interface ProspeoMobileFinderResponse {
+  success: boolean;
+  message?: string;
+  response?: {
+    phone_numbers?: string[];
+    first_name?: string;
+    last_name?: string;
+    title?: string;
+    company_name?: string;
+  };
+  error?: string;
+  error_code?: string;
+}
+
+export async function findEmailWithKey(
+  linkedinUrl: string,
+  apiKey: string
+): Promise<ProspeoEmailFinderResponse> {
+  logger.info({ linkedinUrl }, "Finding email via Prospeo");
+
+  return prospeoFetchWithKey<ProspeoEmailFinderResponse>(
+    "/linkedin-email-finder",
+    { url: linkedinUrl },
+    apiKey
+  );
+}
+
+export async function findMobileWithKey(
+  linkedinUrl: string,
+  apiKey: string
+): Promise<ProspeoMobileFinderResponse> {
+  logger.info({ linkedinUrl }, "Finding mobile via Prospeo");
+
+  return prospeoFetchWithKey<ProspeoMobileFinderResponse>(
+    "/mobile-finder",
+    { url: linkedinUrl },
+    apiKey
+  );
+}

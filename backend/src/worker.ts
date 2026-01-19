@@ -1,5 +1,11 @@
-import { EventProcessor } from "@/queues/workers";
+import {
+  EventProcessor,
+  EnrichmentProcessor,
+  ListEnrichmentProcessor,
+  CopyGeneratorProcessor,
+} from "@/queues/workers";
 import { exampleQueue, scheduleRecurringExampleCheck } from "@/queues";
+import { createScrapeWorker } from "@/queues/scrape.queue";
 
 import logger from "@/lib/logger";
 
@@ -8,6 +14,10 @@ logger.info("Starting Worker services...");
 export const startWorker = async () => {
   logger.info("Initializing Worker services...");
   const eventProcessor = new EventProcessor();
+  const enrichmentProcessor = new EnrichmentProcessor();
+  const listEnrichmentProcessor = new ListEnrichmentProcessor();
+  const copyGeneratorProcessor = new CopyGeneratorProcessor();
+  const scrapeWorker = createScrapeWorker();
 
   try {
     const jobs = await exampleQueue.getJobSchedulers();
@@ -24,6 +34,10 @@ export const startWorker = async () => {
   const shutdown = async () => {
     logger.info("Shutting down Worker services...");
     await eventProcessor.close();
+    await enrichmentProcessor.close();
+    await listEnrichmentProcessor.close();
+    await copyGeneratorProcessor.close();
+    await scrapeWorker.close();
     logger.info("Worker services stopped.");
     process.exit(0);
   };
@@ -32,6 +46,6 @@ export const startWorker = async () => {
   process.on("SIGTERM", shutdown);
 
   logger.info(
-    "Worker is now processing events, internal tasks, and cleanup tasks...",
+    "Worker is now processing events, scrape jobs, internal tasks, and cleanup tasks...",
   );
 };

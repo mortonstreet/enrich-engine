@@ -9,54 +9,54 @@ export const themeConfig = {
   // Layout: "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar"
   layout: "sidebarWithTopbar" as LayoutType,
 
-  // Theme colors (hex values)
+  // Theme colors (hex values) - Light mode
   colors: {
     // Core
-    primary: "#6366f1",
-    primaryForeground: "#ffffff",
-    secondary: "#1e1b4b",
-    secondaryForeground: "#e0e7ff",
-    background: "#0f0f23",
-    foreground: "#e2e8f0",
-    card: "#1a1a2e",
-    cardForeground: "#e2e8f0",
-    muted: "#1e293b",
-    mutedForeground: "#94a3b8",
-    accent: "#312e81",
-    accentForeground: "#c7d2fe",
-    destructive: "#ef4444",
+    primary: "#111827",           // Black buttons
+    primaryForeground: "#ffffff", // White text on primary
+    secondary: "#f9fafb",
+    secondaryForeground: "#111827",
+    background: "#ffffff",        // Pure white
+    foreground: "#111827",        // Primary text - near black
+    card: "#ffffff",
+    cardForeground: "#111827",
+    muted: "#f9fafb",             // Slight grey for sections
+    mutedForeground: "#6b7280",   // Secondary text
+    accent: "#3b82f6",            // Blue for links, active states
+    accentForeground: "#ffffff",
+    destructive: "#ef4444",       // Red
     destructiveForeground: "#ffffff",
-    border: "#334155",
-    input: "#334155",
-    ring: "#6366f1",
+    border: "#e5e7eb",            // Default borders
+    input: "#e5e7eb",
+    ring: "#111827",
     // Charts
-    chart1: "#6366f1",
-    chart2: "#8b5cf6",
-    chart3: "#a78bfa",
-    chart4: "#818cf8",
-    chart5: "#c084fc",
+    chart1: "#111827",
+    chart2: "#374151",
+    chart3: "#6b7280",
+    chart4: "#9ca3af",
+    chart5: "#d1d5db",
     // Sidebar
-    sidebar: "#1a1a2e",
-    sidebarForeground: "#e2e8f0",
-    sidebarPrimary: "#6366f1",
+    sidebar: "#ffffff",
+    sidebarForeground: "#111827",
+    sidebarPrimary: "#111827",
     sidebarPrimaryForeground: "#ffffff",
-    sidebarAccent: "#312e81",
-    sidebarAccentForeground: "#c7d2fe",
-    sidebarBorder: "#334155",
+    sidebarAccent: "#f3f4f6",
+    sidebarAccentForeground: "#111827",
+    sidebarBorder: "#e5e7eb",
   },
 
   // Border radius (in pixels)
   radius: {
     sm: 6,
-    md: 8,
+    md: 6,
     lg: 8,
-    xl: 14,
+    xl: 12,
   },
 
   // Typography
   typography: {
-    fontFamily: "var(--font-geist-sans)",
-    fontMono: "var(--font-geist-mono)",
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    fontMono: "'JetBrains Mono', 'Fira Code', monospace",
   },
 };
 

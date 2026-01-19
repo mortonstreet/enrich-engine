@@ -1,0 +1,479 @@
+import * as listEnrichmentJobRepository from "@/repositories/listEnrichmentJob.repository";
+import * as vendorApiKeyRepository from "@/repositories/vendorApiKey.repository";
+import * as listRepository from "@/repositories/list.repository";
+import * as leadRepository from "@/repositories/lead.repository";
+import { encrypt, decrypt, maskApiKey } from "@/lib/encryption";
+import { addListEnrichmentJob } from "@/queues/listEnrich.queue";
+import {
+  ListEnrichmentJobResponse,
+  ListEnrichmentJobsListResponse,
+  ListEnrichmentJobDetailResponse,
+  VendorsListResponse,
+  ApiKeysListResponse,
+  ListsForEnrichmentResponse,
+  EnrichmentType,
+  EnrichmentVendor,
+  ListEnrichmentJobStatus,
+} from "@shared/types/src";
+
+// ============================================
+// Vendor Configuration
+// ============================================
+
+const VENDORS = [
+  {
+    id: "prospeo" as EnrichmentVendor,
+    name: "Prospeo",
+    supportedTypes: ["email", "phone"] as EnrichmentType[],
+    status: "active" as const,
+  },
+  {
+    id: "millionverifier" as EnrichmentVendor,
+    name: "MillionVerifier",
+    supportedTypes: ["email"] as EnrichmentType[],
+    status: "active" as const,
+  },
+  {
+    id: "openrouter" as EnrichmentVendor,
+    name: "OpenRouter",
+    supportedTypes: [] as EnrichmentType[], // For AI first line generation
+    status: "active" as const,
+  },
+  {
+    id: "apollo" as EnrichmentVendor,
+    name: "Apollo",
+    supportedTypes: ["email", "phone"] as EnrichmentType[],
+    status: "coming_soon" as const,
+  },
+  {
+    id: "hunter" as EnrichmentVendor,
+    name: "Hunter",
+    supportedTypes: ["email"] as EnrichmentType[],
+    status: "coming_soon" as const,
+  },
+  {
+    id: "clearbit" as EnrichmentVendor,
+    name: "Clearbit",
+    supportedTypes: ["email"] as EnrichmentType[],
+    status: "coming_soon" as const,
+  },
+];
+
+// ============================================
+// Vendor API Key Management
+// ============================================
+
+export async function getVendors(
+  organizationId: string
+): Promise<VendorsListResponse> {
+  const configuredKeys = await vendorApiKeyRepository.findAllByOrganization(
+    organizationId
+  );
+  const configuredVendors = new Set(configuredKeys.map((k) => k.vendor));
+
+  const vendors = VENDORS.map((vendor) => ({
+    ...vendor,
+    isConfigured: configuredVendors.has(vendor.id),
+  }));
+
+  return { vendors };
+}
+
+export async function getApiKeys(
+  organizationId: string
+): Promise<ApiKeysListResponse> {
+  const keys = await vendorApiKeyRepository.findAllByOrganization(organizationId);
+  const keyMap = new Map(keys.map((k) => [k.vendor, k]));
+
+  const apiKeys = VENDORS.map((vendor) => {
+    const key = keyMap.get(vendor.id);
+    if (key) {
+      const decrypted = decrypt(key.encryptedKey);
+      return {
+        vendor: vendor.id,
+        isConfigured: true,
+        maskedKey: maskApiKey(decrypted),
+        updatedAt: key.updatedAt.toISOString(),
+      };
+    }
+    return {
+      vendor: vendor.id,
+      isConfigured: false,
+      maskedKey: null,
+      updatedAt: null,
+    };
+  });
+
+  return { apiKeys };
+}
+
+export async function saveApiKey(
+  organizationId: string,
+  userId: string,
+  vendor: string,
+  apiKey: string
+) {
+  const encryptedKey = encrypt(apiKey);
+
+  await vendorApiKeyRepository.upsert({
+    organizationId,
+    vendor,
+    encryptedKey,
+    createdById: userId,
+  });
+
+  return { success: true };
+}
+
+export async function deleteApiKey(organizationId: string, vendor: string) {
+  await vendorApiKeyRepository.deleteByOrgAndVendor(organizationId, vendor);
+  return { success: true };
+}
+
+export async function getDecryptedApiKey(
+  organizationId: string,
+  vendor: string
+): Promise<string | null> {
+  const key = await vendorApiKeyRepository.findByOrgAndVendor(
+    organizationId,
+    vendor
+  );
+  if (!key) return null;
+  return decrypt(key.encryptedKey);
+}
+
+// ============================================
+// List Selection for Enrichment
+// ============================================
+
+export async function getListsForEnrichment(
+  organizationId: string
+): Promise<ListsForEnrichmentResponse> {
+  const lists = await listRepository.findListsByOrganizationId(organizationId);
+
+  const listsWithLinkedin = await Promise.all(
+    lists.map(async (list) => {
+      const hasLinkedin = await leadRepository.hasLinkedinColumn(list.id);
+
+      // Get counts of unenriched leads for each enrichment type
+      const [unenrichedEmailCount, unenrichedPhoneCount] = await Promise.all([
+        listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "email"),
+        listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "phone"),
+      ]);
+
+      return {
+        id: list.id,
+        name: list.name,
+        leadCount: list.leadCount,
+        totalLeads: list.leadCount, // Alias for consistency
+        source: list.source as "uploaded" | "scraped",
+        hasLinkedinColumn: hasLinkedin,
+        createdAt: list.createdAt.toISOString(),
+        unenrichedEmailCount,
+        unenrichedPhoneCount,
+      };
+    })
+  );
+
+  return { lists: listsWithLinkedin };
+}
+
+// ============================================
+// Enrichment Job Management
+// ============================================
+
+export async function createEnrichmentJob(
+  organizationId: string,
+  userId: string,
+  listId: string,
+  enrichmentType: EnrichmentType
+): Promise<ListEnrichmentJobResponse> {
+  // Verify list exists and belongs to org
+  const list = await listRepository.findListById(listId);
+  if (!list || list.organizationId !== organizationId) {
+    throw new Error("List not found");
+  }
+
+  // Check for API key
+  const apiKey = await getDecryptedApiKey(organizationId, "prospeo");
+  if (!apiKey) {
+    throw new Error("Prospeo API key not configured");
+  }
+
+  // Get leads with LinkedIn URLs
+  const allLeads = await leadRepository.findByListIdWithLinkedin(listId);
+  if (allLeads.length === 0) {
+    throw new Error("No leads with LinkedIn URLs found in this list");
+  }
+
+  // Get leads that have already been enriched for this type to avoid duplicates
+  const enrichedLeadIds = await listEnrichmentJobRepository.findEnrichedLeadIdsByList(
+    listId,
+    enrichmentType
+  );
+
+  // Filter out already enriched leads
+  const leads = allLeads.filter((lead) => !enrichedLeadIds.has(lead.id));
+
+  if (leads.length === 0) {
+    throw new Error(
+      `All leads in this list have already been enriched for ${enrichmentType}. No new leads to enrich.`
+    );
+  }
+
+  // Create the job
+  const job = await listEnrichmentJobRepository.createJob({
+    organizationId,
+    userId,
+    listId,
+    vendor: "prospeo",
+    enrichmentType,
+    totalRows: leads.length,
+  });
+
+  if (!job) {
+    throw new Error("Failed to create enrichment job");
+  }
+
+  // Create job items for each lead (only unenriched leads)
+  const items = leads.map((lead) => ({
+    jobId: job.id,
+    leadId: lead.id,
+    linkedinUrl: lead.linkedinUrl!,
+  }));
+
+  await listEnrichmentJobRepository.createJobItems(items);
+
+  // Queue the job for processing
+  await addListEnrichmentJob(job.id);
+
+  return {
+    id: job.id,
+    listId: job.listId,
+    listName: list.name,
+    vendor: job.vendor as EnrichmentVendor,
+    enrichmentType: job.enrichmentType as EnrichmentType,
+    status: job.status as ListEnrichmentJobStatus,
+    totalRows: job.totalRows,
+    processedRows: job.processedRows,
+    successCount: job.successCount,
+    errorCount: job.errorCount,
+    creditsUsed: job.creditsUsed,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
+    completedAt: job.completedAt?.toISOString() ?? null,
+  };
+}
+
+export async function getEnrichmentJobs(
+  organizationId: string,
+  options: { page: number; limit: number; status?: ListEnrichmentJobStatus }
+): Promise<ListEnrichmentJobsListResponse> {
+  const result = await listEnrichmentJobRepository.findJobsByOrganization(
+    organizationId,
+    options
+  );
+
+  const jobs = result.data.map((job) => ({
+    id: job.id,
+    listId: job.listId,
+    listName: job.listName ?? "Unknown List",
+    vendor: job.vendor as EnrichmentVendor,
+    enrichmentType: job.enrichmentType as EnrichmentType,
+    status: job.status as ListEnrichmentJobStatus,
+    totalRows: job.totalRows,
+    processedRows: job.processedRows,
+    successCount: job.successCount,
+    errorCount: job.errorCount,
+    creditsUsed: job.creditsUsed,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
+    completedAt: job.completedAt?.toISOString() ?? null,
+  }));
+
+  return {
+    jobs,
+    pagination: {
+      page: result.pagination.page,
+      limit: result.pagination.limit,
+      total: result.pagination.total,
+      totalPages: result.pagination.totalPages,
+    },
+  };
+}
+
+export async function getEnrichmentJob(
+  organizationId: string,
+  jobId: string
+): Promise<ListEnrichmentJobDetailResponse | null> {
+  const job = await listEnrichmentJobRepository.findJobByIdWithList(jobId);
+  if (!job || job.organizationId !== organizationId) {
+    return null;
+  }
+
+  const items = await listEnrichmentJobRepository.findItemsByJobId(jobId);
+
+  // Fetch validation attempts for all job items
+  const itemIds = items.map((item) => item.id);
+  const validationAttempts =
+    await listEnrichmentJobRepository.findValidationAttemptsByJobItemIds(itemIds);
+
+  // Group validation attempts by job item ID
+  const attemptsByItemId = new Map<string, typeof validationAttempts>();
+  for (const attempt of validationAttempts) {
+    const existing = attemptsByItemId.get(attempt.jobItemId) ?? [];
+    existing.push(attempt);
+    attemptsByItemId.set(attempt.jobItemId, existing);
+  }
+
+  return {
+    job: {
+      id: job.id,
+      listId: job.listId,
+      listName: job.listName ?? "Unknown List",
+      vendor: job.vendor as EnrichmentVendor,
+      enrichmentType: job.enrichmentType as EnrichmentType,
+      enrichmentStrategy: job.enrichmentStrategy as 'direct' | 'guess_first' | 'guess_only' | undefined,
+      status: job.status as ListEnrichmentJobStatus,
+      totalRows: job.totalRows,
+      processedRows: job.processedRows,
+      successCount: job.successCount,
+      errorCount: job.errorCount,
+      creditsUsed: job.creditsUsed,
+      guessSuccessCount: job.guessSuccessCount,
+      fallbackCount: job.fallbackCount,
+      createdAt: job.createdAt.toISOString(),
+      updatedAt: job.updatedAt.toISOString(),
+      completedAt: job.completedAt?.toISOString() ?? null,
+    },
+    items: items.map((item) => {
+      const itemAttempts = attemptsByItemId.get(item.id) ?? [];
+      return {
+        id: item.id,
+        leadId: item.leadId,
+        linkedinUrl: item.linkedinUrl,
+        status: item.status as any,
+        enrichedEmail: item.enrichedEmail,
+        enrichedPhone: item.enrichedPhone,
+        errorMessage: item.errorMessage,
+        createdAt: item.createdAt.toISOString(),
+        processedAt: item.processedAt?.toISOString() ?? null,
+        lead: {
+          firstName: item.firstName,
+          lastName: item.lastName,
+          company: item.company,
+          companyDomain: item.companyDomain,
+        },
+        validationAttempts: itemAttempts.map((a) => ({
+          id: a.id,
+          email: a.email,
+          pattern: a.pattern,
+          status: a.status as 'valid' | 'bounced' | 'catch_all' | 'unknown' | 'error',
+          createdAt: a.createdAt.toISOString(),
+          processedAt: a.processedAt?.toISOString() ?? null,
+        })),
+      };
+    }),
+  };
+}
+
+export async function deleteEnrichmentJob(
+  organizationId: string,
+  jobId: string
+): Promise<boolean> {
+  const job = await listEnrichmentJobRepository.findJobById(jobId);
+  if (!job || job.organizationId !== organizationId) {
+    return false;
+  }
+
+  await listEnrichmentJobRepository.deleteJob(jobId);
+  return true;
+}
+
+// ============================================
+// Job Progress Updates
+// ============================================
+
+export async function updateJobProgress(jobId: string) {
+  const counts = await listEnrichmentJobRepository.countItemsByStatus(jobId);
+  const processedRows =
+    counts.completed + counts.failed + counts.notFound;
+  const successCount = counts.completed;
+  const errorCount = counts.failed + counts.notFound;
+
+  await listEnrichmentJobRepository.updateJob(jobId, {
+    processedRows,
+    successCount,
+    errorCount,
+    creditsUsed: successCount,
+  });
+}
+
+// ============================================
+// CSV Download
+// ============================================
+
+export async function generateEnrichedCsv(
+  organizationId: string,
+  jobId: string
+): Promise<{ csv: string; filename: string } | null> {
+  const job = await listEnrichmentJobRepository.findJobByIdWithList(jobId);
+  if (!job || job.organizationId !== organizationId) {
+    return null;
+  }
+
+  const items = await listEnrichmentJobRepository.findItemsByJobId(jobId);
+
+  // Get leads for the items
+  const leadIds = items.map((item) => item.leadId);
+  const leads = await Promise.all(
+    leadIds.map((id) => leadRepository.findById(id))
+  );
+  const leadMap = new Map(leads.filter(Boolean).map((l) => [l!.id, l!]));
+
+  // Build CSV
+  const headers = [
+    "LinkedIn URL",
+    "First Name",
+    "Last Name",
+    "Email",
+    "Phone",
+    "Company",
+    "Role",
+    "Enrichment Status",
+    job.enrichmentType === "email" ? "Enriched Email" : "Enriched Phone",
+  ];
+
+  const rows = items.map((item) => {
+    const lead = leadMap.get(item.leadId);
+    return [
+      item.linkedinUrl,
+      lead?.firstName ?? "",
+      lead?.lastName ?? "",
+      lead?.email ?? "",
+      lead?.phone ?? "",
+      lead?.company ?? "",
+      lead?.role ?? "",
+      item.status,
+      job.enrichmentType === "email"
+        ? item.enrichedEmail ?? ""
+        : item.enrichedPhone ?? "",
+    ];
+  });
+
+  const escapeCsvField = (field: string) => {
+    if (field.includes(",") || field.includes('"') || field.includes("\n")) {
+      return `"${field.replace(/"/g, '""')}"`;
+    }
+    return field;
+  };
+
+  const csv =
+    headers.join(",") +
+    "\n" +
+    rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
+
+  const filename = `${job.listName ?? "enriched"}_${job.enrichmentType}_${new Date().toISOString().split("T")[0]}.csv`;
+
+  return { csv, filename };
+}

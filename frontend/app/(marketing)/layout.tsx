@@ -1,9 +1,9 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "EnrichEngine - Find Email & Phone from LinkedIn",
+  title: "Enrich Engine | Lead Enrichment for Sales Teams",
   description:
-    "Find verified email addresses and phone numbers from any LinkedIn profile. Enrich your contacts with accurate data.",
+    "Find LinkedIn profiles from names or companies. Enrich with verified emails and phone numbers. Build lead lists for outbound sales.",
 };
 
 export default function MarketingLayout({

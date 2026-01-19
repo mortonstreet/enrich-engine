@@ -3,6 +3,9 @@ import { z } from "zod";
 const envSchema = z.object({
   API_URL: z.url().default('http://localhost:8000/api'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Domain Configuration
+  APP_DOMAIN: z.string().default('app.enrichengine.xyz'),
+  WWW_DOMAIN: z.string().default('www.enrichengine.xyz'),
   // Pusher
   PUSHER_ENABLED: z.string().default('false').transform((val) => val === 'true'),
   PUSHER_KEY: z.string().default('app-key'),
@@ -16,6 +19,8 @@ const envSchema = z.object({
 export const env = envSchema.parse({
   API_URL: process.env.NEXT_PUBLIC_API_URL,
   NODE_ENV: process.env.NODE_ENV,
+  APP_DOMAIN: process.env.NEXT_PUBLIC_APP_DOMAIN,
+  WWW_DOMAIN: process.env.NEXT_PUBLIC_WWW_DOMAIN,
   PUSHER_ENABLED: process.env.NEXT_PUBLIC_PUSHER_ENABLED,
   PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
   PUSHER_HOST: process.env.NEXT_PUBLIC_PUSHER_HOST,
@@ -63,6 +68,51 @@ export const ENDPOINTS = {
   WAITLIST: {
     ADD: '/waitlist',
   },
+  SCRAPE: {
+    JOBS: '/scrape/jobs',
+    JOB: (jobId: string) => `/scrape/jobs/${jobId}`,
+    DOWNLOAD: (jobId: string) => `/scrape/jobs/${jobId}/download`,
+    PAUSE: (jobId: string) => `/scrape/jobs/${jobId}/pause`,
+    RESUME: (jobId: string) => `/scrape/jobs/${jobId}/resume`,
+    RENAME: (jobId: string) => `/scrape/jobs/${jobId}/rename`,
+    SYNC: (jobId: string) => `/scrape/jobs/${jobId}/sync`,
+  },
+  LISTS: {
+    BASE: '/lists',
+    DETAIL: (id: string) => `/lists/${id}`,
+    EXPORT: (id: string) => `/lists/${id}/export`,
+    OPEN: (id: string) => `/lists/${id}/open`,
+    FOLDERS: '/lists/folders',
+    FOLDER: (id: string) => `/lists/folders/${id}`,
+    FOLDER_OPEN: (id: string) => `/lists/folders/${id}/open`,
+    FAVORITES: '/lists/favorites',
+    FAVORITE: (id: string) => `/lists/favorites/${id}`,
+    RECENTS: '/lists/recents',
+    LEAD: (id: string) => `/lists/leads/${id}`,
+    ALL_LEADS: '/lists/leads',
+    CREATE_LIST_FROM_LEADS: '/lists/leads/create-list',
+    LEAD_FILTER_OPTIONS: '/lists/leads/filter-options',
+    CREATE_LIST_FROM_FILTERS: '/lists/leads/create-list-from-filters',
+  },
+  ENRICH: {
+    JOBS: '/enrich/jobs',
+    JOB: (jobId: string) => `/enrich/jobs/${jobId}`,
+    DOWNLOAD: (jobId: string) => `/enrich/jobs/${jobId}/download`,
+    VENDORS: '/enrich/vendors',
+    LISTS: '/enrich/lists',
+    API_KEYS: '/enrich/api-keys',
+    API_KEY: (vendor: string) => `/enrich/api-keys/${vendor}`,
+    // Email Guess endpoints
+    GUESS_PREVIEW: '/enrich/jobs/guess/preview',
+    GUESS: '/enrich/jobs/guess',
+    COST_BREAKDOWN: (jobId: string) => `/enrich/jobs/${jobId}/cost-breakdown`,
+  },
+  COPY_GENERATOR: {
+    JOBS: '/copy-generator/jobs',
+    JOB: (jobId: string) => `/copy-generator/jobs/${jobId}`,
+    PREVIEW: '/copy-generator/preview',
+    LISTS: '/copy-generator/lists',
+  },
 };
 
 export const QUERY_KEYS = {
@@ -79,4 +129,26 @@ export const QUERY_KEYS = {
   notificationsUnreadCount: () => ['notifications', 'unread-count'] as const,
   enrichmentHistory: () => ['enrichment', 'history'] as const,
   bulkJobStatus: (jobId?: string) => ['enrichment', 'bulk', jobId] as const,
+  scrapeJobs: () => ['scrape', 'jobs'] as const,
+  scrapeJob: (jobId?: string) => ['scrape', 'job', jobId] as const,
+  lists: (folderId?: string | null, search?: string, ownerId?: string) =>
+    ['lists', folderId, search, ownerId] as const,
+  listDetail: (id?: string) => ['lists', 'detail', id] as const,
+  listFavorites: () => ['lists', 'favorites'] as const,
+  listRecents: () => ['lists', 'recents'] as const,
+  // Leads
+  allLeads: () => ['leads', 'all'] as const,
+  leadFilterOptions: () => ['leads', 'filter-options'] as const,
+  // Enrich
+  enrichJobs: () => ['enrich', 'jobs'] as const,
+  enrichJob: (jobId?: string) => ['enrich', 'job', jobId] as const,
+  enrichVendors: () => ['enrich', 'vendors'] as const,
+  enrichLists: () => ['enrich', 'lists'] as const,
+  enrichApiKeys: () => ['enrich', 'api-keys'] as const,
+  enrichGuessPreview: (listId?: string) => ['enrich', 'guess-preview', listId] as const,
+  enrichCostBreakdown: (jobId?: string) => ['enrich', 'cost-breakdown', jobId] as const,
+  // Copy Generator
+  copyGeneratorJobs: () => ['copy-generator', 'jobs'] as const,
+  copyGeneratorJob: (jobId?: string) => ['copy-generator', 'job', jobId] as const,
+  copyGeneratorLists: () => ['copy-generator', 'lists'] as const,
 };
