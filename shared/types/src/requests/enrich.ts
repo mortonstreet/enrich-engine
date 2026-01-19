@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { EmailValidationAttemptResponse } from './emailGuess';
 
 // ============================================
 // Enums
@@ -113,15 +114,6 @@ export interface ListEnrichmentJobsListResponse {
 export interface ListEnrichmentJobDetailResponse {
   job: ListEnrichmentJobResponse;
   items: ListEnrichmentJobItemResponse[];
-}
-
-export interface EmailValidationAttemptResponse {
-  id: string;
-  email: string;
-  pattern: string;
-  status: 'valid' | 'bounced' | 'catch_all' | 'unknown' | 'error';
-  createdAt: string;
-  processedAt: string | null;
 }
 
 export interface ListEnrichmentJobItemResponse {
