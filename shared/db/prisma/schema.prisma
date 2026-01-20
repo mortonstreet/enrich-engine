@@ -622,3 +622,4 @@ model EmailValidationAttempt {
   @@index([status])
   @@map("email_validation_attempt")
 }
+

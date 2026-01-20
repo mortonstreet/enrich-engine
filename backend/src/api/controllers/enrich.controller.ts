@@ -2,6 +2,7 @@ import { AuthRequestHandler } from "@/types/handlers";
 import * as enrichService from "@/services/enrich.service";
 import * as emailGuessService from "@/services/emailGuess.service";
 import * as organizationService from "@/services/organization.service";
+import logger from "@/lib/logger";
 import {
   CreateListEnrichmentJobRequest,
   GetListEnrichmentJobsQuery,
@@ -25,10 +26,16 @@ export const createEnrichmentJob: AuthRequestHandler<
   const organizationId = req.session.activeOrganizationId;
   const userId = req.user.id;
 
+  logger.info(
+    { listId, enrichmentType, organizationId, userId },
+    "Received create enrichment job request"
+  );
+
   if (!organizationId) {
+    logger.warn({ userId }, "Create enrichment job failed: No active organization");
     return res
       .status(StatusCodes.BAD_REQUEST)
-      .json({ error: "No active organization" });
+      .json({ error: "No active organization. Please select an organization first." });
   }
 
   try {
@@ -38,9 +45,14 @@ export const createEnrichmentJob: AuthRequestHandler<
       listId,
       enrichmentType
     );
+    logger.info({ jobId: job.id, listId, enrichmentType }, "Enrichment job created successfully");
     res.status(StatusCodes.CREATED).json(job);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    logger.warn(
+      { error: message, listId, enrichmentType, organizationId },
+      "Create enrichment job failed"
+    );
     res.status(StatusCodes.BAD_REQUEST).json({ error: message });
   }
 };

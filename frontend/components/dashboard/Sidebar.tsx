@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, LogOut, ChevronDown, Plus, Shield, Palette, Search, FolderOpen, Users, Sparkles } from "lucide-react";
+import { Settings, LogOut, ChevronDown, Plus, Shield, Palette, Search, FolderOpen, Users, Wand2 } from "lucide-react";
 import { useOrganizations, useSetActiveOrganizationMutation } from "@/hooks/api/useOrganization";
 import { toast } from "sonner";
 import { useActiveOrganization } from "@/lib/auth-client";
@@ -14,7 +14,7 @@ const nav = [
   { href: "/dashboard",  label: "Scrape",  icon: Search },
   { href: "/dashboard/lists",  label: "Lists",  icon: FolderOpen },
   { href: "/dashboard/leads",  label: "Leads",  icon: Users },
-  { href: "/dashboard/enrich",  label: "Enrich",  icon: Sparkles },
+  { href: "/dashboard/enrich",  label: "Enrich",  icon: Wand2 },
 ];
 
 const bottom = [

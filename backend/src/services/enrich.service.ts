@@ -4,6 +4,7 @@ import * as listRepository from "@/repositories/list.repository";
 import * as leadRepository from "@/repositories/lead.repository";
 import { encrypt, decrypt, maskApiKey } from "@/lib/encryption";
 import { addListEnrichmentJob } from "@/queues/listEnrich.queue";
+import logger from "@/lib/logger";
 import {
   ListEnrichmentJobResponse,
   ListEnrichmentJobsListResponse,
@@ -134,12 +135,28 @@ export async function getDecryptedApiKey(
   organizationId: string,
   vendor: string
 ): Promise<string | null> {
-  const key = await vendorApiKeyRepository.findByOrgAndVendor(
-    organizationId,
-    vendor
-  );
-  if (!key) return null;
-  return decrypt(key.encryptedKey);
+  try {
+    const key = await vendorApiKeyRepository.findByOrgAndVendor(
+      organizationId,
+      vendor
+    );
+    if (!key) {
+      logger.info({ organizationId, vendor }, "No API key found for vendor");
+      return null;
+    }
+    const decrypted = decrypt(key.encryptedKey);
+    logger.info(
+      { organizationId, vendor, keyLength: decrypted.length },
+      "Successfully decrypted API key"
+    );
+    return decrypted;
+  } catch (error) {
+    logger.error(
+      { error, organizationId, vendor },
+      "Failed to decrypt API key - encryption key may have changed"
+    );
+    return null;
+  }
 }
 
 // ============================================
@@ -188,22 +205,49 @@ export async function createEnrichmentJob(
   listId: string,
   enrichmentType: EnrichmentType
 ): Promise<ListEnrichmentJobResponse> {
+  logger.info(
+    { organizationId, userId, listId, enrichmentType },
+    "Creating enrichment job"
+  );
+
   // Verify list exists and belongs to org
   const list = await listRepository.findListById(listId);
-  if (!list || list.organizationId !== organizationId) {
-    throw new Error("List not found");
+  if (!list) {
+    logger.warn({ listId }, "Enrichment job failed: List not found");
+    throw new Error(`List not found (ID: ${listId})`);
+  }
+  if (list.organizationId !== organizationId) {
+    logger.warn(
+      { listId, listOrgId: list.organizationId, requestOrgId: organizationId },
+      "Enrichment job failed: List belongs to different organization"
+    );
+    throw new Error("List not found or access denied");
   }
 
   // Check for API key
+  logger.info({ organizationId }, "Checking for Prospeo API key");
   const apiKey = await getDecryptedApiKey(organizationId, "prospeo");
   if (!apiKey) {
-    throw new Error("Prospeo API key not configured");
+    logger.warn(
+      { organizationId },
+      "Enrichment job failed: Prospeo API key not configured"
+    );
+    throw new Error(
+      "Prospeo API key not configured. Please add your Prospeo API key in Settings > API Keys."
+    );
   }
 
   // Get leads with LinkedIn URLs
   const allLeads = await leadRepository.findByListIdWithLinkedin(listId);
+  logger.info(
+    { listId, leadsWithLinkedin: allLeads.length },
+    "Found leads with LinkedIn URLs"
+  );
+
   if (allLeads.length === 0) {
-    throw new Error("No leads with LinkedIn URLs found in this list");
+    throw new Error(
+      "No leads with LinkedIn URLs found in this list. Make sure your leads have LinkedIn profile URLs."
+    );
   }
 
   // Get leads that have already been enriched for this type to avoid duplicates
@@ -215,9 +259,19 @@ export async function createEnrichmentJob(
   // Filter out already enriched leads
   const leads = allLeads.filter((lead) => !enrichedLeadIds.has(lead.id));
 
+  logger.info(
+    {
+      listId,
+      totalLeadsWithLinkedin: allLeads.length,
+      alreadyEnriched: enrichedLeadIds.size,
+      toEnrich: leads.length,
+    },
+    "Filtered leads for enrichment"
+  );
+
   if (leads.length === 0) {
     throw new Error(
-      `All leads in this list have already been enriched for ${enrichmentType}. No new leads to enrich.`
+      `All ${allLeads.length} leads in this list have already been enriched for ${enrichmentType}. No new leads to enrich.`
     );
   }
 
