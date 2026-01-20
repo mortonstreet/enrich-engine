@@ -306,6 +306,7 @@ export type FilterLeadsOptions = {
   company?: string;
   role?: string;
   hasEmail?: boolean;
+  hasPhone?: boolean;
   hasLinkedinUrl?: boolean;
   createdAfter?: Date;
   createdBefore?: Date;
@@ -352,6 +353,20 @@ export const findAllByOrganizationWithFilters = async (
     dataQuery = dataQuery.where((eb) => eb.or([
       eb("lead.email", "is", null),
       eb("lead.email", "=", "")
+    ]));
+  }
+
+  if (options.hasPhone === true) {
+    countQuery = countQuery.where("lead.phone", "is not", null).where("lead.phone", "!=", "");
+    dataQuery = dataQuery.where("lead.phone", "is not", null).where("lead.phone", "!=", "");
+  } else if (options.hasPhone === false) {
+    countQuery = countQuery.where((eb) => eb.or([
+      eb("lead.phone", "is", null),
+      eb("lead.phone", "=", "")
+    ]));
+    dataQuery = dataQuery.where((eb) => eb.or([
+      eb("lead.phone", "is", null),
+      eb("lead.phone", "=", "")
     ]));
   }
 

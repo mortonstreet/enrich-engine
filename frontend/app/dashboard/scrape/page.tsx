@@ -7,21 +7,37 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/base-input";
 import { ScrapeDropzone } from "@/components/scrape/ScrapeDropzone";
 import { ScrapeJobsTable } from "@/components/scrape/ScrapeJobsTable";
+import { WorkflowTypeSelector } from "@/components/scrape/WorkflowTypeSelector";
+import { CompanyCsvFlow } from "@/components/scrape/CompanyCsvFlow";
+import { DomainCsvFlow } from "@/components/scrape/DomainCsvFlow";
+import { SingleUrlFlow } from "@/components/scrape/SingleUrlFlow";
+import { LoadingOverlay } from "@/components/scrape/LoadingOverlay";
 import { useCreateScrapeJob, useScrapeJobs, useScrapeJob, useSyncScrapeJob, downloadScrapeResults } from "@/hooks/api/useScrape";
 import { toast } from "sonner";
-import { Upload, Loader2, Download, CheckCircle, Clock, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
-import { ScrapeJobStatus } from "@shared/types/src";
+import { Upload, Loader2, Download, CheckCircle, Clock, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, ListPlus, Pause, Play, Filter } from "lucide-react";
+import { ScrapeJobStatus, ScrapeWorkflowType, RoleConfig } from "@shared/types/src";
 
 const ITEMS_PER_PAGE = 25;
-
 const JOBS_PER_PAGE = 10;
 
+type ViewMode = "select_workflow" | "workflow_flow" | "job_detail";
+type ResultFilter = "all" | "found" | "not_found";
+
 export default function ScrapePage() {
+  // Workflow state
+  const [viewMode, setViewMode] = useState<ViewMode>("select_workflow");
+  const [selectedWorkflow, setSelectedWorkflow] = useState<ScrapeWorkflowType | null>(null);
+
+  // Legacy flow state (for NAME_CSV)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [jobName, setJobName] = useState("");
+
+  // Active job state
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resultsPage, setResultsPage] = useState(1);
+  const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [jobsPage, setJobsPage] = useState(1);
+  const [showOverlay, setShowOverlay] = useState(false);
 
   const createJobMutation = useCreateScrapeJob();
   const syncJobMutation = useSyncScrapeJob();
@@ -33,11 +49,24 @@ export default function ScrapePage() {
     polling: activeJobId !== null,
   });
 
-  const handleFileSelect = (file: File) => {
-    setSelectedFile(file);
+  // Handle workflow selection
+  const handleWorkflowSelect = (type: ScrapeWorkflowType) => {
+    setSelectedWorkflow(type);
+    if (type === ScrapeWorkflowType.NAME_CSV) {
+      // Legacy flow - keep existing upload behavior
+      setViewMode("select_workflow");
+    } else {
+      setViewMode("workflow_flow");
+    }
   };
 
-  const handleUpload = async () => {
+  // Handle legacy file upload (NAME_CSV)
+  const handleFileSelect = (file: File) => {
+    setSelectedFile(file);
+    setSelectedWorkflow(ScrapeWorkflowType.NAME_CSV);
+  };
+
+  const handleLegacyUpload = async () => {
     if (!selectedFile) {
       toast.error("Please select a file");
       return;
@@ -49,18 +78,49 @@ export default function ScrapePage() {
         name: jobName || undefined,
       });
       setActiveJobId(result.job.id);
+      setViewMode("job_detail");
       setResultsPage(1);
       setSelectedFile(null);
       setJobName("");
+      setShowOverlay(true);
       toast.success("Scrape job created! Processing started.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create scrape job");
     }
   };
 
-  const handleDownload = () => {
+  // Handle new workflow submission (Company, Domain, URL)
+  const handleWorkflowSubmit = async (data: {
+    file?: File;
+    sourceUrl?: string;
+    name?: string;
+    workflowType: ScrapeWorkflowType;
+    roleConfigs?: RoleConfig[];
+  }) => {
+    try {
+      // For now, fall back to existing createScrapeJob
+      // TODO: Use new workflow-specific endpoints when backend is ready
+      if (data.file) {
+        const result = await createJobMutation.mutateAsync({
+          file: data.file,
+          name: data.name,
+        });
+        setActiveJobId(result.job.id);
+        setViewMode("job_detail");
+        setResultsPage(1);
+        setShowOverlay(true);
+        toast.success("Scrape job created! Processing started.");
+      } else {
+        toast.error("File upload required for this workflow");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create scrape job");
+    }
+  };
+
+  const handleDownload = (foundOnly?: boolean) => {
     if (activeJobId) {
-      downloadScrapeResults(activeJobId);
+      downloadScrapeResults(activeJobId, foundOnly);
     }
   };
 
@@ -75,60 +135,121 @@ export default function ScrapePage() {
     }
   };
 
+  const handleBackToWorkflows = () => {
+    setViewMode("select_workflow");
+    setSelectedWorkflow(null);
+  };
+
+  const handleJobSelect = (id: string) => {
+    setActiveJobId(id);
+    setViewMode("job_detail");
+    setResultsPage(1);
+    setResultFilter("all");
+  };
+
+  const handleBackToJobs = () => {
+    setActiveJobId(null);
+    setViewMode("select_workflow");
+    setShowOverlay(false);
+  };
+
   const isJobComplete = activeJob?.status === ScrapeJobStatus.COMPLETED || activeJob?.status === ScrapeJobStatus.FAILED;
   const isProcessing = activeJob?.status === ScrapeJobStatus.PROCESSING || activeJob?.status === ScrapeJobStatus.PENDING;
+  const isPaused = activeJob?.status === ScrapeJobStatus.PAUSED;
+
+  // Auto-hide overlay when job completes
+  if (showOverlay && isJobComplete) {
+    setShowOverlay(false);
+  }
+
+  // Filter items based on result filter
+  const filteredItems = activeJob?.items?.filter((item) => {
+    if (resultFilter === "all") return true;
+    if (resultFilter === "found") return item.status === "completed" && item.linkedinUrl;
+    if (resultFilter === "not_found") return item.status === "no_result" || item.status === "failed" || (item.status === "completed" && !item.linkedinUrl);
+    return true;
+  }) || [];
 
   return (
     <Page
       title="Scrape"
-      subtitle="Find LinkedIn profiles from names or companies"
+      subtitle="Find LinkedIn profiles from names, companies, or domains"
     >
+      {/* Loading Overlay */}
+      <LoadingOverlay
+        isVisible={showOverlay && isProcessing}
+        totalItems={activeJob?.totalRows || 0}
+        processedItems={activeJob?.processedRows || 0}
+        foundCount={activeJob?.successCount || 0}
+        jobName={activeJob?.name}
+      />
+
       <div className="space-y-6">
-        {!activeJobId && (
+        {/* Workflow Selection View */}
+        {viewMode === "select_workflow" && !activeJobId && (
           <>
             <Card>
               <CardHeader className="border-b">
-                <CardTitle>Upload CSV</CardTitle>
+                <CardTitle>Start a New Scrape</CardTitle>
                 <CardDescription>
-                  Upload a CSV with names or company/role combinations to find LinkedIn profiles
+                  Choose how you want to find LinkedIn profiles
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                <ScrapeDropzone
-                  onFileSelect={handleFileSelect}
-                  disabled={createJobMutation.isPending}
+              <CardContent className="pt-6">
+                <WorkflowTypeSelector
+                  selectedType={selectedWorkflow}
+                  onSelect={handleWorkflowSelect}
                 />
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Job Name (optional)</label>
-                  <Input
-                    value={jobName}
-                    onChange={(e) => setJobName(e.target.value)}
-                    placeholder="e.g., Q1 Tech Leads"
-                    disabled={createJobMutation.isPending}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || createJobMutation.isPending}
-                  className="w-full"
-                >
-                  {createJobMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating Job...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Start Scraping
-                    </>
-                  )}
-                </Button>
               </CardContent>
             </Card>
 
+            {/* Legacy CSV Upload for Name-based */}
+            {selectedWorkflow === ScrapeWorkflowType.NAME_CSV && (
+              <Card>
+                <CardHeader className="border-b">
+                  <CardTitle>Upload Name CSV</CardTitle>
+                  <CardDescription>
+                    Upload a CSV with first_name, last_name, and optionally company columns
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  <ScrapeDropzone
+                    onFileSelect={handleFileSelect}
+                    disabled={createJobMutation.isPending}
+                  />
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Job Name (optional)</label>
+                    <Input
+                      value={jobName}
+                      onChange={(e) => setJobName(e.target.value)}
+                      placeholder="e.g., Q1 Tech Leads"
+                      disabled={createJobMutation.isPending}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleLegacyUpload}
+                    disabled={!selectedFile || createJobMutation.isPending}
+                    className="w-full"
+                  >
+                    {createJobMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating Job...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Start Scraping
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Jobs */}
             <Card>
               <CardHeader className="border-b">
                 <div className="flex items-center justify-between">
@@ -149,7 +270,7 @@ export default function ScrapePage() {
                   <>
                     <ScrapeJobsTable
                       jobs={jobsData?.data || []}
-                      onJobSelect={(id) => setActiveJobId(id)}
+                      onJobSelect={handleJobSelect}
                     />
                     {jobsData?.pagination && jobsData.pagination.totalPages > 1 && (
                       <div className="flex items-center justify-between mt-4 pt-4 border-t">
@@ -185,11 +306,39 @@ export default function ScrapePage() {
           </>
         )}
 
-        {activeJobId && activeJob && (
+        {/* Workflow Flow View */}
+        {viewMode === "workflow_flow" && selectedWorkflow && (
+          <>
+            {selectedWorkflow === ScrapeWorkflowType.COMPANY_CSV && (
+              <CompanyCsvFlow
+                onBack={handleBackToWorkflows}
+                onSubmit={handleWorkflowSubmit}
+                isSubmitting={createJobMutation.isPending}
+              />
+            )}
+            {selectedWorkflow === ScrapeWorkflowType.DOMAIN_CSV && (
+              <DomainCsvFlow
+                onBack={handleBackToWorkflows}
+                onSubmit={handleWorkflowSubmit}
+                isSubmitting={createJobMutation.isPending}
+              />
+            )}
+            {selectedWorkflow === ScrapeWorkflowType.SINGLE_URL && (
+              <SingleUrlFlow
+                onBack={handleBackToWorkflows}
+                onSubmit={handleWorkflowSubmit}
+                isSubmitting={createJobMutation.isPending}
+              />
+            )}
+          </>
+        )}
+
+        {/* Job Detail View */}
+        {viewMode === "job_detail" && activeJobId && activeJob && (
           <>
             <Button
               variant="ghost"
-              onClick={() => setActiveJobId(null)}
+              onClick={handleBackToJobs}
               className="mb-2"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -222,6 +371,12 @@ export default function ScrapePage() {
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         <Clock className="w-3.5 h-3.5 animate-pulse" />
                         Processing
+                      </span>
+                    )}
+                    {isPaused && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        <Pause className="w-3.5 h-3.5" />
+                        Paused
                       </span>
                     )}
                   </div>
@@ -259,12 +414,20 @@ export default function ScrapePage() {
                     </div>
                   )}
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {isJobComplete && (
-                      <Button onClick={handleDownload}>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Results
-                      </Button>
+                      <>
+                        <Button onClick={() => handleDownload(false)}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download All
+                        </Button>
+                        {activeJob.successCount > 0 && (
+                          <Button variant="outline" onClick={() => handleDownload(true)}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Download Found Only
+                          </Button>
+                        )}
+                      </>
                     )}
                     {activeJob.successCount > 0 && !activeJob.resultListId && (
                       <Button
@@ -293,11 +456,11 @@ export default function ScrapePage() {
             </Card>
 
             {activeJob.items && activeJob.items.length > 0 && (() => {
-              const totalItems = activeJob.items.length;
+              const totalItems = filteredItems.length;
               const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
               const startIndex = (resultsPage - 1) * ITEMS_PER_PAGE;
               const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
-              const paginatedItems = activeJob.items.slice(startIndex, endIndex);
+              const paginatedItems = filteredItems.slice(startIndex, endIndex);
 
               return (
                 <Card>
@@ -306,34 +469,64 @@ export default function ScrapePage() {
                       <div>
                         <CardTitle>Results Preview</CardTitle>
                         <CardDescription>
-                          Showing {startIndex + 1} to {endIndex} of {totalItems} results
+                          Showing {totalItems > 0 ? startIndex + 1 : 0} to {endIndex} of {totalItems} results
                         </CardDescription>
                       </div>
-                      {totalPages > 1 && (
-                        <div className="flex items-center gap-4">
-                          <span className="text-sm text-muted-foreground">
-                            Page {resultsPage} of {totalPages}
-                          </span>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setResultsPage((p) => Math.max(1, p - 1))}
-                              disabled={resultsPage <= 1}
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setResultsPage((p) => Math.min(totalPages, p + 1))}
-                              disabled={resultsPage >= totalPages}
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </div>
+                      <div className="flex items-center gap-4">
+                        {/* Result Filter Tabs */}
+                        <div className="flex items-center border rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => { setResultFilter("all"); setResultsPage(1); }}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                              resultFilter === "all" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                            }`}
+                          >
+                            All ({activeJob.items.length})
+                          </button>
+                          <button
+                            onClick={() => { setResultFilter("found"); setResultsPage(1); }}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors border-l ${
+                              resultFilter === "found" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"
+                            }`}
+                          >
+                            Found ({activeJob.successCount})
+                          </button>
+                          <button
+                            onClick={() => { setResultFilter("not_found"); setResultsPage(1); }}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors border-l ${
+                              resultFilter === "not_found" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"
+                            }`}
+                          >
+                            Not Found ({activeJob.errorCount})
+                          </button>
                         </div>
-                      )}
+
+                        {totalPages > 1 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              Page {resultsPage} of {totalPages}
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setResultsPage((p) => Math.max(1, p - 1))}
+                                disabled={resultsPage <= 1}
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setResultsPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={resultsPage >= totalPages}
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-4">
@@ -392,7 +585,6 @@ export default function ScrapePage() {
                         </tbody>
                       </table>
                     </div>
-
                   </CardContent>
                 </Card>
               );

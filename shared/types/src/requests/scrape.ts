@@ -25,6 +25,23 @@ export enum ScrapeItemStatus {
 export enum ScrapeInputType {
   NAME = 'name',
   ROLE = 'role',
+  COMPANY = 'company',
+  DOMAIN = 'domain',
+  URL = 'url',
+}
+
+export enum ScrapeWorkflowType {
+  COMPANY_CSV = 'company_csv',
+  NAME_CSV = 'name_csv',
+  DOMAIN_CSV = 'domain_csv',
+  SINGLE_URL = 'single_url',
+  PDF_UPLOAD = 'pdf_upload',
+}
+
+// Role configuration for workflow-based scraping
+export interface RoleConfig {
+  roleName: string;
+  count: number;
 }
 
 // ============================================
@@ -137,3 +154,50 @@ export type SyncScrapeJobResponse = {
   leadsCount: number;
   message: string;
 };
+
+// ============================================
+// New Workflow Request Schemas
+// ============================================
+
+// Role config schema for validation
+const RoleConfigSchema = z.object({
+  roleName: z.string().min(1, 'Role name is required'),
+  count: z.number().int().positive().max(10, 'Maximum 10 people per role'),
+});
+
+// Company CSV workflow - upload companies, configure roles
+export const CreateCompanyScrapeJobRequestSchema = z.object({
+  name: z.string().max(255).optional(),
+  roleConfigs: z.array(RoleConfigSchema).min(1, 'At least one role is required').max(10),
+});
+
+export type CreateCompanyScrapeJobRequest = z.infer<typeof CreateCompanyScrapeJobRequestSchema>;
+
+// Domain CSV workflow - upload domains, configure roles
+export const CreateDomainScrapeJobRequestSchema = z.object({
+  name: z.string().max(255).optional(),
+  roleConfigs: z.array(RoleConfigSchema).min(1, 'At least one role is required').max(10),
+});
+
+export type CreateDomainScrapeJobRequest = z.infer<typeof CreateDomainScrapeJobRequestSchema>;
+
+// Single URL workflow - scrape from a single company page
+export const CreateSingleUrlScrapeJobRequestSchema = z.object({
+  name: z.string().max(255).optional(),
+  sourceUrl: z.string().url('Valid URL is required'),
+  roleConfigs: z.array(RoleConfigSchema).min(1, 'At least one role is required').max(10),
+});
+
+export type CreateSingleUrlScrapeJobRequest = z.infer<typeof CreateSingleUrlScrapeJobRequestSchema>;
+
+// CSV Row types for different workflows
+export interface CompanyCSVRow {
+  company: string;
+  [key: string]: string | undefined;
+}
+
+export interface DomainCSVRow {
+  domain?: string;
+  website?: string;
+  [key: string]: string | undefined;
+}

@@ -293,13 +293,17 @@ model ScrapeJob {
   organizationId String
   userId         String
   name           String
-  status         String    @default("pending") // pending, processing, completed, failed
+  status         String    @default("pending") // pending, processing, completed, failed, paused
   totalRows      Int
   processedRows  Int       @default(0)
   successCount   Int       @default(0)
   errorCount     Int       @default(0)
-  inputType      String    // name, role
+  inputType      String    // name, role, company, domain, url
   resultListId   String?
+  // New workflow fields
+  workflowType   String?   // company_csv, name_csv, domain_csv, single_url, pdf_upload
+  roleConfigs    Json?     // Array of {roleName: string, count: number}
+  sourceUrl      String?   // For single URL workflow
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   completedAt    DateTime?

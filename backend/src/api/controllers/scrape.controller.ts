@@ -143,6 +143,7 @@ export const downloadScrapeResults: AuthRequestHandler<GetScrapeJobRequest> = as
 ) => {
   const { jobId } = req.validated;
   const organizationId = req.session.activeOrganizationId;
+  const foundOnly = req.query.foundOnly === "true";
 
   if (!organizationId) {
     return res.status(400).json({ error: "No active organization" });
@@ -150,7 +151,8 @@ export const downloadScrapeResults: AuthRequestHandler<GetScrapeJobRequest> = as
 
   const { fileName, rows } = await scrapeService.getDownloadData(
     jobId,
-    organizationId
+    organizationId,
+    foundOnly
   );
 
   if (rows.length === 0) {
@@ -165,8 +167,11 @@ export const downloadScrapeResults: AuthRequestHandler<GetScrapeJobRequest> = as
     ),
   ].join("\n");
 
+  // Update filename to indicate found only
+  const finalFileName = foundOnly ? fileName.replace(".csv", "_found.csv") : fileName;
+
   res.setHeader("Content-Type", "text/csv");
-  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${finalFileName}"`);
   res.send(csvContent);
 };
 

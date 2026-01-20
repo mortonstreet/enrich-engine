@@ -121,6 +121,64 @@ export function extractLinkedInResult(results: SerperSearchResult[]): ExtractedL
   return null;
 }
 
+/**
+ * Extracts ALL LinkedIn profile URLs from search results.
+ * Useful for multi-person same-role scraping where we need to find multiple people.
+ */
+export function extractAllLinkedInResults(results: SerperSearchResult[]): ExtractedLinkedInResult[] {
+  const linkedinResults: ExtractedLinkedInResult[] = [];
+  for (const result of results) {
+    if (LINKEDIN_PATTERN.test(result.link)) {
+      const { firstName, lastName } = parseNameFromTitle(result.title);
+      linkedinResults.push({
+        linkedinUrl: result.link,
+        firstName,
+        lastName,
+        title: result.title,
+      });
+    }
+  }
+  return linkedinResults;
+}
+
+/**
+ * Extracts the Nth LinkedIn profile URL from search results.
+ * Used to get different people for the same role at a company.
+ * @param results - Search results from Serper
+ * @param index - 0-based index of which result to return
+ * @param excludeUrls - URLs to skip (already assigned to other items)
+ */
+export function extractLinkedInResultByIndex(
+  results: SerperSearchResult[],
+  index: number,
+  excludeUrls: Set<string> = new Set()
+): ExtractedLinkedInResult | null {
+  let matchCount = 0;
+  for (const result of results) {
+    if (LINKEDIN_PATTERN.test(result.link)) {
+      // Normalize URL for comparison
+      const normalizedUrl = result.link.toLowerCase().trim().replace(/\/$/, "");
+
+      // Skip if this URL is in the exclude list
+      if (excludeUrls.has(normalizedUrl)) {
+        continue;
+      }
+
+      if (matchCount === index) {
+        const { firstName, lastName } = parseNameFromTitle(result.title);
+        return {
+          linkedinUrl: result.link,
+          firstName,
+          lastName,
+          title: result.title,
+        };
+      }
+      matchCount++;
+    }
+  }
+  return null;
+}
+
 export function buildNameQuery(firstName: string, lastName: string, company?: string): string {
   let query = `site:linkedin.com/in/ "${firstName} ${lastName}"`;
   if (company) {

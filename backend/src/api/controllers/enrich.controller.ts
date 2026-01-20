@@ -1,6 +1,7 @@
 import { AuthRequestHandler } from "@/types/handlers";
 import * as enrichService from "@/services/enrich.service";
 import * as emailGuessService from "@/services/emailGuess.service";
+import * as organizationService from "@/services/organization.service";
 import {
   CreateListEnrichmentJobRequest,
   GetListEnrichmentJobsQuery,
@@ -9,6 +10,7 @@ import {
   DeleteVendorApiKeyRequest,
   CreateEmailGuessJobRequest,
   PreviewEmailGuessRequest,
+  OrganizationRole,
 } from "@shared/types/src";
 import { StatusCodes } from "http-status-codes";
 
@@ -171,6 +173,7 @@ export const getApiKeys: AuthRequestHandler<Record<string, never>> = async (
   res
 ) => {
   const organizationId = req.session.activeOrganizationId;
+  const userId = req.user.id;
 
   if (!organizationId) {
     return res
@@ -178,7 +181,18 @@ export const getApiKeys: AuthRequestHandler<Record<string, never>> = async (
       .json({ error: "No active organization" });
   }
 
-  // TODO: Add admin check here
+  // Check if user is admin or owner
+  const hasAccess = await organizationService.doesMemberHaveRole(
+    userId,
+    organizationId,
+    [OrganizationRole.ADMIN, OrganizationRole.OWNER]
+  );
+  if (!hasAccess) {
+    return res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ error: "Only admins can view API keys" });
+  }
+
   const result = await enrichService.getApiKeys(organizationId);
   res.json(result);
 };
@@ -197,7 +211,18 @@ export const saveApiKey: AuthRequestHandler<SaveVendorApiKeyRequest> = async (
       .json({ error: "No active organization" });
   }
 
-  // TODO: Add admin check here
+  // Check if user is admin or owner
+  const hasAccess = await organizationService.doesMemberHaveRole(
+    userId,
+    organizationId,
+    [OrganizationRole.ADMIN, OrganizationRole.OWNER]
+  );
+  if (!hasAccess) {
+    return res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ error: "Only admins can manage API keys" });
+  }
+
   await enrichService.saveApiKey(organizationId, userId, vendor, apiKey);
   res.json({ success: true });
 };
@@ -208,6 +233,7 @@ export const deleteApiKey: AuthRequestHandler<DeleteVendorApiKeyRequest> = async
 ) => {
   const { vendor } = req.validated;
   const organizationId = req.session.activeOrganizationId;
+  const userId = req.user.id;
 
   if (!organizationId) {
     return res
@@ -215,7 +241,18 @@ export const deleteApiKey: AuthRequestHandler<DeleteVendorApiKeyRequest> = async
       .json({ error: "No active organization" });
   }
 
-  // TODO: Add admin check here
+  // Check if user is admin or owner
+  const hasAccess = await organizationService.doesMemberHaveRole(
+    userId,
+    organizationId,
+    [OrganizationRole.ADMIN, OrganizationRole.OWNER]
+  );
+  if (!hasAccess) {
+    return res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ error: "Only admins can delete API keys" });
+  }
+
   await enrichService.deleteApiKey(organizationId, vendor);
   res.json({ success: true });
 };

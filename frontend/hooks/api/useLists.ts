@@ -317,10 +317,11 @@ export function useAllLeads(options?: {
   company?: string;
   role?: string;
   hasEmail?: boolean;
+  hasPhone?: boolean;
   hasLinkedinUrl?: boolean;
 }) {
   return useQuery<AllLeadsResponse>({
-    queryKey: [...QUERY_KEYS.allLeads(), options?.page, options?.limit, options?.search, options?.listId, options?.company, options?.role, options?.hasEmail, options?.hasLinkedinUrl],
+    queryKey: [...QUERY_KEYS.allLeads(), options?.page, options?.limit, options?.search, options?.listId, options?.company, options?.role, options?.hasEmail, options?.hasPhone, options?.hasLinkedinUrl],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (options?.page) params.set('page', options.page.toString());
@@ -330,6 +331,7 @@ export function useAllLeads(options?: {
       if (options?.company) params.set('company', options.company);
       if (options?.role) params.set('role', options.role);
       if (options?.hasEmail !== undefined) params.set('hasEmail', options.hasEmail.toString());
+      if (options?.hasPhone !== undefined) params.set('hasPhone', options.hasPhone.toString());
       if (options?.hasLinkedinUrl !== undefined) params.set('hasLinkedinUrl', options.hasLinkedinUrl.toString());
       const url = params.toString()
         ? `${ENDPOINTS.LISTS.ALL_LEADS}?${params.toString()}`

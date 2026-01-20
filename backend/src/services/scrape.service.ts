@@ -116,27 +116,32 @@ export const createScrapeJob = async (
     throw new Error("Failed to create scrape job");
   }
 
-  // Expand rows with multiple role columns into separate items, with deduplication
+  // Expand rows with multiple role columns into separate items
+  // For role-based scraping, track counts per company+role to support multiple people per role
   const items: Array<{
     jobId: string;
     rowIndex: number;
     inputData: Record<string, string>;
     status: ScrapeItemStatus;
   }> = [];
-  const seenKeys = new Set<string>();
+
+  // Track counts for multi-person same-role support
+  // Key: company|role, Value: count of instances
+  const roleInstanceCounts = new Map<string, number>();
 
   if (inputType === ScrapeInputType.ROLE) {
     rows.forEach((row) => {
       const roles = getRolesFromRow(row);
       roles.forEach((role) => {
         const inputData = { ...row, role } as Record<string, string>;
-        const dedupeKey = getDedupeKey(inputData, inputType);
+        const companyRoleKey = getDedupeKey(inputData, inputType);
 
-        // Skip if we've already seen this company+role combination
-        if (seenKeys.has(dedupeKey)) {
-          return;
-        }
-        seenKeys.add(dedupeKey);
+        // Get current instance count for this company+role
+        const instanceIndex = roleInstanceCounts.get(companyRoleKey) ?? 0;
+        roleInstanceCounts.set(companyRoleKey, instanceIndex + 1);
+
+        // Store instance index in inputData for multi-person scraping
+        inputData.roleInstanceIndex = instanceIndex.toString();
 
         items.push({
           jobId: job.id,
@@ -147,6 +152,8 @@ export const createScrapeJob = async (
       });
     });
   } else {
+    // For name-based searches, deduplicate as before
+    const seenKeys = new Set<string>();
     rows.forEach((row) => {
       const inputData = row as Record<string, string>;
       const dedupeKey = getDedupeKey(inputData, inputType);
@@ -324,6 +331,24 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     const items = await scrapeJobRepository.findPendingItems(jobId);
     let processedSinceLastSync = 0;
 
+    // Track used LinkedIn URLs per company+role for multi-person scraping
+    // Key: company|role, Value: Set of used LinkedIn URLs (normalized)
+    const usedUrlsByCompanyRole = new Map<string, Set<string>>();
+
+    // Also track already-completed items' URLs from previous runs
+    const { items: allItems } = await scrapeJobRepository.findByIdWithItems(jobId);
+    for (const completedItem of allItems) {
+      if (completedItem.status === ScrapeItemStatus.COMPLETED && completedItem.linkedinUrl) {
+        const itemData = completedItem.inputData as Record<string, string>;
+        const companyRoleKey = getDedupeKey(itemData, job.inputType as ScrapeInputType);
+        if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
+          usedUrlsByCompanyRole.set(companyRoleKey, new Set());
+        }
+        const normalizedUrl = completedItem.linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
+        usedUrlsByCompanyRole.get(companyRoleKey)!.add(normalizedUrl);
+      }
+    }
+
     for (const item of items) {
       // Check if job has been paused before processing each item
       const currentJob = await scrapeJobRepository.findById(jobId);
@@ -339,6 +364,10 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
 
         const inputData = item.inputData as Record<string, string>;
         let query: string;
+        let linkedinUrl: string | null = null;
+        let firstName: string | null = null;
+        let lastName: string | null = null;
+        let rawResponse: serperClient.SerperResponse | null = null;
 
         if (job.inputType === ScrapeInputType.NAME) {
           query = serperClient.buildNameQuery(
@@ -346,14 +375,70 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
             inputData.last_name || "",
             inputData.company
           );
+          const result = await serperClient.searchLinkedIn(query);
+          linkedinUrl = result.linkedinUrl;
+          firstName = result.firstName;
+          lastName = result.lastName;
+          rawResponse = result.rawResponse;
         } else {
+          // Role-based search with multi-person support
           query = serperClient.buildRoleQuery(
             inputData.company || "",
             inputData.role || ""
           );
-        }
 
-        const { linkedinUrl, firstName, lastName, rawResponse } = await serperClient.searchLinkedIn(query);
+          // Get the instance index for this company+role
+          const roleInstanceIndex = parseInt(inputData.roleInstanceIndex || "0", 10);
+          const companyRoleKey = getDedupeKey(inputData, job.inputType as ScrapeInputType);
+
+          // Get or create the set of used URLs for this company+role
+          if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
+            usedUrlsByCompanyRole.set(companyRoleKey, new Set());
+          }
+          const usedUrls = usedUrlsByCompanyRole.get(companyRoleKey)!;
+
+          // Search and get the appropriate result
+          const searchResponse = await fetch("https://google.serper.dev/search", {
+            method: "POST",
+            headers: {
+              "X-API-KEY": (await import("@/config")).config.serper.apiKey,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ q: query, num: 10 }),
+          });
+
+          if (!searchResponse.ok) {
+            throw new Error(`Serper API error: ${searchResponse.status}`);
+          }
+
+          rawResponse = await searchResponse.json() as serperClient.SerperResponse;
+
+          // Extract the Nth result that hasn't been used yet
+          const extractedResult = serperClient.extractLinkedInResultByIndex(
+            rawResponse.organic || [],
+            roleInstanceIndex,
+            usedUrls
+          );
+
+          if (extractedResult) {
+            linkedinUrl = extractedResult.linkedinUrl;
+            firstName = extractedResult.firstName;
+            lastName = extractedResult.lastName;
+
+            // Add to used URLs
+            const normalizedUrl = linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
+            usedUrls.add(normalizedUrl);
+          }
+
+          logger.info({
+            itemId: item.id,
+            company: inputData.company,
+            role: inputData.role,
+            roleInstanceIndex,
+            usedUrlsCount: usedUrls.size,
+            foundUrl: linkedinUrl,
+          }, "Processed role-based search with multi-person support");
+        }
 
         // Store the extracted name from search results (useful for role-based searches)
         const updatedInputData = { ...inputData };
@@ -701,6 +786,7 @@ export const renameScrapeJob = async (
 export const getDownloadData = async (
   jobId: string,
   organizationId: string,
+  foundOnly: boolean = false,
 ): Promise<{ fileName: string; rows: Record<string, string>[] }> => {
   const { job, items } = await scrapeJobRepository.findByIdWithItems(jobId);
 
@@ -712,7 +798,12 @@ export const getDownloadData = async (
     throw new Error("Unauthorized access to scrape job");
   }
 
-  const rows = items.map((item) => {
+  // Filter items if foundOnly is true
+  const filteredItems = foundOnly
+    ? items.filter((item) => item.status === ScrapeItemStatus.COMPLETED && item.linkedinUrl)
+    : items;
+
+  const rows = filteredItems.map((item) => {
     const inputData = item.inputData as Record<string, string>;
     return {
       ...inputData,

@@ -112,9 +112,12 @@ export function useDeleteScrapeJob() {
 
 /**
  * Helper function to download scrape results as CSV
+ * @param jobId - The job ID to download results for
+ * @param foundOnly - If true, only download results with LinkedIn URLs found
  */
-export function downloadScrapeResults(jobId: string) {
-  window.open(`${env.API_URL}${ENDPOINTS.SCRAPE.DOWNLOAD(jobId)}`, '_blank');
+export function downloadScrapeResults(jobId: string, foundOnly?: boolean) {
+  const url = `${env.API_URL}${ENDPOINTS.SCRAPE.DOWNLOAD(jobId)}${foundOnly ? '?foundOnly=true' : ''}`;
+  window.open(url, '_blank');
 }
 
 /**

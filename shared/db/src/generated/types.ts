@@ -275,6 +275,9 @@ export type ScrapeJob = {
     errorCount: Generated<number>;
     inputType: string;
     resultListId: string | null;
+    workflowType: string | null;
+    roleConfigs: unknown | null;
+    sourceUrl: string | null;
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
     completedAt: Timestamp | null;

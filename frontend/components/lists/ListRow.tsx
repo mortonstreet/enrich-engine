@@ -162,7 +162,17 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
                   className="font-medium text-sm px-1 py-0.5 border rounded bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               ) : (
-                <span className="font-medium text-sm truncate">{list.name}</span>
+                <span
+                  className="font-medium text-sm truncate cursor-pointer hover:text-primary inline-flex items-center gap-1 group/name"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setIsRenaming(true);
+                  }}
+                  title="Double-click to rename"
+                >
+                  {list.name}
+                  <Pencil className="w-3 h-3 opacity-0 group-hover/name:opacity-50 transition-opacity" />
+                </span>
               )}
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${status.className}`}
