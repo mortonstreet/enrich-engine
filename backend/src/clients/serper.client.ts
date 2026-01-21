@@ -220,3 +220,123 @@ export async function searchLinkedIn(query: string): Promise<{
     rawResponse: response,
   };
 }
+
+// ============================================
+// Company Domain Search Functions
+// ============================================
+
+/**
+ * List of domains to skip when searching for company websites.
+ * These are social media, job sites, and aggregator sites.
+ */
+const SKIP_DOMAINS = [
+  "linkedin.com",
+  "facebook.com",
+  "twitter.com",
+  "x.com",
+  "instagram.com",
+  "youtube.com",
+  "wikipedia.org",
+  "crunchbase.com",
+  "glassdoor.com",
+  "indeed.com",
+  "bloomberg.com",
+  "forbes.com",
+  "reuters.com",
+  "zoominfo.com",
+  "dnb.com",
+  "apollo.io",
+  "pitchbook.com",
+  "owler.com",
+  "g2.com",
+  "capterra.com",
+  "trustpilot.com",
+  "yelp.com",
+  "bbb.org",
+];
+
+/**
+ * Builds a search query to find a company's official website domain.
+ * Uses the site:www. prefix to favor official company websites.
+ *
+ * @param companyName - The company name to search for
+ * @returns Search query string
+ */
+export function buildDomainSearchQuery(companyName: string): string {
+  // Use site:www. to find official company websites
+  return `site:www. "${companyName}"`;
+}
+
+/**
+ * Extracts a clean domain from a URL.
+ *
+ * @param url - The URL to extract the domain from
+ * @returns The domain (without www. prefix) or null if invalid
+ */
+export function extractDomainFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    // Remove www. prefix if present
+    return parsed.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks if a domain should be skipped (social media, job sites, etc.)
+ *
+ * @param domain - The domain to check
+ * @returns true if the domain should be skipped
+ */
+function shouldSkipDomain(domain: string): boolean {
+  const lowerDomain = domain.toLowerCase();
+  return SKIP_DOMAINS.some((skip) => lowerDomain.includes(skip));
+}
+
+/**
+ * Searches for a company's official website domain using Serper.
+ * Returns the first non-social-media domain found in search results.
+ *
+ * @param companyName - The company name to search for
+ * @returns The company domain or null if not found
+ */
+export async function searchCompanyWebsite(companyName: string): Promise<string | null> {
+  if (!companyName || !companyName.trim()) {
+    return null;
+  }
+
+  const query = buildDomainSearchQuery(companyName);
+  logger.info({ query, companyName }, "Searching for company domain via Serper");
+
+  try {
+    const response = await serperFetch(query);
+
+    if (!response.organic || response.organic.length === 0) {
+      logger.info({ companyName }, "No search results for company domain");
+      return null;
+    }
+
+    // Find the first valid domain from search results
+    for (const result of response.organic) {
+      const domain = extractDomainFromUrl(result.link);
+
+      if (domain && !shouldSkipDomain(domain)) {
+        logger.info(
+          { companyName, domain, resultUrl: result.link },
+          "Found company domain via Serper"
+        );
+        return domain;
+      }
+    }
+
+    logger.info({ companyName }, "No valid company domain found in search results");
+    return null;
+  } catch (error) {
+    logger.error(
+      { error, companyName },
+      "Failed to search for company domain"
+    );
+    return null;
+  }
+}

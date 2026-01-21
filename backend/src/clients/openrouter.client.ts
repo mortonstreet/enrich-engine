@@ -1,7 +1,7 @@
 import logger from "@/lib/logger";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_MODEL = "google/gemini-2.0-flash";
+const DEFAULT_MODEL = "google/gemini-2.0-flash-001";
 
 export interface OpenRouterMessage {
   role: "system" | "user" | "assistant";

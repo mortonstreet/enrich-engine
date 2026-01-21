@@ -54,25 +54,67 @@ export async function createCopyGeneratorJob(
   listId: string,
   userPrompt: string
 ): Promise<CopyGeneratorJobResponse> {
+  logger.info(
+    { organizationId, userId, listId, userPromptLength: userPrompt.length },
+    "Creating copy generator job - START"
+  );
+
   // Verify list exists and belongs to org
   const list = await listRepository.findListById(listId);
   if (!list || list.organizationId !== organizationId) {
+    logger.warn({ listId, organizationId }, "Copy generator job failed: List not found");
     throw new Error("List not found");
   }
+  logger.info({ listId, listName: list.name }, "Copy generator job: List verified");
 
   // Check for OpenRouter API key
+  logger.info({ organizationId }, "Copy generator job: Checking for OpenRouter API key");
   const apiKeyRecord = await vendorApiKeyRepository.findByOrgAndVendor(
     organizationId,
     "openrouter"
   );
   if (!apiKeyRecord) {
+    logger.warn(
+      { organizationId },
+      "Copy generator job failed: OpenRouter API key not configured"
+    );
     throw new Error("OpenRouter API key not configured");
+  }
+  logger.info(
+    {
+      organizationId,
+      apiKeyId: apiKeyRecord.id,
+      keyCreatedAt: apiKeyRecord.createdAt,
+      keyUpdatedAt: apiKeyRecord.updatedAt,
+    },
+    "Copy generator job: OpenRouter API key found"
+  );
+
+  // Verify the API key can be decrypted
+  try {
+    const decryptedKey = decrypt(apiKeyRecord.encryptedKey);
+    logger.info(
+      {
+        organizationId,
+        keyLength: decryptedKey.length,
+        keyPrefix: decryptedKey.substring(0, 10) + "...",
+      },
+      "Copy generator job: OpenRouter API key decrypted successfully"
+    );
+  } catch (decryptError) {
+    logger.error(
+      { error: decryptError, organizationId },
+      "Copy generator job failed: Could not decrypt OpenRouter API key"
+    );
+    throw new Error("OpenRouter API key could not be decrypted. Please re-enter your API key.");
   }
 
   // Get leads that need first lines
   const leads = await copyGeneratorJobRepository.findLeadsWithoutFirstLine(
     listId
   );
+  logger.info({ listId, leadsCount: leads.length }, "Copy generator job: Found leads needing first lines");
+
   if (leads.length === 0) {
     throw new Error("All leads in this list already have first lines generated");
   }
@@ -87,8 +129,10 @@ export async function createCopyGeneratorJob(
   });
 
   if (!job) {
+    logger.error({ organizationId, listId }, "Copy generator job failed: Could not create job record");
     throw new Error("Failed to create copy generator job");
   }
+  logger.info({ jobId: job.id, totalRows: job.totalRows }, "Copy generator job: Job record created");
 
   // Create job items for each lead
   const items = leads.map((lead) => ({
@@ -97,10 +141,13 @@ export async function createCopyGeneratorJob(
   }));
 
   await copyGeneratorJobRepository.createJobItems(items);
+  logger.info({ jobId: job.id, itemsCount: items.length }, "Copy generator job: Job items created");
 
   // Queue the job for processing
   try {
+    logger.info({ jobId: job.id }, "Copy generator job: Queueing job for processing");
     await addCopyGeneratorJob(job.id);
+    logger.info({ jobId: job.id }, "Copy generator job: Successfully queued for processing");
   } catch (queueError) {
     logger.error({ queueError, jobId: job.id }, "Failed to queue copy generator job");
     throw new Error("Failed to queue job for processing");

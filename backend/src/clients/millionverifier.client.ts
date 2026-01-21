@@ -1,6 +1,6 @@
 import logger from "@/lib/logger";
 
-const MILLIONVERIFIER_BASE_URL = "https://api.millionverifier.com/api/v3";
+const MILLIONVERIFIER_BASE_URL = "https://api.millionverifier.com/api/v3/";
 
 /**
  * MillionVerifier Result Codes:
@@ -149,7 +149,7 @@ export function mapMillionVerifierStatus(
  * Gets the current credit balance.
  */
 export async function getCredits(apiKey: string): Promise<number> {
-  const url = `${MILLIONVERIFIER_BASE_URL}/credits?api=${apiKey}`;
+  const url = `${MILLIONVERIFIER_BASE_URL}credits?api=${apiKey}`;
 
   const response = await fetch(url, {
     method: "GET",

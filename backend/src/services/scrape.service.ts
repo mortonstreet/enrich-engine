@@ -2,6 +2,7 @@ import * as scrapeJobRepository from "@/repositories/scrapeJob.repository";
 import * as listRepository from "@/repositories/list.repository";
 import * as leadRepository from "@/repositories/lead.repository";
 import * as serperClient from "@/clients/serper.client";
+import { isValidLinkedInProfileUrl } from "@/utils/linkedinValidator";
 import {
   ScrapeJobStatus,
   ScrapeItemStatus,
@@ -449,9 +450,27 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
           updatedInputData.last_name = lastName;
         }
 
+        // Search for company domain if we have a company name
+        let companyDomain: string | null = null;
+        if (inputData.company && linkedinUrl) {
+          try {
+            companyDomain = await serperClient.searchCompanyWebsite(inputData.company);
+            logger.info(
+              { itemId: item.id, company: inputData.company, companyDomain },
+              "Company domain search result"
+            );
+          } catch (domainError) {
+            logger.warn(
+              { error: domainError, company: inputData.company },
+              "Failed to search for company domain, continuing without it"
+            );
+          }
+        }
+
         await scrapeJobRepository.updateItem(item.id, {
           status: linkedinUrl ? ScrapeItemStatus.COMPLETED : ScrapeItemStatus.NO_RESULT,
           linkedinUrl,
+          companyDomain,
           inputData: updatedInputData,
           serperResponse: rawResponse,
           processedAt: new Date(),
@@ -558,13 +577,31 @@ export const createOrUpdateResultList = async (jobId: string): Promise<void> => 
       throw new Error("Scrape job not found");
     }
 
+    // Filter to completed items with valid LinkedIn profile URLs
+    // This excludes company pages (/company/), school pages (/school/), etc.
     const successfulItems = items.filter(
-      (item) => item.status === ScrapeItemStatus.COMPLETED && item.linkedinUrl
+      (item) =>
+        item.status === ScrapeItemStatus.COMPLETED &&
+        item.linkedinUrl &&
+        isValidLinkedInProfileUrl(item.linkedinUrl)
     );
 
+    // Count items that were completed but had invalid URLs
+    const completedButInvalidCount = items.filter(
+      (item) =>
+        item.status === ScrapeItemStatus.COMPLETED &&
+        item.linkedinUrl &&
+        !isValidLinkedInProfileUrl(item.linkedinUrl)
+    ).length;
+
     logger.info(
-      { jobId, totalItems: items.length, successfulItems: successfulItems.length },
-      "Creating/updating result list"
+      {
+        jobId,
+        totalItems: items.length,
+        successfulItems: successfulItems.length,
+        completedButInvalid: completedButInvalidCount,
+      },
+      "Creating/updating result list (filtered by valid LinkedIn profile URLs)"
     );
 
     if (successfulItems.length === 0) {
@@ -651,6 +688,7 @@ export const createOrUpdateResultList = async (jobId: string): Promise<void> => 
       company?: string;
       role?: string;
       linkedinUrl: string;
+      companyDomain?: string;
     }> = [];
 
     let skippedDuplicates = 0;
@@ -673,6 +711,7 @@ export const createOrUpdateResultList = async (jobId: string): Promise<void> => 
         company: inputData.company,
         role: inputData.role,
         linkedinUrl: normalizedUrl, // Store normalized URL for consistency
+        companyDomain: item.companyDomain ?? undefined, // Include scraped company domain
       });
     }
 

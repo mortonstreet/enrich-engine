@@ -213,10 +213,25 @@ export class CopyGeneratorProcessor {
   private worker: Worker<CopyGeneratorEvent>;
 
   constructor() {
+    logger.info(
+      { queueName: COPY_GENERATOR_QUEUE_NAME, redisUrl: config.redis.url?.substring(0, 30) + "..." },
+      "CopyGeneratorProcessor: Initializing worker"
+    );
+
     this.worker = new Worker<CopyGeneratorEvent>(
       COPY_GENERATOR_QUEUE_NAME,
       async (job) => {
         setRequestContext("jobId", job.id);
+        logger.info(
+          {
+            bullmqJobId: job.id,
+            bullmqJobName: job.name,
+            copyGeneratorJobId: job.data.jobId,
+            eventType: job.data.type,
+          },
+          "CopyGeneratorProcessor: Received job from queue"
+        );
+
         try {
           await Sentry.withScope(async (scope) => {
             scope.setContext("job", {
@@ -227,12 +242,16 @@ export class CopyGeneratorProcessor {
 
             logger.info(
               { jobId: job.id, copyGeneratorJobId: job.data.jobId },
-              "Processing copy generator job"
+              "CopyGeneratorProcessor: Starting job processing"
             );
 
             switch (job.data.type) {
               case CopyGeneratorEventType.PROCESS_COPY_JOB:
                 await processCopyGeneratorJob(job.data.jobId);
+                logger.info(
+                  { jobId: job.id, copyGeneratorJobId: job.data.jobId },
+                  "CopyGeneratorProcessor: Job processing completed successfully"
+                );
                 break;
               default:
                 throw new Error(
@@ -242,8 +261,8 @@ export class CopyGeneratorProcessor {
           });
         } catch (error) {
           logger.error(
-            { error, jobId: job.id },
-            "Failed to process copy generator job"
+            { error, jobId: job.id, copyGeneratorJobId: job.data.jobId },
+            "CopyGeneratorProcessor: Failed to process copy generator job"
           );
           Sentry.captureException(error, {
             extra: {
@@ -266,9 +285,33 @@ export class CopyGeneratorProcessor {
         },
       }
     );
+
+    // Listen to worker events for debugging
+    this.worker.on("ready", () => {
+      logger.info("CopyGeneratorProcessor: Worker is ready and listening for jobs");
+    });
+
+    this.worker.on("error", (error) => {
+      logger.error({ error }, "CopyGeneratorProcessor: Worker encountered an error");
+    });
+
+    this.worker.on("failed", (job, error) => {
+      logger.error(
+        { jobId: job?.id, error },
+        "CopyGeneratorProcessor: Job failed"
+      );
+    });
+
+    this.worker.on("completed", (job) => {
+      logger.info(
+        { jobId: job?.id },
+        "CopyGeneratorProcessor: Job completed"
+      );
+    });
   }
 
   async close() {
+    logger.info("CopyGeneratorProcessor: Closing worker");
     await this.worker.close();
   }
 }

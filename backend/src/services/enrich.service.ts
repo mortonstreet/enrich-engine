@@ -4,6 +4,7 @@ import * as listRepository from "@/repositories/list.repository";
 import * as leadRepository from "@/repositories/lead.repository";
 import { encrypt, decrypt, maskApiKey } from "@/lib/encryption";
 import { addListEnrichmentJob } from "@/queues/listEnrich.queue";
+import { isValidLinkedInProfileUrl, filterLeadsByLinkedInUrl } from "@/utils/linkedinValidator";
 import logger from "@/lib/logger";
 import {
   ListEnrichmentJobResponse,
@@ -270,6 +271,30 @@ export async function createEnrichmentJob(
     );
   }
 
+  // Filter to only valid LinkedIn profile URLs (exclude company pages, etc.)
+  const { validLeads: leadsWithValidUrls, invalidLeads } = filterLeadsByLinkedInUrl(allLeads);
+
+  if (invalidLeads.length > 0) {
+    logger.info(
+      {
+        listId,
+        invalidCount: invalidLeads.length,
+        sampleInvalid: invalidLeads.slice(0, 3).map(l => ({
+          id: l.id,
+          url: l.linkedinUrl,
+          reason: l.invalidReason,
+        })),
+      },
+      "Filtered out leads with invalid LinkedIn URLs"
+    );
+  }
+
+  if (leadsWithValidUrls.length === 0) {
+    throw new Error(
+      `No leads with valid LinkedIn profile URLs found. ${invalidLeads.length} leads were excluded (company pages, malformed URLs, etc.).`
+    );
+  }
+
   // Get leads that have already been enriched for this type to avoid duplicates
   const enrichedLeadIds = await listEnrichmentJobRepository.findEnrichedLeadIdsByList(
     listId,
@@ -277,12 +302,14 @@ export async function createEnrichmentJob(
   );
 
   // Filter out already enriched leads
-  const leads = allLeads.filter((lead) => !enrichedLeadIds.has(lead.id));
+  const leads = leadsWithValidUrls.filter((lead) => !enrichedLeadIds.has(lead.id));
 
   logger.info(
     {
       listId,
       totalLeadsWithLinkedin: allLeads.length,
+      validLinkedinUrls: leadsWithValidUrls.length,
+      invalidLinkedinUrls: invalidLeads.length,
       alreadyEnriched: enrichedLeadIds.size,
       toEnrich: leads.length,
     },
@@ -291,7 +318,7 @@ export async function createEnrichmentJob(
 
   if (leads.length === 0) {
     throw new Error(
-      `All ${allLeads.length} leads in this list have already been enriched for ${enrichmentType}. No new leads to enrich.`
+      `All ${leadsWithValidUrls.length} leads with valid LinkedIn URLs in this list have already been enriched for ${enrichmentType}. No new leads to enrich.`
     );
   }
 

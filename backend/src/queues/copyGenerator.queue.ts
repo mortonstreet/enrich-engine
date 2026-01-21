@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { config } from "@/config";
+import logger from "@/lib/logger";
 
 export enum CopyGeneratorEventType {
   PROCESS_COPY_JOB = "processCopyJob",
@@ -31,7 +32,12 @@ export const addCopyGeneratorJob = async (
   attempts: number = 3,
   backoff: number = 5000
 ) => {
-  await copyGeneratorQueue.add(
+  logger.info(
+    { jobId, queueName: COPY_GENERATOR_QUEUE_NAME, attempts, backoff },
+    "copyGeneratorQueue: Adding job to queue"
+  );
+
+  const bullmqJob = await copyGeneratorQueue.add(
     CopyGeneratorEventType.PROCESS_COPY_JOB,
     {
       type: CopyGeneratorEventType.PROCESS_COPY_JOB,
@@ -45,4 +51,11 @@ export const addCopyGeneratorJob = async (
       },
     }
   );
+
+  logger.info(
+    { jobId, bullmqJobId: bullmqJob.id, bullmqJobName: bullmqJob.name },
+    "copyGeneratorQueue: Job added to queue successfully"
+  );
+
+  return bullmqJob;
 };

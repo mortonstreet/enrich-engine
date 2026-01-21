@@ -10,27 +10,72 @@ const BATCH_SIZE = 50;
 const RATE_LIMIT_DELAY_MS = 200;
 
 export async function processCopyGeneratorJob(jobId: string): Promise<void> {
-  logger.info({ jobId }, "Starting copy generator job processing");
+  logger.info({ jobId }, "Copy generator worker: Starting job processing");
 
   // Get job details
   const job = await copyGeneratorJobRepository.findJobById(jobId);
   if (!job) {
+    logger.error({ jobId }, "Copy generator worker: Job not found");
     throw new Error(`Job not found: ${jobId}`);
   }
+  logger.info(
+    {
+      jobId,
+      organizationId: job.organizationId,
+      listId: job.listId,
+      totalRows: job.totalRows,
+      userPromptLength: job.userPrompt?.length,
+    },
+    "Copy generator worker: Job found"
+  );
 
   // Get OpenRouter API key
+  logger.info(
+    { jobId, organizationId: job.organizationId },
+    "Copy generator worker: Looking up OpenRouter API key"
+  );
   const apiKeyRecord = await vendorApiKeyRepository.findByOrgAndVendor(
     job.organizationId,
     "openrouter"
   );
   if (!apiKeyRecord) {
+    logger.error(
+      { jobId, organizationId: job.organizationId },
+      "Copy generator worker: OpenRouter API key not configured"
+    );
     throw new Error("OpenRouter API key not configured");
   }
+  logger.info(
+    {
+      jobId,
+      apiKeyId: apiKeyRecord.id,
+      keyCreatedAt: apiKeyRecord.createdAt,
+    },
+    "Copy generator worker: OpenRouter API key record found"
+  );
 
-  const apiKey = decrypt(apiKeyRecord.encryptedKey);
+  let apiKey: string;
+  try {
+    apiKey = decrypt(apiKeyRecord.encryptedKey);
+    logger.info(
+      {
+        jobId,
+        keyLength: apiKey.length,
+        keyPrefix: apiKey.substring(0, 10) + "...",
+      },
+      "Copy generator worker: API key decrypted successfully"
+    );
+  } catch (decryptError) {
+    logger.error(
+      { error: decryptError, jobId },
+      "Copy generator worker: Failed to decrypt API key"
+    );
+    throw new Error("Failed to decrypt OpenRouter API key");
+  }
 
   // Update job status to processing
   await copyGeneratorJobRepository.updateJob(jobId, { status: "processing" });
+  logger.info({ jobId }, "Copy generator worker: Job status set to processing");
 
   // Notify via Pusher
   await sendJobProgressUpdate(job.organizationId, jobId, {
@@ -43,14 +88,22 @@ export async function processCopyGeneratorJob(jobId: string): Promise<void> {
   let hasMore = true;
   let processedCount = 0;
 
+  logger.info({ jobId }, "Copy generator worker: Starting item processing loop");
+
   while (hasMore) {
     const items = await copyGeneratorJobRepository.findPendingItems(
       jobId,
       BATCH_SIZE
     );
 
+    logger.info(
+      { jobId, pendingItemsCount: items.length },
+      "Copy generator worker: Fetched pending items"
+    );
+
     if (items.length === 0) {
       hasMore = false;
+      logger.info({ jobId }, "Copy generator worker: No more pending items, exiting loop");
       continue;
     }
 
@@ -60,6 +113,18 @@ export async function processCopyGeneratorJob(jobId: string): Promise<void> {
         await copyGeneratorJobRepository.updateItem(item.id, {
           status: "processing",
         });
+
+        logger.info(
+          {
+            jobId,
+            itemId: item.id,
+            leadId: item.leadId,
+            firstName: item.firstName,
+            lastName: item.lastName,
+            company: item.company,
+          },
+          "Copy generator worker: Processing item, calling OpenRouter API"
+        );
 
         // Generate first line
         const result = await generateFirstLine(
@@ -72,6 +137,16 @@ export async function processCopyGeneratorJob(jobId: string): Promise<void> {
             userPrompt: job.userPrompt,
           },
           apiKey
+        );
+
+        logger.info(
+          {
+            jobId,
+            itemId: item.id,
+            tokensUsed: result.tokensUsed,
+            lineLength: result.generatedLine?.length,
+          },
+          "Copy generator worker: OpenRouter API call successful"
         );
 
         // Update item

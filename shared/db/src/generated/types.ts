@@ -288,6 +288,7 @@ export type ScrapeJobItem = {
     rowIndex: number;
     inputData: unknown;
     linkedinUrl: string | null;
+    companyDomain: string | null;
     status: Generated<string>;
     serperResponse: unknown | null;
     errorMessage: string | null;

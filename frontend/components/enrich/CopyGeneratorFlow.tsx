@@ -8,6 +8,7 @@ import {
   useCreateCopyGeneratorJob,
   usePreviewCopyGenerator,
 } from "@/hooks/api/useCopyGenerator";
+import { useApiKeys } from "@/hooks/api/useEnrich";
 import {
   Loader2,
   Sparkles,
@@ -15,8 +16,10 @@ import {
   AlertCircle,
   RefreshCw,
   Lightbulb,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface CopyGeneratorFlowProps {
   listId: string;
@@ -43,11 +46,18 @@ export function CopyGeneratorFlow({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: listsData, isLoading: isLoadingLists } = useCopyGeneratorLists();
+  const { data: apiKeysData, isLoading: isLoadingApiKeys } = useApiKeys();
   const createJobMutation = useCreateCopyGeneratorJob();
   const previewMutation = usePreviewCopyGenerator();
 
   const listStats = listsData?.lists?.find((l) => l.id === listId);
   const leadsNeedingFirstLine = listStats?.leadsWithoutFirstLine ?? 0;
+
+  // Check if OpenRouter API key is configured
+  const openRouterKey = apiKeysData?.apiKeys?.find(
+    (k) => k.vendor === "openrouter"
+  );
+  const hasOpenRouterKey = openRouterKey?.isConfigured ?? false;
 
   const handlePreview = async () => {
     if (!userPrompt.trim()) {
@@ -83,11 +93,61 @@ export function CopyGeneratorFlow({
     }
   };
 
-  if (isLoadingLists) {
+  if (isLoadingLists || isLoadingApiKeys) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         <span className="ml-2 text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
+
+  // Show warning if OpenRouter API key is not configured
+  if (!hasOpenRouterKey) {
+    return (
+      <div className="space-y-6">
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <KeyRound className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-medium text-amber-800">
+                OpenRouter API Key Required
+              </h3>
+              <p className="text-sm text-amber-700 mt-1">
+                To generate personalized first lines, you need to configure your
+                OpenRouter API key. OpenRouter provides access to AI models like
+                Gemini 2.0 Flash at low cost.
+              </p>
+              <div className="mt-3 flex gap-3">
+                <Link href="/dashboard/settings/api-keys">
+                  <Button variant="outline" size="sm">
+                    <KeyRound className="w-4 h-4 mr-2" />
+                    Configure API Key
+                  </Button>
+                </Link>
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="ghost" size="sm">
+                    Get an API Key
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-muted/50 rounded-lg">
+          <h4 className="font-medium mb-2">How it works</h4>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>1. Sign up for OpenRouter (free account)</li>
+            <li>2. Generate an API key</li>
+            <li>3. Add the key in Settings &gt; API Keys</li>
+            <li>4. Return here to generate first lines</li>
+          </ul>
+        </div>
       </div>
     );
   }
@@ -180,7 +240,7 @@ export function CopyGeneratorFlow({
           <span className="font-medium">AI-Powered Generation</span>
         </div>
         <p className="text-sm text-blue-700 mt-1">
-          Uses Gemini 2.5 Flash via OpenRouter. Estimated cost: ~$0.001 per lead
+          Uses Gemini 2.0 Flash via OpenRouter. Estimated cost: ~$0.001 per lead
           (${((leadsNeedingFirstLine * 0.001) || 0).toFixed(2)} total).
         </p>
       </div>

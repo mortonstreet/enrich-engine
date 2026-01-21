@@ -14,6 +14,8 @@
 - [x] Role-based search (company, role)
 - [x] Serper.dev API integration
 - [x] LinkedIn URL extraction and validation
+- [x] LinkedIn URL filtering (excludes company/school pages)
+- [x] Company domain scraping (stored for email guessing)
 - [x] Background queue processing (BullMQ)
 - [x] Real-time progress updates
 - [x] Auto-create list with results
@@ -29,7 +31,8 @@
 - `backend/src/api/controllers/scrape.controller.ts`
 - `backend/src/services/scrape.service.ts`
 - `backend/src/repositories/scrapeJob.repository.ts`
-- `backend/src/clients/serper.client.ts`
+- `backend/src/clients/serper.client.ts` - LinkedIn search + domain search
+- `backend/src/utils/linkedinValidator.ts` - URL validation utilities
 - `backend/src/queues/scrape.queue.ts`
 - `backend/src/workers/scrape.worker.ts`
 
@@ -121,6 +124,41 @@ When processing Serper results:
 3. If not LinkedIn (e.g., Instagram, Twitter), check 2nd result
 4. If 2nd not LinkedIn, check 3rd result
 5. If no LinkedIn URL found, mark as `no_result`
+
+**URL Filtering for Enrichment:**
+
+Only valid LinkedIn profile URLs (`/in/`) are included when creating result lists.
+The following URL types are excluded:
+- Company pages: `linkedin.com/company/...`
+- School pages: `linkedin.com/school/...`
+- Showcase pages: `linkedin.com/showcase/...`
+- Malformed or empty URLs
+
+### 4. Company Domain Scraping
+
+After finding a LinkedIn URL, the system also searches for the company's domain.
+
+**Query Format:**
+```
+site:www. "{company name}"
+```
+
+**Process:**
+1. After finding LinkedIn URL, search for company domain using Serper
+2. Extract domain from first non-social-media result
+3. Store domain in `companyDomain` field on scrape job item
+4. Transfer to lead record when creating result list
+
+**Excluded Domains:**
+- linkedin.com, facebook.com, twitter.com, x.com
+- instagram.com, youtube.com, wikipedia.org
+- crunchbase.com, glassdoor.com, indeed.com
+- bloomberg.com, forbes.com, reuters.com
+- zoominfo.com, pitchbook.com
+
+**Output:**
+- The `companyDomain` is stored on both `ScrapeJobItem` and `Lead` records
+- Used by the email guesser to generate email patterns without additional API calls
 
 ### 4. Auto-save to Lists
 
@@ -312,6 +350,7 @@ model ScrapeJobItem {
   rowIndex       Int
   inputData      Json      // Original CSV row data
   linkedinUrl    String?
+  companyDomain  String?   // Company domain scraped during job
   status         String    @default("pending") // pending, processing, completed, failed, no_result
   serperResponse Json?     // Raw API response for debugging
   errorMessage   String?

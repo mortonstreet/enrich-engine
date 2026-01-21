@@ -322,6 +322,7 @@ model ScrapeJobItem {
   rowIndex       Int
   inputData      Json
   linkedinUrl    String?
+  companyDomain  String?   // Company domain scraped during job
   status         String    @default("pending") // pending, processing, completed, failed, no_result
   serperResponse Json?
   errorMessage   String?
