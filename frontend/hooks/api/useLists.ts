@@ -19,6 +19,7 @@ import {
   CreateListFromFiltersRequest,
   CreateListFromFiltersResponse,
   LeadFilterOptionsResponse,
+  UploadListCsvResponse,
 } from '@shared/types/src';
 
 // ============================================
@@ -280,12 +281,12 @@ export function useUpdateLead() {
 export function useUploadCSV() {
   const queryClient = useQueryClient();
 
-  return useMutation<ListResponse, Error, { listId: string; file: File }>({
+  return useMutation<UploadListCsvResponse, Error, { listId: string; file: File }>({
     mutationFn: async ({ listId, file }) => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${env.API_URL}${ENDPOINTS.LISTS.DETAIL(listId)}/upload`, {
+      const response = await fetch(`${env.API_URL}${ENDPOINTS.LISTS.UPLOAD(listId)}`, {
         method: 'POST',
         body: formData,
         credentials: 'include',

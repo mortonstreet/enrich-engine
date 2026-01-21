@@ -26,6 +26,8 @@ import {
   CreateListFromLeadsResponse,
   CreateListFromFiltersResponse,
   LeadFilterOptionsResponse,
+  UploadListCsvResponse,
+  ListImportStatus,
 } from "@shared/types/src";
 import { DBUser } from "@shared/db/src/types";
 import logger from "@/lib/logger";
@@ -815,4 +817,252 @@ export const deleteLead = async (
   await listRepository.updateList(lead.listId, { leadCount: newCount });
 
   logger.info({ leadId }, "Lead deleted");
+};
+
+// ============================================
+// CSV Upload Operations
+// ============================================
+
+// Field mappings for CSV headers (case-insensitive)
+const FIELD_MAPPINGS: Record<string, string> = {
+  // First name variations
+  first_name: "firstName",
+  firstname: "firstName",
+  "first name": "firstName",
+  first: "firstName",
+  fname: "firstName",
+  // Last name variations
+  last_name: "lastName",
+  lastname: "lastName",
+  "last name": "lastName",
+  last: "lastName",
+  lname: "lastName",
+  surname: "lastName",
+  // Email variations
+  email: "email",
+  email_address: "email",
+  emailaddress: "email",
+  "email address": "email",
+  // Phone variations
+  phone: "phone",
+  phone_number: "phone",
+  phonenumber: "phone",
+  "phone number": "phone",
+  mobile: "phone",
+  cell: "phone",
+  telephone: "phone",
+  // Company variations
+  company: "company",
+  company_name: "company",
+  companyname: "company",
+  "company name": "company",
+  organization: "company",
+  org: "company",
+  // Role/Title variations
+  role: "role",
+  title: "role",
+  job_title: "role",
+  jobtitle: "role",
+  "job title": "role",
+  position: "role",
+  // LinkedIn variations
+  linkedin_url: "linkedinUrl",
+  linkedinurl: "linkedinUrl",
+  linkedin: "linkedinUrl",
+  "linkedin url": "linkedinUrl",
+  linkedin_profile: "linkedinUrl",
+};
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        current += '"';
+        i++; // Skip next quote
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ",") {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+  }
+  result.push(current.trim());
+
+  return result;
+}
+
+function parseCSV(content: string): { headers: string[]; rows: string[][] } {
+  const lines = content.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length === 0) {
+    return { headers: [], rows: [] };
+  }
+
+  const headers = parseCSVLine(lines[0]);
+  const rows = lines.slice(1).map(parseCSVLine);
+
+  return { headers, rows };
+}
+
+interface ParsedLead {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  role?: string;
+  linkedinUrl?: string;
+  customFields?: Record<string, unknown>;
+}
+
+function mapRowToLead(headers: string[], row: string[]): ParsedLead | null {
+  const lead: ParsedLead = {};
+  const customFields: Record<string, unknown> = {};
+
+  for (let i = 0; i < headers.length && i < row.length; i++) {
+    const header = headers[i].toLowerCase().trim();
+    const value = row[i]?.trim();
+
+    if (!value) continue;
+
+    const mappedField = FIELD_MAPPINGS[header];
+    if (mappedField) {
+      (lead as Record<string, string>)[mappedField] = value;
+    } else {
+      // Store as custom field
+      customFields[headers[i].trim()] = value;
+    }
+  }
+
+  // At least one identifying field is required
+  if (!lead.email && !lead.phone && !lead.linkedinUrl && !lead.firstName && !lead.lastName) {
+    return null;
+  }
+
+  if (Object.keys(customFields).length > 0) {
+    lead.customFields = customFields;
+  }
+
+  return lead;
+}
+
+export const uploadListCsv = async (params: {
+  listId: string;
+  organizationId: string;
+  userId: string;
+  file: Express.Multer.File;
+}): Promise<UploadListCsvResponse> => {
+  // Validate list exists and belongs to org
+  const list = await listRepository.findListById(params.listId);
+  if (!list) {
+    throw new Error("List not found");
+  }
+  if (list.organizationId !== params.organizationId) {
+    throw new Error("Unauthorized");
+  }
+
+  // Update import status to processing
+  await listRepository.updateList(params.listId, {
+    importStatus: ListImportStatus.PROCESSING,
+  });
+
+  try {
+    // Parse CSV content
+    const csvContent = params.file.buffer.toString("utf-8");
+    const { headers, rows } = parseCSV(csvContent);
+
+    if (headers.length === 0) {
+      throw new Error("CSV file is empty or has no headers");
+    }
+
+    // Map rows to leads
+    const leads: ParsedLead[] = [];
+    for (const row of rows) {
+      const lead = mapRowToLead(headers, row);
+      if (lead) {
+        leads.push(lead);
+      }
+    }
+
+    if (leads.length === 0) {
+      throw new Error("No valid leads found in CSV");
+    }
+
+    // Batch create leads
+    const BATCH_SIZE = 100;
+    let totalCreated = 0;
+
+    for (let i = 0; i < leads.length; i += BATCH_SIZE) {
+      const batch = leads.slice(i, i + BATCH_SIZE);
+      const leadsData = batch.map((lead) => ({
+        listId: params.listId,
+        organizationId: params.organizationId,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email,
+        phone: lead.phone,
+        company: lead.company,
+        role: lead.role,
+        linkedinUrl: lead.linkedinUrl,
+        customFields: lead.customFields,
+      }));
+
+      const created = await leadRepository.bulkCreate(leadsData);
+      totalCreated += created.length;
+    }
+
+    // Update list lead count and status
+    const newCount = await leadRepository.countByListId(params.listId);
+    await listRepository.updateList(params.listId, {
+      leadCount: newCount,
+      importStatus: ListImportStatus.COMPLETED,
+    });
+
+    logger.info(
+      {
+        listId: params.listId,
+        userId: params.userId,
+        leadsCreated: totalCreated,
+        fileName: params.file.originalname,
+      },
+      "CSV uploaded successfully",
+    );
+
+    return {
+      success: true,
+      message: `Successfully imported ${totalCreated} leads`,
+      leadsCreated: totalCreated,
+    };
+  } catch (error) {
+    // Update status to failed
+    await listRepository.updateList(params.listId, {
+      importStatus: ListImportStatus.FAILED,
+    });
+
+    logger.error(
+      {
+        listId: params.listId,
+        userId: params.userId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      "CSV upload failed",
+    );
+
+    throw error;
+  }
 };

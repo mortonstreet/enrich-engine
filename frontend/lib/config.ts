@@ -81,6 +81,7 @@ export const ENDPOINTS = {
     BASE: '/lists',
     DETAIL: (id: string) => `/lists/${id}`,
     EXPORT: (id: string) => `/lists/${id}/export`,
+    UPLOAD: (id: string) => `/lists/${id}/upload`,
     OPEN: (id: string) => `/lists/${id}/open`,
     FOLDERS: '/lists/folders',
     FOLDER: (id: string) => `/lists/folders/${id}`,

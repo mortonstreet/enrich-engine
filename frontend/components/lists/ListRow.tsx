@@ -11,12 +11,14 @@ import {
   Download,
   FolderInput,
   Sparkles,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { downloadListCsv } from "@/hooks/api/useLists";
 import { toast } from "sonner";
 import { useState, useRef, useEffect } from "react";
+import { CsvUploader } from "./CsvUploader";
 
 interface ListRowProps {
   list: ListResponse;
@@ -36,6 +38,7 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(list.name);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const toggleFavorite = useToggleFavorite();
@@ -145,9 +148,7 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-          </div>
+          <FileText className="w-5 h-5 text-muted-foreground" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {isRenaming ? (
@@ -230,7 +231,7 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
             <MoreHorizontal className="w-4 h-4" />
           </Button>
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-md border bg-popover shadow-lg z-50">
+            <div className="absolute right-0 top-full mt-1 w-56 rounded-md border bg-popover shadow-lg z-50">
               <div className="py-1">
                 <button
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-primary font-medium"
@@ -275,6 +276,17 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
                   <Download className="w-4 h-4" />
                   Export CSV
                 </button>
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen(false);
+                    setShowUploadDialog(true);
+                  }}
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload CSV
+                </button>
                 <hr className="my-1" />
                 <button
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-muted transition-colors"
@@ -287,6 +299,36 @@ export function ListRow({ list, isSelected, onToggleSelection, onClick }: ListRo
             </div>
           )}
         </div>
+
+        {/* CSV Upload Dialog */}
+        {showUploadDialog && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowUploadDialog(false);
+            }}
+          >
+            <div
+              className="bg-background rounded-lg shadow-xl w-full max-w-md p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Upload CSV to "{list.name}"</h2>
+                <button
+                  onClick={() => setShowUploadDialog(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  &times;
+                </button>
+              </div>
+              <CsvUploader
+                listId={list.id}
+                onUploadComplete={() => setShowUploadDialog(false)}
+              />
+            </div>
+          </div>
+        )}
       </td>
     </tr>
   );

@@ -18,6 +18,7 @@ import {
   DeleteLeadRequest,
   TrackOpenRequest,
   UpdateLeadRequest,
+  UploadListCsvRequest,
 } from "@shared/types/src";
 
 // ============================================
@@ -371,4 +372,40 @@ export const createListFromFilters: AuthRequestHandler<CreateListFromFiltersRequ
   );
 
   res.status(201).json(result);
+};
+
+// ============================================
+// CSV Upload Controller
+// ============================================
+
+export const uploadListCsv: AuthRequestHandler<UploadListCsvRequest> = async (
+  req,
+  res,
+) => {
+  const organizationId = req.session.activeOrganizationId;
+  if (!organizationId) {
+    return res.status(400).json({ error: "No active organization" });
+  }
+
+  const { id: listId } = req.validated;
+  const file = (req as any).file as Express.Multer.File | undefined;
+
+  if (!file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  try {
+    const result = await listService.uploadListCsv({
+      listId,
+      organizationId,
+      userId: req.user.id,
+      file,
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : "Upload failed",
+    });
+  }
 };

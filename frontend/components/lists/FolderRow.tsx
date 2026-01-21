@@ -64,9 +64,7 @@ export function FolderRow({ folder, onClick }: FolderRowProps) {
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-gray-200 flex items-center justify-center">
-            <Folder className="w-4 h-4 text-gray-500" />
-          </div>
+          <Folder className="w-5 h-5 text-muted-foreground" />
           <div className="min-w-0">
             <span className="font-medium text-sm truncate">{folder.name}</span>
           </div>
@@ -111,7 +109,7 @@ export function FolderRow({ folder, onClick }: FolderRowProps) {
             <MoreHorizontal className="w-4 h-4" />
           </Button>
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-md border bg-popover shadow-lg z-50">
+            <div className="absolute right-0 top-full mt-1 w-56 rounded-md border bg-popover shadow-lg z-50">
               <div className="py-1">
                 <button
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"

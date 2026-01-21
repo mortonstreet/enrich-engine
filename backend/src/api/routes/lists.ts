@@ -6,6 +6,7 @@ import {
   getLists,
   getListDetail,
   exportList,
+  uploadListCsv,
   createFolder,
   updateFolder,
   deleteFolder,
@@ -61,6 +62,8 @@ import {
   TrackOpenRequestSchema,
   UpdateLeadRequest,
   UpdateLeadRequestSchema,
+  UploadListCsvRequest,
+  UploadListCsvRequestSchema,
 } from "@shared/types/src";
 import multer from "multer";
 
@@ -275,6 +278,15 @@ router.get(
   withBetterAuth,
   validateAndMerge(GetListRequestSchema),
   authenticatedRoute<GetListRequest>(exportList),
+);
+
+// Upload CSV to list
+router.post(
+  "/:id/upload",
+  withBetterAuth,
+  upload.single("file"),
+  validateAndMerge(UploadListCsvRequestSchema),
+  authenticatedRoute<UploadListCsvRequest>(uploadListCsv),
 );
 
 // Track list open

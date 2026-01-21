@@ -303,6 +303,16 @@ export const DeleteLeadRequestSchema = z.object({
 export type DeleteLeadRequest = z.infer<typeof DeleteLeadRequestSchema>;
 
 // ============================================
+// CSV Upload Request Schemas
+// ============================================
+
+export const UploadListCsvRequestSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export type UploadListCsvRequest = z.infer<typeof UploadListCsvRequestSchema>;
+
+// ============================================
 // All Leads Response Types
 // ============================================
 
@@ -339,6 +349,12 @@ export interface CreateListFromFiltersResponse {
 export interface LeadFilterOptionsResponse {
   companies: string[];
   roles: string[];
+}
+
+export interface UploadListCsvResponse {
+  success: boolean;
+  message: string;
+  leadsCreated: number;
 }
 
 // DB Type exports for backend use
