@@ -32,7 +32,7 @@ export function EnrichDialog({ open, onOpenChange }: EnrichDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { selectedListIds, clearSelection } = useListSelection();
-  const { data: listsData, isLoading: isLoadingLists } = useListsForEnrichment();
+  const { data: listsData, isLoading: isLoadingLists, error: listsError } = useListsForEnrichment();
   const { data: vendorsData } = useVendors();
   const createJobMutation = useCreateEnrichmentJob();
 
@@ -103,6 +103,11 @@ export function EnrichDialog({ open, onOpenChange }: EnrichDialogProps) {
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Loading lists...
+              </div>
+            ) : listsError ? (
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="w-4 h-4" />
+                <p className="text-sm">{listsError.message}</p>
               </div>
             ) : selectedLists.length === 0 ? (
               <p className="text-sm text-muted-foreground">No lists selected</p>

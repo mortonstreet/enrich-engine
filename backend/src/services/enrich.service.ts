@@ -166,29 +166,49 @@ export async function getDecryptedApiKey(
 export async function getListsForEnrichment(
   organizationId: string
 ): Promise<ListsForEnrichmentResponse> {
+  logger.info({ organizationId }, "getListsForEnrichment called");
+
   const lists = await listRepository.findListsByOrganizationId(organizationId);
+
+  logger.info({ organizationId, listCount: lists.length }, "Found lists for organization");
 
   const listsWithLinkedin = await Promise.all(
     lists.map(async (list) => {
-      const hasLinkedin = await leadRepository.hasLinkedinColumn(list.id);
+      try {
+        const hasLinkedin = await leadRepository.hasLinkedinColumn(list.id);
 
-      // Get counts of unenriched leads for each enrichment type
-      const [unenrichedEmailCount, unenrichedPhoneCount] = await Promise.all([
-        listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "email"),
-        listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "phone"),
-      ]);
+        // Get counts of unenriched leads for each enrichment type
+        const [unenrichedEmailCount, unenrichedPhoneCount] = await Promise.all([
+          listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "email"),
+          listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "phone"),
+        ]);
 
-      return {
-        id: list.id,
-        name: list.name,
-        leadCount: list.leadCount,
-        totalLeads: list.leadCount, // Alias for consistency
-        source: list.source as "uploaded" | "scraped",
-        hasLinkedinColumn: hasLinkedin,
-        createdAt: list.createdAt.toISOString(),
-        unenrichedEmailCount,
-        unenrichedPhoneCount,
-      };
+        return {
+          id: list.id,
+          name: list.name,
+          leadCount: list.leadCount ?? 0,
+          totalLeads: list.leadCount ?? 0, // Alias for consistency
+          source: (list.source ?? "uploaded") as "uploaded" | "scraped",
+          hasLinkedinColumn: hasLinkedin,
+          createdAt: list.createdAt ? list.createdAt.toISOString() : new Date().toISOString(),
+          unenrichedEmailCount,
+          unenrichedPhoneCount,
+        };
+      } catch (err) {
+        logger.error({ error: err, listId: list.id }, "Error processing list for enrichment");
+        // Return safe defaults for this list to avoid breaking the entire response
+        return {
+          id: list.id,
+          name: list.name,
+          leadCount: list.leadCount ?? 0,
+          totalLeads: list.leadCount ?? 0,
+          source: (list.source ?? "uploaded") as "uploaded" | "scraped",
+          hasLinkedinColumn: false,
+          createdAt: list.createdAt ? list.createdAt.toISOString() : new Date().toISOString(),
+          unenrichedEmailCount: 0,
+          unenrichedPhoneCount: 0,
+        };
+      }
     })
   );
 

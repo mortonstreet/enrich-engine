@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { sql } from "kysely";
 import { withIdAndTimestamps } from "./utils";
 import { ListEnrichmentJobStatus } from "@shared/types/src";
+import logger from "@/lib/logger";
 
 export type CreateListEnrichmentJobData = {
   organizationId: string;
@@ -329,29 +330,39 @@ export const findEnrichedLeadIdsByList = async (
 
 /**
  * Count unenriched leads with LinkedIn URLs for a given list and enrichment type.
+ * Uses a subquery instead of NOT IN for better performance with large datasets.
  */
 export const countUnenrichedLeadsByList = async (
   listId: string,
   enrichmentType: string
 ): Promise<number> => {
-  // Get all lead IDs that have been enriched for this type
-  const enrichedLeadIds = await findEnrichedLeadIdsByList(listId, enrichmentType);
+  try {
+    // Use NOT EXISTS subquery for better performance with large datasets
+    const result = await db
+      .selectFrom("lead")
+      .where("listId", "=", listId)
+      .where("linkedinUrl", "is not", null)
+      .where("linkedinUrl", "!=", "")
+      .where(({ not, exists, selectFrom }) =>
+        not(
+          exists(
+            selectFrom("list_enrichment_job_item as item")
+              .innerJoin("list_enrichment_job as job", "job.id", "item.jobId")
+              .whereRef("item.leadId", "=", "lead.id")
+              .where("job.listId", "=", listId)
+              .where("job.enrichmentType", "=", enrichmentType)
+              .where("item.status", "=", "completed")
+              .select(sql`1`.as("exists"))
+          )
+        )
+      )
+      .select(sql<number>`count(*)::int`.as("count"))
+      .executeTakeFirst();
 
-  // Count leads with LinkedIn URLs that haven't been enriched
-  let query = db
-    .selectFrom("lead")
-    .where("listId", "=", listId)
-    .where("linkedinUrl", "is not", null)
-    .where("linkedinUrl", "!=", "");
-
-  // If there are enriched leads, exclude them
-  if (enrichedLeadIds.size > 0) {
-    query = query.where("id", "not in", [...enrichedLeadIds]);
+    return result?.count ?? 0;
+  } catch (error) {
+    // Log the error but return 0 to avoid breaking the entire lists endpoint
+    logger.error({ error, listId, enrichmentType }, "Error counting unenriched leads");
+    return 0;
   }
-
-  const result = await query
-    .select(sql<number>`count(*)::int`.as("count"))
-    .executeTakeFirst();
-
-  return result?.count ?? 0;
 };

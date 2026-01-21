@@ -166,14 +166,30 @@ export const getListsForEnrichment: AuthRequestHandler<
 > = async (req, res) => {
   const organizationId = req.session.activeOrganizationId;
 
+  logger.info(
+    { userId: req.user.id, organizationId, hasOrgId: !!organizationId },
+    "getListsForEnrichment controller called"
+  );
+
   if (!organizationId) {
+    logger.warn({ userId: req.user.id }, "getListsForEnrichment: No active organization");
     return res
       .status(StatusCodes.BAD_REQUEST)
       .json({ error: "No active organization" });
   }
 
-  const result = await enrichService.getListsForEnrichment(organizationId);
-  res.json(result);
+  try {
+    const result = await enrichService.getListsForEnrichment(organizationId);
+    logger.info(
+      { organizationId, listCount: result.lists.length },
+      "getListsForEnrichment success"
+    );
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error({ error: message, organizationId }, "getListsForEnrichment failed");
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: message });
+  }
 };
 
 // ============================================

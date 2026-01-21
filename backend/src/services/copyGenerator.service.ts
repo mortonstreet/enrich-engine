@@ -5,6 +5,7 @@ import * as leadRepository from "@/repositories/lead.repository";
 import { decrypt } from "@/lib/encryption";
 import { addCopyGeneratorJob } from "@/queues/copyGenerator.queue";
 import { generateFirstLine } from "@/clients/openrouter.client";
+import logger from "@/lib/logger";
 import {
   CopyGeneratorJobResponse,
   CopyGeneratorJobsListResponse,
@@ -98,7 +99,12 @@ export async function createCopyGeneratorJob(
   await copyGeneratorJobRepository.createJobItems(items);
 
   // Queue the job for processing
-  await addCopyGeneratorJob(job.id);
+  try {
+    await addCopyGeneratorJob(job.id);
+  } catch (queueError) {
+    logger.error({ queueError, jobId: job.id }, "Failed to queue copy generator job");
+    throw new Error("Failed to queue job for processing");
+  }
 
   return {
     id: job.id,

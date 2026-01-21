@@ -7,6 +7,7 @@ import {
   PreviewCopyGeneratorRequest,
 } from "@shared/types/src";
 import { StatusCodes } from "http-status-codes";
+import logger from "@/lib/logger";
 
 // ============================================
 // Copy Generator Jobs
@@ -18,6 +19,13 @@ export const createCopyGeneratorJob: AuthRequestHandler<
   const { listId, userPrompt } = req.validated;
   const organizationId = req.session.activeOrganizationId;
   const userId = req.user.id;
+
+  logger.info({
+    listId,
+    promptLength: userPrompt?.length,
+    organizationId,
+    userId,
+  }, "Copy generator job creation request");
 
   if (!organizationId) {
     return res
@@ -35,6 +43,7 @@ export const createCopyGeneratorJob: AuthRequestHandler<
     res.status(StatusCodes.CREATED).json(job);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error({ error, listId, organizationId }, "Copy generator job creation failed");
     res.status(StatusCodes.BAD_REQUEST).json({ error: message });
   }
 };

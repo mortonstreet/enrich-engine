@@ -16,13 +16,14 @@ export function ListSelector({ value, onChange, enrichmentType }: ListSelectorPr
   const [search, setSearch] = useState("");
 
   // Use different list sources based on enrichment type
-  const { data: enrichListsData, isLoading: isLoadingEnrichLists } =
+  const { data: enrichListsData, isLoading: isLoadingEnrichLists, error: enrichListsError } =
     useListsForEnrichment();
-  const { data: copyGenListsData, isLoading: isLoadingCopyGenLists } =
+  const { data: copyGenListsData, isLoading: isLoadingCopyGenLists, error: copyGenListsError } =
     useCopyGeneratorLists();
 
   const isLoading =
     enrichmentType === "first_line" ? isLoadingCopyGenLists : isLoadingEnrichLists;
+  const error = enrichmentType === "first_line" ? copyGenListsError : enrichListsError;
 
   // Map lists to a common format
   const lists =
@@ -55,6 +56,16 @@ export function ListSelector({ value, onChange, enrichmentType }: ListSelectorPr
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         <span className="ml-2 text-muted-foreground">Loading lists...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-destructive">
+        <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+        <p className="font-medium">Failed to load lists</p>
+        <p className="text-sm mt-1">{error.message}</p>
       </div>
     );
   }
