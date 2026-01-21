@@ -251,6 +251,7 @@ export const getListDetail = async (
       company: lead.company,
       role: lead.role,
       linkedinUrl: lead.linkedinUrl,
+      companyDomain: lead.companyDomain,
       customFields: (lead.customFields as Record<string, unknown>) ?? {},
       createdAt: lead.createdAt.toISOString(),
       updatedAt: lead.updatedAt.toISOString(),
@@ -607,6 +608,7 @@ export const getAllLeads = async (
     company: lead.company,
     role: lead.role,
     linkedinUrl: lead.linkedinUrl,
+    companyDomain: lead.companyDomain,
     customFields: (lead.customFields as Record<string, unknown>) ?? {},
     createdAt: lead.createdAt.toISOString(),
     updatedAt: lead.updatedAt.toISOString(),
@@ -707,6 +709,7 @@ export const createListFromFilters = async (
     company: lead.company,
     role: lead.role,
     linkedinUrl: lead.linkedinUrl,
+    companyDomain: lead.companyDomain,
     customFields: lead.customFields as Record<string, unknown> | undefined,
   }));
 
@@ -777,6 +780,7 @@ export const createListFromLeads = async (
     company: lead.company,
     role: lead.role,
     linkedinUrl: lead.linkedinUrl,
+    companyDomain: lead.companyDomain,
     customFields: lead.customFields as Record<string, unknown> | undefined,
   }));
 
@@ -822,6 +826,45 @@ export const deleteLead = async (
 // ============================================
 // CSV Upload Operations
 // ============================================
+
+/**
+ * Normalizes a company domain from various formats:
+ * - Full URLs: "https://www.example.com/about" → "example.com"
+ * - With www: "www.example.com" → "example.com"
+ * - Plain domain: "example.com" → "example.com"
+ * - With protocol only: "http://example.com" → "example.com"
+ */
+function normalizeCompanyDomain(input: string): string | undefined {
+  if (!input || typeof input !== "string") return undefined;
+
+  let domain = input.trim().toLowerCase();
+
+  // If it looks like a URL (has protocol), parse it
+  if (domain.includes("://")) {
+    try {
+      const parsed = new URL(domain);
+      domain = parsed.hostname;
+    } catch {
+      // If URL parsing fails, continue with manual cleanup
+    }
+  }
+
+  // Remove protocol if present without proper URL format
+  domain = domain.replace(/^https?:\/\//i, "");
+
+  // Remove www. prefix
+  domain = domain.replace(/^www\./i, "");
+
+  // Remove any path, query string, or hash
+  domain = domain.split("/")[0].split("?")[0].split("#")[0];
+
+  // Basic validation: should have at least one dot and no spaces
+  if (!domain.includes(".") || domain.includes(" ")) {
+    return undefined;
+  }
+
+  return domain || undefined;
+}
 
 // Field mappings for CSV headers (case-insensitive)
 const FIELD_MAPPINGS: Record<string, string> = {
@@ -871,6 +914,17 @@ const FIELD_MAPPINGS: Record<string, string> = {
   linkedin: "linkedinUrl",
   "linkedin url": "linkedinUrl",
   linkedin_profile: "linkedinUrl",
+  // Domain/Website variations (for email guessing)
+  domain: "companyDomain",
+  website: "companyDomain",
+  company_domain: "companyDomain",
+  companydomain: "companyDomain",
+  "company domain": "companyDomain",
+  company_website: "companyDomain",
+  companywebsite: "companyDomain",
+  "company website": "companyDomain",
+  url: "companyDomain",
+  site: "companyDomain",
 };
 
 function parseCSVLine(line: string): string[] {
@@ -927,6 +981,7 @@ interface ParsedLead {
   company?: string;
   role?: string;
   linkedinUrl?: string;
+  companyDomain?: string;
   customFields?: Record<string, unknown>;
 }
 
@@ -1019,6 +1074,7 @@ export const uploadListCsv = async (params: {
         company: lead.company,
         role: lead.role,
         linkedinUrl: lead.linkedinUrl,
+        companyDomain: lead.companyDomain ? normalizeCompanyDomain(lead.companyDomain) : undefined,
         customFields: lead.customFields,
       }));
 

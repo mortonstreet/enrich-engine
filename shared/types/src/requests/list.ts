@@ -202,6 +202,7 @@ export interface LeadResponse {
   company: string | null;
   role: string | null;
   linkedinUrl: string | null;
+  companyDomain: string | null;
   customFields: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
