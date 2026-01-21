@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { sql } from "kysely";
-import { withIdAndTimestamps } from "./utils";
+import { withId } from "./utils";
 import { EmailValidationStatus } from "@shared/types/src";
 
 export type CreateEmailValidationAttemptData = {
@@ -18,13 +18,11 @@ export const create = async (data: CreateEmailValidationAttemptData) => {
   return db
     .insertInto("email_validation_attempt")
     .values(
-      withIdAndTimestamps(
-        {
-          ...data,
-          status: "pending",
-        },
-        true
-      )
+      withId({
+        ...data,
+        status: "pending",
+        createdAt: new Date(),
+      })
     )
     .returningAll()
     .executeTakeFirst();
@@ -36,7 +34,11 @@ export const bulkCreate = async (
   if (attempts.length === 0) return [];
 
   const attemptsWithIds = attempts.map((attempt) =>
-    withIdAndTimestamps({ ...attempt, status: "pending" }, true)
+    withId({
+      ...attempt,
+      status: "pending",
+      createdAt: new Date(),
+    })
   );
 
   return db

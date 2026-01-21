@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sql } from "kysely";
+import { v4 as uuidv4 } from "uuid";
 import { withIdAndTimestamps } from "./utils";
 import { CopyGeneratorJobStatus } from "@shared/types/src";
 
@@ -201,7 +202,13 @@ export const createJobItems = async (
 ) => {
   if (items.length === 0) return [];
 
-  const itemsWithIds = items.map((item) => withIdAndTimestamps(item, true));
+  // Note: copy_generator_job_item doesn't have updatedAt column
+  const itemsWithIds = items.map((item) => ({
+    ...item,
+    id: uuidv4(),
+    status: "pending",
+    createdAt: new Date(),
+  }));
 
   return db
     .insertInto("copy_generator_job_item")
