@@ -107,6 +107,8 @@ export const ENDPOINTS = {
     GUESS_PREVIEW: '/enrich/jobs/guess/preview',
     GUESS: '/enrich/jobs/guess',
     COST_BREAKDOWN: (jobId: string) => `/enrich/jobs/${jobId}/cost-breakdown`,
+    COST_COMPARISON: (jobId: string) => `/enrich/jobs/${jobId}/cost-comparison`,
+    PRICING_COMPARISON: '/enrich/pricing-comparison',
   },
   COPY_GENERATOR: {
     JOBS: '/copy-generator/jobs',
@@ -154,6 +156,8 @@ export const QUERY_KEYS = {
   enrichApiKeys: () => ['enrich', 'api-keys'] as const,
   enrichGuessPreview: (listId?: string) => ['enrich', 'guess-preview', listId] as const,
   enrichCostBreakdown: (jobId?: string) => ['enrich', 'cost-breakdown', jobId] as const,
+  enrichCostComparison: (jobId?: string) => ['enrich', 'cost-comparison', jobId] as const,
+  pricingComparison: () => ['pricing-comparison'] as const,
   // Copy Generator
   copyGeneratorJobs: () => ['copy-generator', 'jobs'] as const,
   copyGeneratorJob: (jobId?: string) => ['copy-generator', 'job', jobId] as const,

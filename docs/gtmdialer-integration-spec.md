@@ -1,22 +1,43 @@
 # GTMDialer - EnrichEngine Integration Specification
 
+> **EnrichEngine Website:** https://enrichengine.xyz
+> **EnrichEngine App:** https://app.enrichengine.xyz
+> **API Base URL:** https://api.enrichengine.xyz/api/external
+
 ## Overview
 
 This document specifies how GTMDialer should integrate with EnrichEngine's External API to pull and sync lead lists for dialing campaigns.
 
 ---
 
+## Integration Type: API Key (NOT OAuth)
+
+**This is a direct API key connection, not OAuth.**
+
+EnrichEngine uses simple API key authentication for third-party integrations. There is no OAuth flow, no token refresh, and no user authorization screens. Users generate a static API key in EnrichEngine and enter it into GTMDialer.
+
+---
+
 ## 1. Authentication
 
-### API Key Setup
+### How It Works
+
+EnrichEngine uses **API Key authentication** (not OAuth). This is a simple, direct connection:
+
+1. User generates an API key in EnrichEngine
+2. User copies the key into GTMDialer's settings
+3. GTMDialer stores the key and uses it for all API requests
+4. No token refresh or re-authorization needed (keys don't expire unless user sets expiration)
+
+### API Key Setup (User Flow)
 
 Users must first create an API key in EnrichEngine:
-1. Log into EnrichEngine at `app.enrichengine.xyz`
+1. Log into EnrichEngine at `https://app.enrichengine.xyz`
 2. Navigate to **Settings > External API Keys**
 3. Click **Create API Key**
 4. Name it (e.g., "GTMDialer Integration")
-5. Select scopes: `lists:read` (required), optionally `leads:read`
-6. Copy the generated key (shown only once)
+5. Select scopes: `lists:read` (required)
+6. Copy the generated key (shown only once, starts with `ee_`)
 
 ### Authentication Method
 
@@ -26,11 +47,21 @@ All requests must include the API key in the `X-API-Key` header:
 X-API-Key: ee_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
+**Important:** This is NOT a Bearer token. Use `X-API-Key` header, not `Authorization`.
+
 ### Base URL
 
 ```
 Production: https://api.enrichengine.xyz/api/external
 ```
+
+### Key Format
+
+All EnrichEngine API keys follow this format:
+- Prefix: `ee_` followed by 8 characters (e.g., `ee_abc12345`)
+- Full key: `ee_abc12345_` followed by ~40 characters
+- Total length: approximately 55 characters
+- Example: `ee_k7xPq2mN_dGhpcyBpcyBhIHRlc3Qga2V5IGZvciBkZW1v`
 
 ---
 
@@ -212,21 +243,28 @@ interface ErrorResponse {
 
 ### 4.1 GTMDialer Configuration
 
-Add EnrichEngine integration settings to GTMDialer:
+Add EnrichEngine integration settings to GTMDialer.
+
+**Note:** This is a direct API connection, not OAuth. Store the user's API key (encrypted) and use it for all requests.
 
 ```typescript
 // config/integrations.ts
 interface EnrichEngineConfig {
-  apiKey: string;
-  baseUrl: string;
-  syncInterval?: number; // minutes, for auto-sync
+  apiKey: string;          // User's API key from enrichengine.xyz
+  baseUrl: string;         // Always https://api.enrichengine.xyz/api/external
+  syncInterval?: number;   // minutes, for auto-sync
 }
 
-const enrichEngineConfig: EnrichEngineConfig = {
-  apiKey: process.env.ENRICHENGINE_API_KEY || '',
-  baseUrl: 'https://api.enrichengine.xyz/api/external',
-  syncInterval: 60, // sync every hour
-};
+// Default configuration
+const ENRICHENGINE_BASE_URL = 'https://api.enrichengine.xyz/api/external';
+
+// Per-user configuration (stored in database, API key encrypted)
+interface UserEnrichEngineConnection {
+  userId: string;
+  apiKeyEncrypted: string;  // Encrypt before storing!
+  isActive: boolean;
+  lastSyncAt: Date | null;
+}
 ```
 
 ### 4.2 API Client
@@ -460,6 +498,8 @@ export default EnrichEngineSyncService;
 
 #### Connection Setup Modal
 
+This is a simple API key input - NOT an OAuth flow. No redirects, no authorization screens.
+
 ```tsx
 // components/integrations/EnrichEngineConnect.tsx
 import { useState } from 'react';
@@ -470,60 +510,76 @@ export function EnrichEngineConnectModal({ isOpen, onClose, onSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConnect = async () => {
+    // Validate API key format
     if (!apiKey.startsWith('ee_')) {
       toast.error('Invalid API key format. Key should start with "ee_"');
       return;
     }
 
+    if (apiKey.length < 40) {
+      toast.error('API key appears too short. Please check and try again.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Test the connection by fetching lists
+      // Test the connection by fetching lists from EnrichEngine
       const response = await fetch('/api/integrations/enrichengine/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to connect');
+        if (response.status === 401) {
+          throw new Error('Invalid API key. Please check your key and try again.');
+        }
+        throw new Error(data.error || 'Failed to connect');
       }
 
       toast.success('Connected to EnrichEngine!');
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Failed to connect. Please check your API key.');
+      toast.error(error.message || 'Failed to connect. Please check your API key.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Connect EnrichEngine">
+    <Modal isOpen={isOpen} onClose={onClose} title="Connect to EnrichEngine">
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
-          Enter your EnrichEngine API key to import leads directly into GTMDialer.
+          Connect your EnrichEngine account to import enriched leads directly into GTMDialer campaigns.
         </p>
 
+        {/* Step-by-step instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm font-medium text-blue-900 mb-2">How to get your API key:</p>
+          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+            <li>Go to <a href="https://app.enrichengine.xyz/dashboard/settings" target="_blank" rel="noopener" className="underline">app.enrichengine.xyz/dashboard/settings</a></li>
+            <li>Scroll to "External API Keys"</li>
+            <li>Click "Create API Key"</li>
+            <li>Name it "GTMDialer" and select "Read Lists" permission</li>
+            <li>Copy the key (it starts with <code className="bg-blue-100 px-1 rounded">ee_</code>)</li>
+          </ol>
+        </div>
+
         <div>
-          <label className="block text-sm font-medium mb-1">API Key</label>
+          <label className="block text-sm font-medium mb-1">EnrichEngine API Key</label>
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="ee_xxxxxxxx_xxxxxxxxxxxxx"
-            className="w-full px-3 py-2 border rounded-lg"
+            placeholder="ee_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxx"
+            className="w-full px-3 py-2 border rounded-lg font-mono text-sm"
+            autoComplete="off"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Get your API key from{' '}
-            <a
-              href="https://app.enrichengine.xyz/dashboard/settings"
-              target="_blank"
-              rel="noopener"
-              className="text-blue-600 underline"
-            >
-              EnrichEngine Settings
-            </a>
+            Your API key is stored securely and encrypted.
           </p>
         </div>
 
@@ -536,7 +592,7 @@ export function EnrichEngineConnectModal({ isOpen, onClose, onSuccess }) {
             disabled={isLoading || !apiKey}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
           >
-            {isLoading ? 'Connecting...' : 'Connect'}
+            {isLoading ? 'Verifying...' : 'Connect'}
           </button>
         </div>
       </div>
@@ -701,15 +757,22 @@ When available, GTMDialer should register webhooks to receive real-time updates:
 
 ## 9. Testing
 
-### Test API Key
+### Test Environment
 
-For development, use the EnrichEngine sandbox environment:
+EnrichEngine uses a single production environment:
 
 ```
-Sandbox URL: https://api-sandbox.enrichengine.xyz/api/external
+API URL: https://api.enrichengine.xyz/api/external
+App URL: https://app.enrichengine.xyz
 ```
 
-### Mock Data
+For development/testing:
+1. Create a test organization in EnrichEngine
+2. Generate an API key with `lists:read` scope
+3. Create a test list with sample leads
+4. Use that API key for GTMDialer development
+
+### Mock Data (for unit tests)
 
 ```typescript
 const mockList: EnrichEngineList = {
@@ -772,6 +835,28 @@ const mockLeads: EnrichEngineLead[] = [
 ## Support
 
 For integration support:
-- EnrichEngine Docs: `https://docs.enrichengine.xyz`
-- API Status: `https://status.enrichengine.xyz`
+- EnrichEngine App: `https://app.enrichengine.xyz`
+- EnrichEngine Website: `https://enrichengine.xyz`
 - Support Email: `support@enrichengine.xyz`
+
+---
+
+## Appendix: Why API Keys (Not OAuth)
+
+EnrichEngine uses API key authentication instead of OAuth for third-party integrations because:
+
+1. **Simplicity** - Users just copy/paste a key, no complex OAuth flows
+2. **No Token Expiry** - API keys don't expire (unless user sets expiration), so no refresh token logic needed
+3. **Direct Connection** - No redirects or popup windows required
+4. **Server-to-Server** - Ideal for backend integrations like GTMDialer
+5. **User Control** - Users can revoke keys anytime from EnrichEngine settings
+
+### Comparison
+
+| Feature | OAuth | API Key (EnrichEngine) |
+|---------|-------|------------------------|
+| User setup | Click "Authorize", redirect flow | Copy/paste key |
+| Token refresh | Required every ~1 hour | Not needed |
+| Implementation | Complex | Simple |
+| Revocation | Via OAuth provider | User deletes key in settings |
+| Scopes | Requested at auth time | Set when key is created |

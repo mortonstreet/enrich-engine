@@ -40,3 +40,10 @@ export type ExternalApiRequestHandler<T> = (
   res: Response,
   next: NextFunction,
 ) => Promise<any>;
+
+// RequestHandler for public endpoints (no auth required)
+export type PublicRequestHandler<T> = (
+  req: ValidatedRequest<T>,
+  res: Response,
+  next: NextFunction,
+) => Promise<any>;

@@ -1,4 +1,4 @@
-import { AuthRequestHandler } from "@/types/handlers";
+import { AuthRequestHandler, PublicRequestHandler } from "@/types/handlers";
 import * as enrichService from "@/services/enrich.service";
 import * as emailGuessService from "@/services/emailGuess.service";
 import * as organizationService from "@/services/organization.service";
@@ -360,4 +360,39 @@ export const getJobCostBreakdown: AuthRequestHandler<
     return res.status(StatusCodes.NOT_FOUND).json({ error: "Job not found" });
   }
   res.json(breakdown);
+};
+
+// ============================================
+// Cost Comparison
+// ============================================
+
+export const getJobCostComparison: AuthRequestHandler<
+  GetListEnrichmentJobRequest
+> = async (req, res) => {
+  const { jobId } = req.validated;
+  const organizationId = req.session.activeOrganizationId;
+
+  if (!organizationId) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ error: "No active organization" });
+  }
+
+  const comparison = await emailGuessService.getJobCostComparison(
+    organizationId,
+    jobId
+  );
+  if (!comparison) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ error: "Job not found or not completed" });
+  }
+  res.json(comparison);
+};
+
+export const getPricingComparison: PublicRequestHandler<
+  Record<string, never>
+> = async (_req, res) => {
+  const comparison = emailGuessService.getPricingComparison();
+  res.json(comparison);
 };

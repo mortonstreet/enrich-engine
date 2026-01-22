@@ -13,8 +13,10 @@ import {
   previewEmailGuessJob,
   createEmailGuessJob,
   getJobCostBreakdown,
+  getJobCostComparison,
+  getPricingComparison,
 } from "@/api/controllers/enrich.controller";
-import { authenticatedRoute } from "./utils";
+import { authenticatedRoute, validatedRoute } from "./utils";
 import { withBetterAuth } from "../middlewares/auth";
 import { validateAndMerge } from "../middlewares/validationMiddleware";
 import {
@@ -150,6 +152,24 @@ router.get(
   withBetterAuth,
   validateAndMerge(GetListEnrichmentJobSchema),
   authenticatedRoute<GetListEnrichmentJobRequest>(getJobCostBreakdown)
+);
+
+// Get job cost comparison (with competitors)
+router.get(
+  "/jobs/:jobId/cost-comparison",
+  withBetterAuth,
+  validateAndMerge(GetListEnrichmentJobSchema),
+  authenticatedRoute<GetListEnrichmentJobRequest>(getJobCostComparison)
+);
+
+// ============================================
+// Public Endpoints
+// ============================================
+
+// Get pricing comparison (public endpoint for landing page)
+router.get(
+  "/pricing-comparison",
+  validatedRoute<Record<string, never>>(getPricingComparison)
 );
 
 export default router;

@@ -11,6 +11,8 @@ import {
   EnrichmentType,
   EnrichmentStrategy,
   EmailGuessPreviewResponse,
+  JobCostComparisonResponse,
+  PricingComparisonResponse,
 } from '@shared/types/src';
 
 // ============================================
@@ -215,5 +217,30 @@ export function useJobCostBreakdown(jobId?: string) {
       return await get<JobCostBreakdown>(ENDPOINTS.ENRICH.COST_BREAKDOWN(jobId));
     },
     enabled: !!jobId,
+  });
+}
+
+// ============================================
+// Cost Comparison
+// ============================================
+
+export function useJobCostComparison(jobId?: string, enabled?: boolean) {
+  return useQuery<JobCostComparisonResponse>({
+    queryKey: QUERY_KEYS.enrichCostComparison(jobId),
+    queryFn: async () => {
+      if (!jobId) throw new Error('Job ID is required');
+      return await get<JobCostComparisonResponse>(ENDPOINTS.ENRICH.COST_COMPARISON(jobId));
+    },
+    enabled: !!jobId && enabled !== false,
+  });
+}
+
+export function usePricingComparison() {
+  return useQuery<PricingComparisonResponse>({
+    queryKey: QUERY_KEYS.pricingComparison(),
+    queryFn: async () => {
+      return await get<PricingComparisonResponse>(ENDPOINTS.ENRICH.PRICING_COMPARISON);
+    },
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour (pricing doesn't change often)
   });
 }

@@ -12,9 +12,15 @@ import {
   ListEnrichmentJobResponse,
   EnrichmentVendor,
   EnrichmentType,
+  JobCostComparisonResponse,
+  PricingComparisonResponse,
 } from "@shared/types/src";
 import { db } from "@/lib/db";
 import { sql } from "kysely";
+import {
+  ENRICH_ENGINE_COST_PER_EMAIL,
+  COMPETITORS_BY_COST,
+} from "@/config/competitorPricing";
 
 // ============================================
 // Cost Constants
@@ -281,4 +287,70 @@ export async function getDomainPattern(domain: string) {
 
 export async function getPrioritizedPatterns(domain: string): Promise<string[]> {
   return domainPatternRepository.getPrioritizedPatterns(domain);
+}
+
+// ============================================
+// Cost Comparison
+// ============================================
+
+export async function getJobCostComparison(
+  organizationId: string,
+  jobId: string
+): Promise<JobCostComparisonResponse | null> {
+  const job = await listEnrichmentJobRepository.findJobById(jobId);
+  if (!job || job.organizationId !== organizationId) {
+    return null;
+  }
+
+  // Only return comparison for completed jobs
+  if (job.status !== "completed") {
+    return null;
+  }
+
+  const successfulEnrichments = job.successCount;
+  if (successfulEnrichments === 0) {
+    return {
+      jobId: job.id,
+      actualCost: 0,
+      costPerEmail: 0,
+      successfulEnrichments: 0,
+      competitorComparisons: [],
+    };
+  }
+
+  // Calculate actual cost based on validation credits and fallbacks
+  const validationCost = job.validationCredits * COSTS.EMAIL_VALIDATION;
+  const fallbackCost = job.fallbackCount * COSTS.PROSPEO_LOOKUP;
+  const actualCost = validationCost + fallbackCost;
+  const costPerEmail = actualCost / successfulEnrichments;
+
+  // Calculate competitor comparisons
+  const competitorComparisons = COMPETITORS_BY_COST.map((competitor) => {
+    const wouldHaveCost = successfulEnrichments * competitor.costPerEmail;
+    const savings = wouldHaveCost - actualCost;
+    const percentageSaved = Math.round((savings / wouldHaveCost) * 100);
+
+    return {
+      competitorId: competitor.id,
+      competitorName: competitor.name,
+      wouldHaveCost: Math.round(wouldHaveCost * 100) / 100,
+      savings: Math.round(savings * 100) / 100,
+      percentageSaved: Math.max(0, percentageSaved),
+    };
+  });
+
+  return {
+    jobId: job.id,
+    actualCost: Math.round(actualCost * 100) / 100,
+    costPerEmail: Math.round(costPerEmail * 10000) / 10000,
+    successfulEnrichments,
+    competitorComparisons,
+  };
+}
+
+export function getPricingComparison(): PricingComparisonResponse {
+  return {
+    enrichEngineCostPerEmail: ENRICH_ENGINE_COST_PER_EMAIL,
+    competitors: COMPETITORS_BY_COST,
+  };
 }

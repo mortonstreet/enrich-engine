@@ -1,6 +1,7 @@
 "use client";
 
 import { useEnrichmentJob } from "@/hooks/api/useEnrich";
+import { CostSavingsSummary } from "./CostSavingsSummary";
 import {
   Dialog,
   DialogContent,
@@ -242,6 +243,11 @@ export function EnrichJobDetailModal({ jobId, onClose }: EnrichJobDetailModalPro
                 </div>
               )}
             </div>
+
+            {/* Cost Savings Summary (only for completed jobs) */}
+            {data.job.status === "completed" && data.job.successCount > 0 && (
+              <CostSavingsSummary jobId={data.job.id} />
+            )}
 
             {/* Lead Items */}
             <div>

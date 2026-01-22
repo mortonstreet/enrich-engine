@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CostComparisonSection } from "@/components/landing/CostComparisonSection";
 
 const stats = [
   { value: 95, suffix: "%", label: "Email accuracy" },
@@ -266,6 +267,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Cost Comparison Section */}
+        <CostComparisonSection />
 
         {/* How It Works Section */}
         <section className="py-20 md:py-28 bg-muted/30 border-y border-border">
