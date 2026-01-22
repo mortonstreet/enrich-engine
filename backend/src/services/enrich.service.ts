@@ -184,6 +184,14 @@ export async function getListsForEnrichment(
           listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "phone"),
         ]);
 
+        logger.info({
+          listId: list.id,
+          listName: list.name,
+          unenrichedEmailCount,
+          unenrichedPhoneCount,
+          totalLeads: list.leadCount ?? 0,
+        }, "Processed list for enrichment");
+
         return {
           id: list.id,
           name: list.name,
@@ -197,17 +205,19 @@ export async function getListsForEnrichment(
         };
       } catch (err) {
         logger.error({ error: err, listId: list.id }, "Error processing list for enrichment");
-        // Return safe defaults for this list to avoid breaking the entire response
+        // On error, return leadCount as the unenriched count so user can still attempt enrichment
+        // rather than incorrectly showing 0 (which implies all leads are already enriched)
+        const fallbackCount = list.leadCount ?? 0;
         return {
           id: list.id,
           name: list.name,
-          leadCount: list.leadCount ?? 0,
-          totalLeads: list.leadCount ?? 0,
+          leadCount: fallbackCount,
+          totalLeads: fallbackCount,
           source: (list.source ?? "uploaded") as "uploaded" | "scraped",
           hasLinkedinColumn: false,
           createdAt: list.createdAt ? list.createdAt.toISOString() : new Date().toISOString(),
-          unenrichedEmailCount: 0,
-          unenrichedPhoneCount: 0,
+          unenrichedEmailCount: fallbackCount,
+          unenrichedPhoneCount: fallbackCount,
         };
       }
     })
@@ -517,7 +527,7 @@ export async function updateJobProgress(jobId: string) {
 export async function generateEnrichedCsv(
   organizationId: string,
   jobId: string,
-  filter: 'all' | 'found' = 'all'
+  filter: 'all' | 'found' | 'valid' | 'catchall' | 'risky' = 'all'
 ): Promise<{ csv: string; filename: string } | null> {
   const job = await listEnrichmentJobRepository.findJobByIdWithList(jobId);
   if (!job || job.organizationId !== organizationId) {
@@ -526,6 +536,25 @@ export async function generateEnrichedCsv(
 
   let items = await listEnrichmentJobRepository.findItemsByJobId(jobId);
 
+  // Get validation attempts for all items to determine validation status
+  const itemIds = items.map((item) => item.id);
+  const validationAttempts = await listEnrichmentJobRepository.findValidationAttemptsByJobItemIds(itemIds);
+
+  // Create a map of item ID to their best validation status
+  // Priority: valid > catch_all > unknown > bounced > error
+  const itemValidationStatusMap = new Map<string, string>();
+  for (const attempt of validationAttempts) {
+    const currentStatus = itemValidationStatusMap.get(attempt.jobItemId);
+    // If we already have a "valid" status for this item, keep it
+    if (currentStatus === 'valid') continue;
+    // Otherwise, prefer valid > catch_all > unknown > others
+    if (attempt.status === 'valid' ||
+        (attempt.status === 'catch_all' && currentStatus !== 'valid') ||
+        (!currentStatus || currentStatus === 'bounced' || currentStatus === 'error' || currentStatus === 'unknown')) {
+      itemValidationStatusMap.set(attempt.jobItemId, attempt.status);
+    }
+  }
+
   // Filter items based on filter parameter
   if (filter === 'found') {
     items = items.filter((item) => {
@@ -533,6 +562,31 @@ export async function generateEnrichedCsv(
         return item.enrichedEmail && item.enrichedEmail.trim() !== '';
       }
       return item.enrichedPhone && item.enrichedPhone.trim() !== '';
+    });
+  } else if (filter === 'valid') {
+    items = items.filter((item) => {
+      const hasEnrichedValue = job.enrichmentType === 'email'
+        ? item.enrichedEmail && item.enrichedEmail.trim() !== ''
+        : item.enrichedPhone && item.enrichedPhone.trim() !== '';
+      const validationStatus = itemValidationStatusMap.get(item.id);
+      return hasEnrichedValue && validationStatus === 'valid';
+    });
+  } else if (filter === 'catchall') {
+    items = items.filter((item) => {
+      const hasEnrichedValue = job.enrichmentType === 'email'
+        ? item.enrichedEmail && item.enrichedEmail.trim() !== ''
+        : item.enrichedPhone && item.enrichedPhone.trim() !== '';
+      const validationStatus = itemValidationStatusMap.get(item.id);
+      return hasEnrichedValue && validationStatus === 'catch_all';
+    });
+  } else if (filter === 'risky') {
+    items = items.filter((item) => {
+      const hasEnrichedValue = job.enrichmentType === 'email'
+        ? item.enrichedEmail && item.enrichedEmail.trim() !== ''
+        : item.enrichedPhone && item.enrichedPhone.trim() !== '';
+      const validationStatus = itemValidationStatusMap.get(item.id);
+      // Risky includes: catch_all, unknown, or no validation data (enriched via Prospeo without validation)
+      return hasEnrichedValue && (validationStatus === 'catch_all' || validationStatus === 'unknown' || !validationStatus);
     });
   }
 
@@ -553,11 +607,13 @@ export async function generateEnrichedCsv(
     "Company",
     "Role",
     "Enrichment Status",
+    "Validation Status",
     job.enrichmentType === "email" ? "Enriched Email" : "Enriched Phone",
   ];
 
   const rows = items.map((item) => {
     const lead = leadMap.get(item.leadId);
+    const validationStatus = itemValidationStatusMap.get(item.id) ?? '';
     return [
       item.linkedinUrl,
       lead?.firstName ?? "",
@@ -567,6 +623,7 @@ export async function generateEnrichedCsv(
       lead?.company ?? "",
       lead?.role ?? "",
       item.status,
+      validationStatus,
       job.enrichmentType === "email"
         ? item.enrichedEmail ?? ""
         : item.enrichedPhone ?? "",
@@ -585,7 +642,14 @@ export async function generateEnrichedCsv(
     "\n" +
     rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
 
-  const filterSuffix = filter === 'found' ? '_found' : '';
+  const filterSuffixMap: Record<string, string> = {
+    all: '',
+    found: '_found',
+    valid: '_valid',
+    catchall: '_catchall',
+    risky: '_risky',
+  };
+  const filterSuffix = filterSuffixMap[filter] ?? '';
   const filename = `${job.listName ?? "enriched"}_${job.enrichmentType}${filterSuffix}_${new Date().toISOString().split("T")[0]}.csv`;
 
   return { csv, filename };

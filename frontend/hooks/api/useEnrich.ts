@@ -65,6 +65,7 @@ export function useCreateEnrichmentJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichJobs() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichLists() });
     },
   });
 }
@@ -78,11 +79,14 @@ export function useDeleteEnrichmentJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichJobs() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichLists() });
     },
   });
 }
 
-export function downloadEnrichmentResults(jobId: string, filter: 'all' | 'found' = 'all') {
+export type DownloadFilter = 'all' | 'found' | 'valid' | 'catchall' | 'risky';
+
+export function downloadEnrichmentResults(jobId: string, filter: DownloadFilter = 'all') {
   const url = `${env.API_URL}${ENDPOINTS.ENRICH.DOWNLOAD(jobId)}?filter=${filter}`;
   window.open(url, '_blank');
 }
@@ -184,6 +188,7 @@ export function useCreateEmailGuessJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichJobs() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichLists() });
     },
   });
 }

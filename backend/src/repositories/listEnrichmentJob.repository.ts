@@ -336,33 +336,27 @@ export const countUnenrichedLeadsByList = async (
   listId: string,
   enrichmentType: string
 ): Promise<number> => {
-  try {
-    // Use NOT EXISTS subquery for better performance with large datasets
-    const result = await db
-      .selectFrom("lead")
-      .where("listId", "=", listId)
-      .where("linkedinUrl", "is not", null)
-      .where("linkedinUrl", "!=", "")
-      .where(({ not, exists, selectFrom }) =>
-        not(
-          exists(
-            selectFrom("list_enrichment_job_item as item")
-              .innerJoin("list_enrichment_job as job", "job.id", "item.jobId")
-              .whereRef("item.leadId", "=", "lead.id")
-              .where("job.listId", "=", listId)
-              .where("job.enrichmentType", "=", enrichmentType)
-              .where("item.status", "=", "completed")
-              .select(sql`1`.as("exists"))
-          )
+  // Use NOT EXISTS subquery for better performance with large datasets
+  const result = await db
+    .selectFrom("lead")
+    .where("listId", "=", listId)
+    .where("linkedinUrl", "is not", null)
+    .where("linkedinUrl", "!=", "")
+    .where(({ not, exists, selectFrom }) =>
+      not(
+        exists(
+          selectFrom("list_enrichment_job_item as item")
+            .innerJoin("list_enrichment_job as job", "job.id", "item.jobId")
+            .whereRef("item.leadId", "=", "lead.id")
+            .where("job.listId", "=", listId)
+            .where("job.enrichmentType", "=", enrichmentType)
+            .where("item.status", "=", "completed")
+            .select(sql`1`.as("exists"))
         )
       )
-      .select(sql<number>`count(*)::int`.as("count"))
-      .executeTakeFirst();
+    )
+    .select(sql<number>`count(*)::int`.as("count"))
+    .executeTakeFirst();
 
-    return result?.count ?? 0;
-  } catch (error) {
-    // Log the error but return 0 to avoid breaking the entire lists endpoint
-    logger.error({ error, listId, enrichmentType }, "Error counting unenriched leads");
-    return 0;
-  }
+  return result?.count ?? 0;
 };

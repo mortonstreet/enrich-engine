@@ -66,10 +66,11 @@ export type GetListEnrichmentJobRequest = z.infer<typeof GetListEnrichmentJobSch
 
 export const DownloadEnrichmentJobSchema = z.object({
   jobId: z.string().uuid(),
-  filter: z.enum(['all', 'found']).optional().default('all'),
+  filter: z.enum(['all', 'found', 'valid', 'catchall', 'risky']).optional().default('all'),
 });
 
 export type DownloadEnrichmentJobRequest = z.infer<typeof DownloadEnrichmentJobSchema>;
+export type DownloadEnrichmentJobFilter = 'all' | 'found' | 'valid' | 'catchall' | 'risky';
 
 export const SaveVendorApiKeySchema = z.object({
   vendor: z.enum(['prospeo', 'apollo', 'hunter', 'clearbit', 'millionverifier', 'openrouter']),

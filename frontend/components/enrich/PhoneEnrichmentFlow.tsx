@@ -140,7 +140,7 @@ export function PhoneEnrichmentFlow({
 
       {leadsNeedingPhone === 0 && (
         <p className="text-center text-sm text-muted-foreground">
-          All leads in this list already have phone numbers.
+          All leads in this list have already been processed for phone enrichment.
         </p>
       )}
     </div>

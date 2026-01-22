@@ -5,7 +5,7 @@ import { ListEnrichmentJobResponse, ListEnrichmentJobStatusEnum } from "@shared/
 import { Button } from "@/components/ui/Button";
 import { Download, Trash2, Loader2, CheckCircle, Clock, AlertCircle, XCircle, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { downloadEnrichmentResults, useDeleteEnrichmentJob } from "@/hooks/api/useEnrich";
+import { downloadEnrichmentResults, useDeleteEnrichmentJob, DownloadFilter } from "@/hooks/api/useEnrich";
 import { toast } from "sonner";
 
 interface EnrichJobsTableProps {
@@ -53,7 +53,7 @@ export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleDownload = (jobId: string, filter: 'all' | 'found') => {
+  const handleDownload = (jobId: string, filter: DownloadFilter) => {
     downloadEnrichmentResults(jobId, filter);
     setDownloadDropdownOpen(null);
   };
@@ -153,6 +153,34 @@ export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="py-1">
+                              <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                By Validation
+                              </div>
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onClick={() => handleDownload(job.id, 'valid')}
+                              >
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                Valid Emails
+                              </button>
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onClick={() => handleDownload(job.id, 'catchall')}
+                              >
+                                <AlertCircle className="w-4 h-4 text-yellow-600" />
+                                Catch-all Emails
+                              </button>
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onClick={() => handleDownload(job.id, 'risky')}
+                              >
+                                <AlertCircle className="w-4 h-4 text-orange-600" />
+                                Risky Emails
+                              </button>
+                              <div className="my-1 border-t" />
+                              <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                All Results
+                              </div>
                               <button
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
                                 onClick={() => handleDownload(job.id, 'found')}
@@ -165,7 +193,7 @@ export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
                                 onClick={() => handleDownload(job.id, 'all')}
                               >
                                 <Download className="w-4 h-4" />
-                                All Emails
+                                All Rows
                               </button>
                             </div>
                           </div>
