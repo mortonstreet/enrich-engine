@@ -516,14 +516,25 @@ export async function updateJobProgress(jobId: string) {
 
 export async function generateEnrichedCsv(
   organizationId: string,
-  jobId: string
+  jobId: string,
+  filter: 'all' | 'found' = 'all'
 ): Promise<{ csv: string; filename: string } | null> {
   const job = await listEnrichmentJobRepository.findJobByIdWithList(jobId);
   if (!job || job.organizationId !== organizationId) {
     return null;
   }
 
-  const items = await listEnrichmentJobRepository.findItemsByJobId(jobId);
+  let items = await listEnrichmentJobRepository.findItemsByJobId(jobId);
+
+  // Filter items based on filter parameter
+  if (filter === 'found') {
+    items = items.filter((item) => {
+      if (job.enrichmentType === 'email') {
+        return item.enrichedEmail && item.enrichedEmail.trim() !== '';
+      }
+      return item.enrichedPhone && item.enrichedPhone.trim() !== '';
+    });
+  }
 
   // Get leads for the items
   const leadIds = items.map((item) => item.leadId);
@@ -574,7 +585,8 @@ export async function generateEnrichedCsv(
     "\n" +
     rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
 
-  const filename = `${job.listName ?? "enriched"}_${job.enrichmentType}_${new Date().toISOString().split("T")[0]}.csv`;
+  const filterSuffix = filter === 'found' ? '_found' : '';
+  const filename = `${job.listName ?? "enriched"}_${job.enrichmentType}${filterSuffix}_${new Date().toISOString().split("T")[0]}.csv`;
 
   return { csv, filename };
 }

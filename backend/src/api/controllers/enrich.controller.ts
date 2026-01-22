@@ -7,6 +7,7 @@ import {
   CreateListEnrichmentJobRequest,
   GetListEnrichmentJobsQuery,
   GetListEnrichmentJobRequest,
+  DownloadEnrichmentJobRequest,
   SaveVendorApiKeyRequest,
   DeleteVendorApiKeyRequest,
   CreateEmailGuessJobRequest,
@@ -116,9 +117,9 @@ export const deleteEnrichmentJob: AuthRequestHandler<
 };
 
 export const downloadEnrichmentResults: AuthRequestHandler<
-  GetListEnrichmentJobRequest
+  DownloadEnrichmentJobRequest
 > = async (req, res) => {
-  const { jobId } = req.validated;
+  const { jobId, filter } = req.validated;
   const organizationId = req.session.activeOrganizationId;
 
   if (!organizationId) {
@@ -127,7 +128,7 @@ export const downloadEnrichmentResults: AuthRequestHandler<
       .json({ error: "No active organization" });
   }
 
-  const result = await enrichService.generateEnrichedCsv(organizationId, jobId);
+  const result = await enrichService.generateEnrichedCsv(organizationId, jobId, filter);
   if (!result) {
     return res.status(StatusCodes.NOT_FOUND).json({ error: "Job not found" });
   }

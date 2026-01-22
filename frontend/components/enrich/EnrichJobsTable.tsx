@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { ListEnrichmentJobResponse, ListEnrichmentJobStatusEnum } from "@shared/types/src";
 import { Button } from "@/components/ui/Button";
-import { Download, Trash2, Loader2, CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react";
+import { Download, Trash2, Loader2, CheckCircle, Clock, AlertCircle, XCircle, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { downloadEnrichmentResults, useDeleteEnrichmentJob } from "@/hooks/api/useEnrich";
 import { toast } from "sonner";
@@ -38,9 +39,23 @@ const statusConfig: Record<ListEnrichmentJobStatusEnum, { icon: typeof Clock; cl
 
 export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
   const deleteJobMutation = useDeleteEnrichmentJob();
+  const [downloadDropdownOpen, setDownloadDropdownOpen] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  const handleDownload = (jobId: string) => {
-    downloadEnrichmentResults(jobId);
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tableRef.current && !tableRef.current.contains(event.target as Node)) {
+        setDownloadDropdownOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleDownload = (jobId: string, filter: 'all' | 'found') => {
+    downloadEnrichmentResults(jobId, filter);
+    setDownloadDropdownOpen(null);
   };
 
   const handleDelete = async (jobId: string) => {
@@ -61,7 +76,7 @@ export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" ref={tableRef}>
       <table className="w-full">
         <thead>
           <tr className="border-b">
@@ -118,14 +133,44 @@ export function EnrichJobsTable({ jobs, onViewJob }: EnrichJobsTableProps) {
                 <td className="py-3 px-4">
                   <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     {job.status === ListEnrichmentJobStatusEnum.COMPLETED && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDownload(job.id)}
-                        title="Download results"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDownloadDropdownOpen(downloadDropdownOpen === job.id ? null : job.id);
+                          }}
+                          title="Download results"
+                          className="flex items-center gap-1"
+                        >
+                          <Download className="w-4 h-4" />
+                          <ChevronDown className="w-3 h-3" />
+                        </Button>
+                        {downloadDropdownOpen === job.id && (
+                          <div
+                            className="absolute right-0 top-full mt-1 w-44 rounded-md border bg-popover shadow-lg z-50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="py-1">
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onClick={() => handleDownload(job.id, 'found')}
+                              >
+                                <Download className="w-4 h-4" />
+                                Found Emails
+                              </button>
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onClick={() => handleDownload(job.id, 'all')}
+                              >
+                                <Download className="w-4 h-4" />
+                                All Emails
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                     <Button
                       variant="ghost"

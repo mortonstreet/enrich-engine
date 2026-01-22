@@ -82,8 +82,9 @@ export function useDeleteEnrichmentJob() {
   });
 }
 
-export function downloadEnrichmentResults(jobId: string) {
-  window.open(`${env.API_URL}${ENDPOINTS.ENRICH.DOWNLOAD(jobId)}`, '_blank');
+export function downloadEnrichmentResults(jobId: string, filter: 'all' | 'found' = 'all') {
+  const url = `${env.API_URL}${ENDPOINTS.ENRICH.DOWNLOAD(jobId)}?filter=${filter}`;
+  window.open(url, '_blank');
 }
 
 // ============================================

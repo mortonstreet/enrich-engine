@@ -26,6 +26,8 @@ import {
   GetListEnrichmentJobsQuerySchema,
   GetListEnrichmentJobRequest,
   GetListEnrichmentJobSchema,
+  DownloadEnrichmentJobRequest,
+  DownloadEnrichmentJobSchema,
   SaveVendorApiKeyRequest,
   SaveVendorApiKeySchema,
   DeleteVendorApiKeyRequest,
@@ -78,8 +80,8 @@ router.delete(
 router.get(
   "/jobs/:jobId/download",
   withBetterAuth,
-  validateAndMerge(GetListEnrichmentJobSchema),
-  authenticatedRoute<GetListEnrichmentJobRequest>(downloadEnrichmentResults)
+  validateAndMerge(DownloadEnrichmentJobSchema),
+  authenticatedRoute<DownloadEnrichmentJobRequest>(downloadEnrichmentResults)
 );
 
 // ============================================

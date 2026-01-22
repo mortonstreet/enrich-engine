@@ -64,6 +64,13 @@ export const GetListEnrichmentJobSchema = z.object({
 
 export type GetListEnrichmentJobRequest = z.infer<typeof GetListEnrichmentJobSchema>;
 
+export const DownloadEnrichmentJobSchema = z.object({
+  jobId: z.string().uuid(),
+  filter: z.enum(['all', 'found']).optional().default('all'),
+});
+
+export type DownloadEnrichmentJobRequest = z.infer<typeof DownloadEnrichmentJobSchema>;
+
 export const SaveVendorApiKeySchema = z.object({
   vendor: z.enum(['prospeo', 'apollo', 'hunter', 'clearbit', 'millionverifier', 'openrouter']),
   apiKey: z.string().min(1, 'API key is required'),
