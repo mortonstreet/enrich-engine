@@ -3,6 +3,8 @@ import {
   AuthRequestHandler,
   ValidatedRequest,
   ValidatedRequestHandler,
+  ExternalApiAuthRequest,
+  ExternalApiRequestHandler,
 } from "@/types/handlers";
 import { RequestHandler } from "express";
 import { setRequestContext } from "@/lib/context";
@@ -38,4 +40,18 @@ export const adminOnlyRoute = <T>(
     }
     return handler(req, res, next);
   });
+};
+
+export const externalApiRoute = <T>(
+  handler: ExternalApiRequestHandler<T>,
+): RequestHandler => {
+  return (req, res, next) => {
+    // At this point, we assume withExternalApiKey has already run and attached externalAuth
+    const externalReq = req as ExternalApiAuthRequest<T>;
+    if (!externalReq.externalAuth) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    setRequestContext("externalKeyId", externalReq.externalAuth.keyId);
+    return handler(externalReq, res, next);
+  };
 };

@@ -12,6 +12,8 @@ import {
   isMemberOfOrganization,
 } from "@/services/organization.service";
 import { OrganizationRole } from "@shared/types/src/organization";
+import * as externalApiKeyService from "@/services/externalApiKey.service";
+import { ExternalApiScope } from "@shared/types/src";
 
 export const withAuth = passport.authenticate("jwt", { session: false });
 
@@ -107,3 +109,73 @@ export const validateMemberOfOrganizationIs =
     }
     next();
   };
+
+// ============================================
+// External API Key Authentication
+// ============================================
+
+export interface ExternalApiRequest extends Request {
+  externalAuth: {
+    organizationId: string;
+    scopes: ExternalApiScope[];
+    keyId: string;
+  };
+}
+
+/**
+ * Middleware to authenticate requests using an external API key.
+ * Expects the API key in the X-API-Key header.
+ */
+export const withExternalApiKey = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const apiKey = req.headers["x-api-key"] as string | undefined;
+
+  if (!apiKey) {
+    logger.warn({ path: req.path }, "External API request missing X-API-Key header");
+    return res.status(401).json({ error: "Missing API key" });
+  }
+
+  const authResult = await externalApiKeyService.validateApiKey(apiKey);
+
+  if (!authResult) {
+    return res.status(401).json({ error: "Invalid or expired API key" });
+  }
+
+  // Attach auth info to request
+  (req as ExternalApiRequest).externalAuth = authResult;
+
+  next();
+};
+
+/**
+ * Middleware factory to require specific scopes for an external API endpoint.
+ * Use after withExternalApiKey middleware.
+ */
+export const requireScope = (requiredScope: ExternalApiScope) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const externalReq = req as ExternalApiRequest;
+
+    if (!externalReq.externalAuth) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!externalApiKeyService.hasScope(externalReq.externalAuth.scopes, requiredScope)) {
+      logger.warn(
+        {
+          keyId: externalReq.externalAuth.keyId,
+          requiredScope,
+          hasScopes: externalReq.externalAuth.scopes,
+        },
+        "External API request lacks required scope"
+      );
+      return res.status(403).json({
+        error: `Missing required scope: ${requiredScope}`,
+      });
+    }
+
+    next();
+  };
+};

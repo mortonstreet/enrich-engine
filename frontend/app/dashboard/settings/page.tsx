@@ -18,6 +18,7 @@ import { useActiveOrganization } from "@/lib/auth-client";
 import { useCreateCheckoutSession, useOrganizationSubscription, useCreatePortalSession } from "@/hooks/api/useStripe";
 import { STRIPE_PLANS } from "@shared/types/src";
 import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings";
+import { ExternalApiKeysSettings } from "@/components/settings/ExternalApiKeysSettings";
 
 export default function SettingsPage() {
   const { data: session } = useSession();
@@ -592,6 +593,11 @@ export default function SettingsPage() {
         {/* API Keys Settings - Admin/Owner Only */}
         {(isAdmin || isOwner) && activeOrganization && (
           <ApiKeysSettings />
+        )}
+
+        {/* External API Keys Settings - Admin/Owner Only */}
+        {(isAdmin || isOwner) && activeOrganization && (
+          <ExternalApiKeysSettings />
         )}
       </div>
 

@@ -47,6 +47,7 @@ model User {
   listEnrichmentJobs   ListEnrichmentJob[]
   vendorApiKeys        VendorApiKey[]
   copyGeneratorJobs    CopyGeneratorJob[]
+  externalApiKeys      ExternalApiKey[]
 
   @@unique([email])
   @@map("user")
@@ -116,6 +117,7 @@ model Organization {
   listEnrichmentJobs   ListEnrichmentJob[]
   vendorApiKeys        VendorApiKey[]
   copyGeneratorJobs    CopyGeneratorJob[]
+  externalApiKeys      ExternalApiKey[]
 
   @@unique([slug])
   @@map("organization")
@@ -533,6 +535,32 @@ model VendorApiKey {
   @@unique([organizationId, vendor])
   @@index([organizationId])
   @@map("vendor_api_key")
+}
+
+// ==========================================
+// External API Key Models (for third-party integrations)
+// ==========================================
+
+model ExternalApiKey {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String    // Friendly name like "GTM Dialer Integration"
+  keyPrefix      String    // First 8 chars for identification (e.g., "ee_live_")
+  hashedKey      String    // bcrypt hash of the full key
+  scopes         String[]  // Array of scopes: ["lists:read", "lists:write", "leads:read"]
+  isActive       Boolean   @default(true)
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([keyPrefix])
+  @@map("external_api_key")
 }
 
 // ==========================================

@@ -114,6 +114,12 @@ export const ENDPOINTS = {
     PREVIEW: '/copy-generator/preview',
     LISTS: '/copy-generator/lists',
   },
+  EXTERNAL_API_KEYS: {
+    LIST: '/external/api-keys',
+    CREATE: '/external/api-keys',
+    UPDATE: (id: string) => `/external/api-keys/${id}`,
+    DELETE: (id: string) => `/external/api-keys/${id}`,
+  },
 };
 
 export const QUERY_KEYS = {
@@ -152,4 +158,6 @@ export const QUERY_KEYS = {
   copyGeneratorJobs: () => ['copy-generator', 'jobs'] as const,
   copyGeneratorJob: (jobId?: string) => ['copy-generator', 'job', jobId] as const,
   copyGeneratorLists: () => ['copy-generator', 'lists'] as const,
+  // External API Keys
+  externalApiKeys: () => ['external-api-keys'] as const,
 };

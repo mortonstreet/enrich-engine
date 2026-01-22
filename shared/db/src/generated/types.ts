@@ -138,6 +138,20 @@ export type Example = {
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
 };
+export type ExternalApiKey = {
+    id: string;
+    organizationId: string;
+    name: string;
+    keyPrefix: string;
+    hashedKey: string;
+    scopes: string[];
+    isActive: Generated<boolean>;
+    lastUsedAt: Timestamp | null;
+    expiresAt: Timestamp | null;
+    createdById: string;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
 export type Invitation = {
     id: string;
     organizationId: string;
@@ -371,6 +385,7 @@ export type DB = {
     email_validation_attempt: EmailValidationAttempt;
     enrichment: Enrichment;
     example: Example;
+    external_api_key: ExternalApiKey;
     invitation: Invitation;
     lead: Lead;
     lead_list: LeadList;
