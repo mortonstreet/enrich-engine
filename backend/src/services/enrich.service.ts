@@ -590,12 +590,10 @@ export async function generateEnrichedCsv(
     });
   }
 
-  // Get leads for the items
+  // Get leads for the items using batch query to avoid connection pool exhaustion
   const leadIds = items.map((item) => item.leadId);
-  const leads = await Promise.all(
-    leadIds.map((id) => leadRepository.findById(id))
-  );
-  const leadMap = new Map(leads.filter(Boolean).map((l) => [l!.id, l!]));
+  const leads = await leadRepository.findByIds(leadIds, organizationId);
+  const leadMap = new Map(leads.map((l) => [l.id, l]));
 
   // Build CSV
   const headers = [
