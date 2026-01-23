@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import Navigation from "@/components/landing/Navigation";
 import ExaFooter from "@/components/landing/ExaFooter";
 import AnimatedPixelBackground from "@/components/landing/AnimatedPixelBackground";
@@ -13,40 +14,30 @@ const integrationCategories = [
     name: "CRM",
     description: "Sync enriched data directly to your CRM",
     integrations: [
-      { name: "Salesforce", logo: "SF", color: "bg-blue-500", status: "live" },
-      { name: "HubSpot", logo: "HS", color: "bg-orange-500", status: "live" },
-      { name: "Pipedrive", logo: "PD", color: "bg-green-500", status: "live" },
-      { name: "Close", logo: "CL", color: "bg-slate-700", status: "live" },
+      { name: "Salesforce", logo: "/logos/salesforce.svg", status: "live" },
+      { name: "HubSpot", logo: "/logos/hubspot.svg", status: "live" },
+      { name: "Pipedrive", logo: "/logos/pipedrive.svg", status: "live" },
+      { name: "Close", logo: "/logos/close.svg", status: "live" },
     ],
   },
   {
     name: "Sales Engagement",
     description: "Power your outreach with verified contacts",
     integrations: [
-      { name: "Outreach", logo: "OR", color: "bg-purple-600", status: "live" },
-      { name: "Salesloft", logo: "SL", color: "bg-blue-600", status: "live" },
-      { name: "Apollo", logo: "AP", color: "bg-indigo-500", status: "live" },
-      { name: "Lemlist", logo: "LL", color: "bg-pink-500", status: "beta" },
+      { name: "Outreach", logo: "/logos/outreach.svg", status: "live" },
+      { name: "Salesloft", logo: "/logos/salesloft.svg", status: "live" },
+      { name: "Apollo", logo: "/logos/apollo-io.svg", status: "live" },
+      { name: "Lemlist", logo: "/logos/lemlist.svg", status: "beta" },
     ],
   },
   {
     name: "Automation",
     description: "Build custom workflows with no code",
     integrations: [
-      { name: "Zapier", logo: "ZP", color: "bg-orange-600", status: "live" },
-      { name: "Make", logo: "MK", color: "bg-violet-600", status: "live" },
-      { name: "n8n", logo: "N8", color: "bg-red-500", status: "live" },
-      { name: "Tray.io", logo: "TR", color: "bg-cyan-500", status: "coming" },
-    ],
-  },
-  {
-    name: "Data & Analytics",
-    description: "Enrich your data warehouse and BI tools",
-    integrations: [
-      { name: "Snowflake", logo: "SF", color: "bg-sky-500", status: "live" },
-      { name: "BigQuery", logo: "BQ", color: "bg-blue-400", status: "live" },
-      { name: "Segment", logo: "SG", color: "bg-emerald-500", status: "beta" },
-      { name: "Fivetran", logo: "FT", color: "bg-blue-700", status: "coming" },
+      { name: "Zapier", logo: "/logos/zapier.svg", status: "live" },
+      { name: "Make", logo: "/logos/make.svg", status: "live" },
+      { name: "n8n", logo: "/logos/n8n.svg", status: "live" },
+      { name: "Tray.io", logo: "/logos/tray.svg", status: "coming" },
     ],
   },
 ];
@@ -121,8 +112,14 @@ export default function IntegrationsPage() {
                       <ScrollReveal key={integration.name} delay={categoryIndex * 50 + i * 30}>
                         <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-[#E63946]/30 hover:shadow-lg transition-all cursor-pointer group">
                           <div className="flex items-start justify-between mb-4">
-                            <div className={`w-12 h-12 ${integration.color} rounded-xl flex items-center justify-center text-white font-bold text-sm`}>
-                              {integration.logo}
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-50 p-2">
+                              <Image
+                                src={integration.logo}
+                                alt={`${integration.name} logo`}
+                                width={40}
+                                height={40}
+                                className="object-contain"
+                              />
                             </div>
                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColors[integration.status as keyof typeof statusColors]}`}>
                               {statusLabels[integration.status as keyof typeof statusLabels]}

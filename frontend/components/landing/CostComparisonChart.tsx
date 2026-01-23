@@ -55,7 +55,7 @@ const providers: Provider[] = [
     name: "Prospeo",
     logo: "/logos/prospeo.svg",
     logoType: "image",
-    color: "#8B1538",
+    color: "#FF1B27",
     costPerContact: 0.22,
     emailAccuracy: 89,
     avgLatency: 1.3,

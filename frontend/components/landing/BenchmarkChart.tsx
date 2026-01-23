@@ -36,9 +36,14 @@ const ApolloLogo = () => (
 );
 
 const ProspeoLogo = () => (
-  <div className="w-7 h-7 bg-[#8B1538] rounded-md flex items-center justify-center overflow-hidden">
-    {/* Prospeo's bold maroon "P" mark */}
-    <span className="text-white text-sm font-bold">P</span>
+  <div className="w-7 h-7 rounded-md flex items-center justify-center overflow-hidden">
+    <Image
+      src="/logos/prospeo.svg"
+      alt="Prospeo"
+      width={28}
+      height={28}
+      className="object-cover"
+    />
   </div>
 );
 
@@ -55,13 +60,26 @@ const LushaLogo = () => (
 );
 
 const WizaLogo = () => (
-  <div className="w-7 h-7 bg-[#0D9488] rounded-md flex items-center justify-center overflow-hidden">
-    {/* Wiza's targeting/scope icon */}
-    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-      <circle cx="12" cy="12" r="4" stroke="white" strokeWidth="2"/>
-      <circle cx="12" cy="12" r="7" stroke="white" strokeWidth="1.5" strokeDasharray="2 2"/>
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
+  <div className="w-7 h-7 rounded-md flex items-center justify-center overflow-hidden">
+    <Image
+      src="/logos/wiza.svg"
+      alt="Wiza"
+      width={28}
+      height={28}
+      className="object-cover"
+    />
+  </div>
+);
+
+const ForagerLogo = () => (
+  <div className="w-7 h-7 bg-[#5A42FF] rounded-md flex items-center justify-center overflow-hidden">
+    <Image
+      src="/logos/forager.svg"
+      alt="Forager"
+      width={20}
+      height={20}
+      className="object-contain"
+    />
   </div>
 );
 
@@ -102,7 +120,7 @@ const costData: BenchmarkData[] = [
     category: "Phone Lookup",
     providers: [
       { name: "Enrich", value: 0.025, logo: <EnrichLogo />, isEnrich: true },
-      { name: "Lusha", value: 0.15, logo: <LushaLogo /> },
+      { name: "Forager", value: 0.15, logo: <ForagerLogo /> },
       { name: "Apollo", value: 0.20, logo: <ApolloLogo /> },
     ],
   },
@@ -111,7 +129,7 @@ const costData: BenchmarkData[] = [
     providers: [
       { name: "Enrich", value: 0.01, logo: <EnrichLogo />, isEnrich: true },
       { name: "Wiza", value: 0.15, logo: <WizaLogo /> },
-      { name: "Clay", value: 0.05, logo: <ClayLogo /> },
+      { name: "Forager", value: 0.05, logo: <ForagerLogo /> },
     ],
   },
   {
@@ -138,7 +156,7 @@ const accuracyData: BenchmarkData[] = [
     category: "Phone Lookup",
     providers: [
       { name: "Enrich", value: 91.8, logo: <EnrichLogo />, isEnrich: true },
-      { name: "Lusha", value: 85.3, logo: <LushaLogo /> },
+      { name: "Forager", value: 85.3, logo: <ForagerLogo /> },
       { name: "Apollo", value: 78.6, logo: <ApolloLogo /> },
     ],
   },
@@ -147,7 +165,7 @@ const accuracyData: BenchmarkData[] = [
     providers: [
       { name: "Enrich", value: 97.3, logo: <EnrichLogo />, isEnrich: true },
       { name: "Wiza", value: 89.1, logo: <WizaLogo /> },
-      { name: "Clay", value: 84.7, logo: <ClayLogo /> },
+      { name: "Forager", value: 84.7, logo: <ForagerLogo /> },
     ],
   },
   {
@@ -174,7 +192,7 @@ const speedData: BenchmarkData[] = [
     category: "Phone Lookup",
     providers: [
       { name: "Enrich", value: 1.2, logo: <EnrichLogo />, isEnrich: true },
-      { name: "Lusha", value: 2.8, logo: <LushaLogo /> },
+      { name: "Forager", value: 2.8, logo: <ForagerLogo /> },
       { name: "Apollo", value: 4.1, logo: <ApolloLogo /> },
     ],
   },
@@ -183,7 +201,7 @@ const speedData: BenchmarkData[] = [
     providers: [
       { name: "Enrich", value: 1.5, logo: <EnrichLogo />, isEnrich: true },
       { name: "Wiza", value: 3.2, logo: <WizaLogo /> },
-      { name: "Clay", value: 4.8, logo: <ClayLogo /> },
+      { name: "Forager", value: 4.8, logo: <ForagerLogo /> },
     ],
   },
   {
@@ -542,8 +560,8 @@ export default function BenchmarkChart() {
                 <ClayLogo />
                 <ApolloLogo />
                 <ProspeoLogo />
-                <LushaLogo />
                 <WizaLogo />
+                <ForagerLogo />
               </div>
             </div>
           </div>

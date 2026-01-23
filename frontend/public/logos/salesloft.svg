@@ -1,0 +1,7 @@
+<svg width="48" height="48" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="100" height="100" fill="#F5F5F5"/>
+<!-- Green S letter -->
+<path d="M35.5 28C35.5 23.5 39 19 46 19C53 19 59.5 21.5 62.5 39H64L66 18C54 13 39 17 38.5 31C38.5 49 62 49 62 65C62 70 56.5 75 50 75C38 75 35 66 34 57H32L29 74C29 74 38 79 47 79C57 79 66 71 66.5 62C66.5 44 35.5 41 35.5 28Z" fill="#06492E"/>
+<!-- Lime green dot -->
+<circle cx="72" cy="72" r="8" fill="#B4D625"/>
+</svg>
