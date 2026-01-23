@@ -13,3 +13,5 @@ export * from './emailGuess';
 export * from './externalApiKey';
 export * from './costComparison';
 export * from './blog';
+export * from './search';
+export * from './verification';

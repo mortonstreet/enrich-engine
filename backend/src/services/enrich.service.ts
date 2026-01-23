@@ -477,6 +477,7 @@ export async function getEnrichmentJob(
         },
         validationAttempts: itemAttempts.map((a) => ({
           id: a.id,
+          leadId: a.leadId,
           email: a.email,
           pattern: a.pattern,
           status: a.status as 'valid' | 'bounced' | 'catch_all' | 'unknown' | 'error',

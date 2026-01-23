@@ -1,5 +1,6 @@
 import { getRedis } from "@/lib/redis";
 import logger from "@/lib/logger";
+import { createErrorResponse, ErrorCodes } from "@/lib/errors";
 
 export interface RateLimitOptions {
   windowSeconds: number;
@@ -73,29 +74,30 @@ export class RedisRateLimiter {
             return options.onLimitReached(req, res, rateLimitInfo);
           }
 
-          // Default response
-          return res.status(429).json({
-            error: "Rate limit exceeded",
-            message:
+          // Default response using standardized format
+          return res.status(429).json(
+            createErrorResponse(
               options.message ||
-              `Too many requests. Please try again in ${retryAfter} seconds.`,
-            retryAfter,
-            limit: options.maxRequests,
-            windowSeconds: options.windowSeconds,
-          });
+                `Too many requests. Please try again in ${retryAfter} seconds.`,
+              ErrorCodes.RATE_LIMIT_EXCEEDED,
+              {
+                retryAfter,
+                limit: options.maxRequests,
+                windowSeconds: options.windowSeconds,
+              }
+            )
+          );
         }
 
         // Add rate limit info to response headers
+        const resetTimestamp = Math.floor((now + options.windowSeconds * 1000) / 1000);
         res.set({
           "X-RateLimit-Limit": options.maxRequests.toString(),
-          "X-RateLimit-Remaining": (
-            options.maxRequests -
-            currentRequests -
-            1
+          "X-RateLimit-Remaining": Math.max(
+            0,
+            options.maxRequests - currentRequests - 1
           ).toString(),
-          "X-RateLimit-Reset": new Date(
-            now + options.windowSeconds * 1000,
-          ).toISOString(),
+          "X-RateLimit-Reset": resetTimestamp.toString(),
         });
 
         // Store original end function to conditionally count requests

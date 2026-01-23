@@ -114,6 +114,16 @@ export type DomainEmailPattern = {
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
 };
+export type DomainMxCache = {
+    id: string;
+    domain: string;
+    mxRecords: unknown;
+    isCatchAll: boolean | null;
+    isDisposable: Generated<boolean>;
+    lastVerified: Generated<Timestamp>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
 export type EmailValidationAttempt = {
     id: string;
     jobItemId: string;
@@ -121,6 +131,8 @@ export type EmailValidationAttempt = {
     email: string;
     pattern: string;
     status: string;
+    verificationSource: Generated<string>;
+    smtpCode: number | null;
     validationResponse: unknown | null;
     createdAt: Generated<Timestamp>;
     processedAt: Timestamp | null;
@@ -236,6 +248,15 @@ export type ListEnrichmentJob = {
     guessSuccessCount: Generated<number>;
     fallbackCount: Generated<number>;
     validationCredits: Generated<number>;
+    verificationStage: Generated<string>;
+    verificationMethod: Generated<string>;
+    smtpValidCount: Generated<number>;
+    smtpInvalidCount: Generated<number>;
+    smtpCatchAllCount: Generated<number>;
+    smtpUnknownCount: Generated<number>;
+    smtpCompletedAt: Timestamp | null;
+    userDecision: string | null;
+    decisionMadeAt: Timestamp | null;
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
     completedAt: Timestamp | null;
@@ -398,6 +419,7 @@ export type DB = {
     copy_generator_job_item: CopyGeneratorJobItem;
     credit_transaction: CreditTransaction;
     domain_email_pattern: DomainEmailPattern;
+    domain_mx_cache: DomainMxCache;
     email_validation_attempt: EmailValidationAttempt;
     enrichment: Enrichment;
     example: Example;

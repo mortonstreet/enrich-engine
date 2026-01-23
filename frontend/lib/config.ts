@@ -126,6 +126,16 @@ export const ENDPOINTS = {
     LIST: '/blog',
     DETAIL: (slug: string) => `/blog/${slug}`,
   },
+  SEARCH: {
+    PEOPLE: '/search/people',
+  },
+  VERIFICATION: {
+    JOBS: '/verification/jobs',
+    JOB: (jobId: string) => `/verification/jobs/${jobId}`,
+    PROGRESS: (jobId: string) => `/verification/jobs/${jobId}/progress`,
+    DECISION: (jobId: string) => `/verification/jobs/${jobId}/decision`,
+    ESTIMATE: (jobId: string) => `/verification/jobs/${jobId}/estimate`,
+  },
 };
 
 export const QUERY_KEYS = {
@@ -171,4 +181,11 @@ export const QUERY_KEYS = {
   // Blog
   blogPosts: (category?: string) => ['blog', 'posts', category] as const,
   blogPost: (slug?: string) => ['blog', 'post', slug] as const,
+  // Search
+  searchPeople: () => ['search', 'people'] as const,
+  // Verification
+  verificationJobs: () => ['verification', 'jobs'] as const,
+  verificationJob: (jobId?: string) => ['verification', 'job', jobId] as const,
+  verificationProgress: (jobId?: string) => ['verification', 'progress', jobId] as const,
+  verificationEstimate: (jobId?: string) => ['verification', 'estimate', jobId] as const,
 };

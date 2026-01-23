@@ -481,6 +481,16 @@ model ListEnrichmentJob {
   guessSuccessCount   Int     @default(0)
   fallbackCount       Int     @default(0)
   validationCredits   Int     @default(0)
+  // Email verification fields
+  verificationStage   String  @default("pending") // pending, smtp_verifying, awaiting_decision, api_verifying, completed
+  verificationMethod  String  @default("smtp_only") // smtp_only, smtp_api_fallback, api_only
+  smtpValidCount      Int     @default(0)
+  smtpInvalidCount    Int     @default(0)
+  smtpCatchAllCount   Int     @default(0)
+  smtpUnknownCount    Int     @default(0)
+  smtpCompletedAt     DateTime?
+  userDecision        String?   // accept_current, fill_all_gaps, fill_unknowns_only, fill_catchall_only
+  decisionMadeAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   completedAt     DateTime?
@@ -494,6 +504,7 @@ model ListEnrichmentJob {
   @@index([userId])
   @@index([listId])
   @@index([status])
+  @@index([verificationStage])
   @@map("list_enrichment_job")
 }
 
@@ -640,7 +651,9 @@ model EmailValidationAttempt {
   email              String
   pattern            String    // e.g., "first.last", "flast", "firstl"
   status             String    // valid, bounced, catch_all, unknown, error
-  validationResponse Json?     // MillionVerifier API response
+  verificationSource String    @default("api") // smtp, api - how the email was verified
+  smtpCode           Int?      // SMTP response code (250, 550, etc.)
+  validationResponse Json?     // MillionVerifier API response or SMTP details
   createdAt          DateTime  @default(now())
   processedAt        DateTime?
 
@@ -650,6 +663,25 @@ model EmailValidationAttempt {
   @@index([leadId])
   @@index([status])
   @@map("email_validation_attempt")
+}
+
+// ==========================================
+// Domain MX Cache for SMTP Verification
+// ==========================================
+
+model DomainMxCache {
+  id           String   @id @default(uuid())
+  domain       String   @unique
+  mxRecords    Json     // Array of MX records: [{host: "mx.google.com", priority: 10}]
+  isCatchAll   Boolean? // null = not tested, true/false = tested
+  isDisposable Boolean  @default(false)
+  lastVerified DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([domain])
+  @@index([lastVerified])
+  @@map("domain_mx_cache")
 }
 
 // ==========================================

@@ -247,6 +247,7 @@ export const findValidationAttemptsByJobItemIds = async (jobItemIds: string[]) =
     .select([
       "id",
       "jobItemId",
+      "leadId",
       "email",
       "pattern",
       "status",

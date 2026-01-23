@@ -13,89 +13,69 @@ import {
   Users,
   Plus,
   ExternalLink,
-  Mail,
-  Phone,
+  AlertCircle,
 } from "lucide-react";
+import { useSearchPeople } from "@/hooks/api/useSearch";
+import { SearchResultPerson } from "@shared/types/src";
 
 type SearchResult = {
   id: string;
   name: string;
   title: string;
   company: string;
-  location: string;
   linkedinUrl?: string;
-  email?: string;
-  phone?: string;
 };
 
-// Mock search results for demonstration
-const mockResults: SearchResult[] = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    title: "VP of Sales",
-    company: "Scale AI",
-    location: "San Francisco, CA",
-    linkedinUrl: "linkedin.com/in/sarahchen",
-    email: "sarah@scale.ai",
-  },
-  {
-    id: "2",
-    name: "Mike Rodriguez",
-    title: "Head of Sales",
-    company: "Notion",
-    location: "San Francisco, CA",
-    linkedinUrl: "linkedin.com/in/mikerodriguez",
-  },
-  {
-    id: "3",
-    name: "Jennifer Kim",
-    title: "VP Revenue",
-    company: "Figma",
-    location: "San Francisco, CA",
-    linkedinUrl: "linkedin.com/in/jenniferkim",
-    email: "jen@figma.com",
-    phone: "+1 (415) 555-0123",
-  },
-  {
-    id: "4",
-    name: "David Park",
-    title: "Sales Director",
-    company: "Linear",
-    location: "San Francisco, CA",
-    linkedinUrl: "linkedin.com/in/davidpark",
-  },
-  {
-    id: "5",
-    name: "Emily Zhang",
-    title: "VP of Sales",
-    company: "Anthropic",
-    location: "San Francisco, CA",
-    linkedinUrl: "linkedin.com/in/emilyzhang",
-    email: "emily@anthropic.com",
-  },
-];
+/**
+ * Converts API search result to display format
+ */
+function toDisplayResult(result: SearchResultPerson, index: number): SearchResult {
+  const fullName = [result.firstName, result.lastName].filter(Boolean).join(" ") || "Unknown";
+  return {
+    id: `${index}-${result.linkedinUrl}`,
+    name: fullName,
+    title: result.title,
+    company: result.company || "",
+    linkedinUrl: result.linkedinUrl,
+  };
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [location, setLocation] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const searchMutation = useSearchPeople();
+  const isSearching = searchMutation.isPending;
 
   const handleSearch = async () => {
     if (!query && !role && !company && !location) return;
 
-    setIsSearching(true);
     setHasSearched(true);
+    setError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await searchMutation.mutateAsync({
+        query: query || undefined,
+        role: role || undefined,
+        company: company || undefined,
+        location: location || undefined,
+      });
 
-    setResults(mockResults);
-    setIsSearching(false);
+      setResults(response.results.map(toDisplayResult));
+    } catch (err) {
+      console.error("Search failed:", err);
+      setResults([]);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred while searching. Please try again."
+      );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -113,8 +93,10 @@ export default function SearchPage() {
       <div className="bg-card border rounded-xl p-6 mb-6">
         {/* Main search bar */}
         <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" aria-hidden="true" />
           <Input
+            id="search-query"
+            aria-label="Search query"
             placeholder="VP of Sales at series B startups in San Francisco..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -126,11 +108,12 @@ export default function SearchPage() {
         {/* Advanced filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4">
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-              <Briefcase className="w-4 h-4 inline mr-1.5" />
+            <label htmlFor="filter-role" className="text-sm font-medium text-muted-foreground mb-1.5 block">
+              <Briefcase className="w-4 h-4 inline mr-1.5" aria-hidden="true" />
               Role / Title
             </label>
             <Input
+              id="filter-role"
               placeholder="e.g. VP of Sales, CTO, Engineer"
               value={role}
               onChange={(e) => setRole(e.target.value)}
@@ -138,11 +121,12 @@ export default function SearchPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-              <Building2 className="w-4 h-4 inline mr-1.5" />
+            <label htmlFor="filter-company" className="text-sm font-medium text-muted-foreground mb-1.5 block">
+              <Building2 className="w-4 h-4 inline mr-1.5" aria-hidden="true" />
               Company
             </label>
             <Input
+              id="filter-company"
               placeholder="e.g. Stripe, Notion, Scale AI"
               value={company}
               onChange={(e) => setCompany(e.target.value)}
@@ -150,11 +134,12 @@ export default function SearchPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-              <MapPin className="w-4 h-4 inline mr-1.5" />
+            <label htmlFor="filter-location" className="text-sm font-medium text-muted-foreground mb-1.5 block">
+              <MapPin className="w-4 h-4 inline mr-1.5" aria-hidden="true" />
               Location
             </label>
             <Input
+              id="filter-location"
               placeholder="e.g. San Francisco, New York"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
@@ -170,12 +155,12 @@ export default function SearchPage() {
         >
           {isSearching ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
               Searching...
             </>
           ) : (
             <>
-              <Search className="w-4 h-4 mr-2" />
+              <Search className="w-4 h-4 mr-2" aria-hidden="true" />
               Search People
             </>
           )}
@@ -183,44 +168,59 @@ export default function SearchPage() {
       </div>
 
       {/* Results */}
-      {isSearching ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mb-4" />
+      {error ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center border border-destructive/50 rounded-xl bg-destructive/5" role="alert">
+          <div className="w-16 h-16 rounded-xl bg-destructive/10 flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-destructive" aria-hidden="true" />
+          </div>
+          <h3 className="font-semibold mb-2 text-destructive">Search failed</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mb-4">
+            {error}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              handleSearch();
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : isSearching ? (
+        <div className="flex flex-col items-center justify-center py-16" role="status" aria-live="polite" aria-atomic="true">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mb-4" aria-hidden="true" />
           <p className="text-muted-foreground">Searching for people...</p>
         </div>
       ) : results.length > 0 ? (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4" role="status" aria-live="polite" aria-atomic="true">
             <p className="text-sm text-muted-foreground">
               Found {results.length} results
             </p>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-1.5" />
+            <Button variant="outline" size="sm" aria-label="Add all results to list">
+              <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />
               Add all to list
             </Button>
           </div>
 
           <div className="border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-[500px]">
+              <caption className="sr-only">Search results</caption>
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th scope="col" className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
                     Name
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden sm:table-cell">
+                  <th scope="col" className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden sm:table-cell">
                     Title
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th scope="col" className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
                     Company
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden md:table-cell">
-                    Location
-                  </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden lg:table-cell">
-                    Contact
-                  </th>
-                  <th className="text-right text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th scope="col" className="text-right text-sm font-medium text-muted-foreground px-4 py-3">
                     Actions
                   </th>
                 </tr>
@@ -237,13 +237,13 @@ export default function SearchPage() {
                           <p className="font-medium text-sm truncate">{result.name}</p>
                           {result.linkedinUrl && (
                             <a
-                              href={`https://${result.linkedinUrl}`}
+                              href={result.linkedinUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                             >
                               LinkedIn
-                              <ExternalLink className="w-3 h-3" />
+                              <ExternalLink className="w-3 h-3" aria-hidden="true" />
                             </a>
                           )}
                           {/* Show title on mobile under name */}
@@ -253,31 +253,9 @@ export default function SearchPage() {
                     </td>
                     <td className="px-4 py-3 text-sm hidden sm:table-cell">{result.title}</td>
                     <td className="px-4 py-3 text-sm">{result.company}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                      {result.location}
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <div className="flex items-center gap-2">
-                        {result.email && (
-                          <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            <Mail className="w-3 h-3" />
-                            Email
-                          </span>
-                        )}
-                        {result.phone && (
-                          <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                            <Phone className="w-3 h-3" />
-                            Phone
-                          </span>
-                        )}
-                        {!result.email && !result.phone && (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    </td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm" className="whitespace-nowrap">
-                        <Plus className="w-4 h-4 sm:mr-1" />
+                      <Button variant="outline" size="sm" className="whitespace-nowrap" aria-label={`Add ${result.name} to list`}>
+                        <Plus className="w-4 h-4 sm:mr-1" aria-hidden="true" />
                         <span className="hidden sm:inline">Add to list</span>
                       </Button>
                     </td>
@@ -291,7 +269,7 @@ export default function SearchPage() {
       ) : hasSearched ? (
         <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl">
           <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
-            <Users className="w-8 h-8 text-muted-foreground" />
+            <Users className="w-8 h-8 text-muted-foreground" aria-hidden="true" />
           </div>
           <h3 className="font-semibold mb-2">No results found</h3>
           <p className="text-sm text-muted-foreground max-w-xs">
@@ -301,7 +279,7 @@ export default function SearchPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl bg-muted/20">
           <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
-            <Search className="w-8 h-8 text-muted-foreground" />
+            <Search className="w-8 h-8 text-muted-foreground" aria-hidden="true" />
           </div>
           <h3 className="font-semibold mb-2">Search for people</h3>
           <p className="text-sm text-muted-foreground max-w-sm">

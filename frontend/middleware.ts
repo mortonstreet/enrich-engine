@@ -2,7 +2,28 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Marketing routes that should be accessible on www subdomain
-const MARKETING_ROUTES = ["/", "/waitlist", "/privacy", "/terms"];
+const MARKETING_ROUTES = [
+  "/",
+  "/waitlist",
+  "/privacy",
+  "/terms",
+  "/about",
+  "/blog",
+  "/pricing",
+  "/contact",
+  "/faq",
+  "/docs",
+  "/demos",
+  "/case-studies",
+  "/status",
+  "/bulk-enrich",
+  "/search",
+  "/methodology",
+  "/engineering",
+  "/integrations",
+  "/careers",
+  "/brand",
+];
 
 // Auth routes that should be on app subdomain
 const AUTH_ROUTES = ["/login", "/signup", "/verify", "/reset-password", "/accept-invitation"];
