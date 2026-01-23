@@ -10,20 +10,25 @@ export type CreateBulkJobData = {
   organizationId: string;
   userId: string;
   status: string;
+  jobType: string;
   totalRecords: number;
   processedRecords?: number;
   matchedRecords?: number;
   failedRecords?: number;
   originalFileName: string;
   totalCreditsCost?: number;
+  enrichMobile?: boolean;
   completedAt?: Date | null;
 };
 
 export type CreateBulkItemData = {
   jobId: string;
   identifier: string;
-  linkedinUrl: string;
+  linkedinUrl?: string | null;
   status: string;
+  inputCompany?: string | null;
+  inputDomain?: string | null;
+  inputRole?: string | null;
 };
 
 // ============================================
@@ -168,7 +173,7 @@ export const getJobStats = async (jobId: string) => {
     .where("jobId", "=", jobId)
     .select([
       sql<number>`count(*)::int`.as("total"),
-      sql<number>`count(*) filter (where status != 'pending')::int`.as(
+      sql<number>`count(*) filter (where status not in ('pending', 'searching'))::int`.as(
         "processed",
       ),
       sql<number>`count(*) filter (where status = 'matched')::int`.as(

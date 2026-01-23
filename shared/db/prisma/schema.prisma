@@ -241,12 +241,14 @@ model BulkEnrichmentJob {
   organizationId   String
   userId           String
   status           String   // pending, processing, completed, failed
+  jobType          String   @default("linkedin") // linkedin, people_search
   totalRecords     Int
   processedRecords Int      @default(0)
   matchedRecords   Int      @default(0)
   failedRecords    Int      @default(0)
   originalFileName String
   totalCreditsCost Int      @default(0)
+  enrichMobile     Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   completedAt      DateTime?
@@ -261,9 +263,15 @@ model BulkEnrichmentItem {
   id          String   @id @default(uuid())
   jobId       String
   identifier  String
-  linkedinUrl String
-  status      String   // pending, matched, not_matched, error
+  linkedinUrl String?  // Optional - populated directly for linkedin jobs, or found via search for people_search jobs
+  status      String   // pending, searching, matched, not_matched, error
 
+  // Input fields for people_search job type
+  inputCompany String?
+  inputDomain  String?
+  inputRole    String?
+
+  // Output fields
   email       String?
   mobile      String?
   firstName   String?

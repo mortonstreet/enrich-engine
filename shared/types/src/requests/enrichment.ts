@@ -109,7 +109,13 @@ export enum BulkJobStatus {
 
 export enum BulkItemStatus {
   PENDING = 'pending',
+  SEARCHING = 'searching',
   MATCHED = 'matched',
   NOT_MATCHED = 'not_matched',
   ERROR = 'error',
+}
+
+export enum BulkJobType {
+  LINKEDIN = 'linkedin',
+  PEOPLE_SEARCH = 'people_search',
 }

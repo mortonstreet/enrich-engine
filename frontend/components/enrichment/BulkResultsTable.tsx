@@ -1,7 +1,7 @@
 "use client";
 
 import { DBBulkEnrichmentItem, BulkItemStatus } from "@shared/types/src";
-import { Check, X, AlertCircle, Clock, ExternalLink } from "lucide-react";
+import { Check, X, AlertCircle, Clock, ExternalLink, Search } from "lucide-react";
 
 interface BulkResultsTableProps {
   items: DBBulkEnrichmentItem[];
@@ -27,6 +27,11 @@ const statusConfig = {
     label: "Pending",
     icon: Clock,
     className: "text-muted-foreground",
+  },
+  [BulkItemStatus.SEARCHING]: {
+    label: "Searching",
+    icon: Search,
+    className: "text-blue-600",
   },
 };
 
@@ -86,14 +91,18 @@ export function BulkResultsTable({ items }: BulkResultsTableProps) {
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <a
-                    href={item.linkedinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  {item.linkedinUrl ? (
+                    <a
+                      href={item.linkedinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  ) : (
+                    "-"
+                  )}
                 </td>
               </tr>
             );

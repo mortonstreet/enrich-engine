@@ -5,8 +5,37 @@ import {
   GetEnrichmentHistoryRequest,
   GetBulkJobRequest,
   BulkEnrichRequest,
+  BulkJobType,
 } from "@shared/types/src";
 import { addBulkEnrichmentJob } from "@/queues/enrichment.queue";
+
+// Helper to parse CSV line handling quoted fields
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current.trim());
+  return result;
+}
 
 export const enrichPerson: AuthRequestHandler<EnrichPersonRequest> = async (
   req,
@@ -75,58 +104,116 @@ export const createBulkJob: AuthRequestHandler<BulkEnrichRequest> = async (
       .json({ error: "CSV file must have at least one data row" });
   }
 
-  // Parse header and data rows
-  const header = lines[0].toLowerCase();
-  const linkedinUrlIndex = header
-    .split(",")
-    .findIndex(
-      (col: string) =>
-        col.trim().includes("linkedin") || col.trim().includes("url"),
-    );
-  const identifierIndex = header
-    .split(",")
-    .findIndex(
-      (col: string) =>
-        col.trim().includes("id") || col.trim().includes("identifier"),
-    );
+  // Parse header
+  const headerCols = parseCSVLine(lines[0]).map((col) => col.toLowerCase());
 
-  if (linkedinUrlIndex === -1) {
+  // Detect CSV type by checking for column names
+  const linkedinUrlIndex = headerCols.findIndex(
+    (col) => col.includes("linkedin") || col === "url",
+  );
+  const companyIndex = headerCols.findIndex(
+    (col) => col === "company" || col === "company_name" || col === "companyname",
+  );
+  const domainIndex = headerCols.findIndex(
+    (col) => col === "domain" || col === "company_domain" || col === "website",
+  );
+  const role1Index = headerCols.findIndex(
+    (col) => col === "role" || col === "role1" || col === "title",
+  );
+  const role2Index = headerCols.findIndex((col) => col === "role2");
+  const identifierIndex = headerCols.findIndex(
+    (col) => col.includes("id") || col.includes("identifier"),
+  );
+
+  // Determine job type
+  const hasLinkedinColumn = linkedinUrlIndex !== -1;
+  const hasPeopleSearchColumns = (companyIndex !== -1 || domainIndex !== -1) && role1Index !== -1;
+
+  if (!hasLinkedinColumn && !hasPeopleSearchColumns) {
     return res.status(400).json({
-      error: 'CSV must contain a column with "linkedin" or "url" in the header',
+      error:
+        'CSV must contain either a "linkedin/url" column OR "company/domain" + "role/role1" columns',
     });
   }
 
-  const linkedinUrls = lines
-    .slice(1)
-    .map((line: string, index: number) => {
-      const cols = line.split(",").map((col: string) => col.trim());
-      return {
-        identifier:
-          identifierIndex !== -1 ? cols[identifierIndex] : `row-${index + 1}`,
-        linkedinUrl: cols[linkedinUrlIndex],
-      };
-    })
-    .filter((item: { linkedinUrl: string }) => item.linkedinUrl);
+  // Prefer LinkedIn if both are present
+  const jobType = hasLinkedinColumn ? BulkJobType.LINKEDIN : BulkJobType.PEOPLE_SEARCH;
 
-  if (linkedinUrls.length === 0) {
-    return res
-      .status(400)
-      .json({ error: "No valid LinkedIn URLs found in CSV" });
+  if (jobType === BulkJobType.LINKEDIN) {
+    // Parse LinkedIn URLs
+    const linkedinUrls = lines
+      .slice(1)
+      .map((line: string, index: number) => {
+        const cols = parseCSVLine(line);
+        return {
+          identifier:
+            identifierIndex !== -1 ? cols[identifierIndex] : `row-${index + 1}`,
+          linkedinUrl: cols[linkedinUrlIndex],
+        };
+      })
+      .filter((item) => item.linkedinUrl);
+
+    if (linkedinUrls.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "No valid LinkedIn URLs found in CSV" });
+    }
+
+    const result = await enrichmentService.createBulkJob(
+      organizationId,
+      req.user.id,
+      file.originalname,
+      linkedinUrls,
+      enrichMobile,
+      BulkJobType.LINKEDIN,
+    );
+
+    await addBulkEnrichmentJob(result.job.id);
+    res.json(result);
+  } else {
+    // Parse company/domain/role data
+    const peopleSearchItems = lines
+      .slice(1)
+      .map((line: string, index: number) => {
+        const cols = parseCSVLine(line);
+        const roles: string[] = [];
+
+        if (role1Index !== -1 && cols[role1Index]) {
+          roles.push(cols[role1Index]);
+        }
+        if (role2Index !== -1 && cols[role2Index]) {
+          roles.push(cols[role2Index]);
+        }
+
+        return {
+          identifier:
+            identifierIndex !== -1 && cols[identifierIndex]
+              ? cols[identifierIndex]
+              : `row-${index + 1}`,
+          company: companyIndex !== -1 ? cols[companyIndex] : undefined,
+          domain: domainIndex !== -1 ? cols[domainIndex] : undefined,
+          roles,
+        };
+      })
+      .filter((item) => (item.company || item.domain) && item.roles.length > 0);
+
+    if (peopleSearchItems.length === 0) {
+      return res.status(400).json({
+        error: "No valid company/domain + role combinations found in CSV",
+      });
+    }
+
+    const result = await enrichmentService.createPeopleSearchBulkJob(
+      organizationId,
+      req.user.id,
+      file.originalname,
+      peopleSearchItems,
+      enrichMobile,
+    );
+
+    await addBulkEnrichmentJob(result.job.id);
+    res.json(result);
   }
-
-  // Create job
-  const result = await enrichmentService.createBulkJob(
-    organizationId,
-    req.user.id,
-    file.originalname,
-    linkedinUrls,
-    enrichMobile,
-  );
-
-  // Queue for background processing
-  await addBulkEnrichmentJob(result.job.id);
-
-  res.json(result);
 };
 
 export const getBulkJobStatus: AuthRequestHandler<GetBulkJobRequest> = async (
@@ -164,32 +251,68 @@ export const downloadBulkJobCsv: AuthRequestHandler<GetBulkJobRequest> = async (
     organizationId,
   );
 
-  // Generate CSV
-  const headers = [
-    "Identifier",
-    "LinkedIn URL",
-    "Status",
-    "Email",
-    "Mobile",
-    "First Name",
-    "Last Name",
-    "Title",
-    "Company Name",
-    "Error",
-  ];
+  // Generate CSV - include input fields for people_search jobs
+  const isPeopleSearchJob = result.job.jobType === BulkJobType.PEOPLE_SEARCH;
 
-  const rows = result.items.map((item) => [
-    item.identifier,
-    item.linkedinUrl,
-    item.status,
-    item.email || "",
-    item.mobile || "",
-    item.firstName || "",
-    item.lastName || "",
-    item.title || "",
-    item.companyName || "",
-    item.errorCode || "",
-  ]);
+  const headers = isPeopleSearchJob
+    ? [
+        "Identifier",
+        "Input Company",
+        "Input Domain",
+        "Input Role",
+        "LinkedIn URL",
+        "Status",
+        "Email",
+        "Mobile",
+        "First Name",
+        "Last Name",
+        "Title",
+        "Company Name",
+        "Error",
+      ]
+    : [
+        "Identifier",
+        "LinkedIn URL",
+        "Status",
+        "Email",
+        "Mobile",
+        "First Name",
+        "Last Name",
+        "Title",
+        "Company Name",
+        "Error",
+      ];
+
+  const rows = result.items.map((item) =>
+    isPeopleSearchJob
+      ? [
+          item.identifier,
+          item.inputCompany || "",
+          item.inputDomain || "",
+          item.inputRole || "",
+          item.linkedinUrl || "",
+          item.status,
+          item.email || "",
+          item.mobile || "",
+          item.firstName || "",
+          item.lastName || "",
+          item.title || "",
+          item.companyName || "",
+          item.errorCode || "",
+        ]
+      : [
+          item.identifier,
+          item.linkedinUrl || "",
+          item.status,
+          item.email || "",
+          item.mobile || "",
+          item.firstName || "",
+          item.lastName || "",
+          item.title || "",
+          item.companyName || "",
+          item.errorCode || "",
+        ],
+  );
 
   const csvContent = [
     headers.join(","),

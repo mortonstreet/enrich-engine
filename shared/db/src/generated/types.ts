@@ -38,8 +38,11 @@ export type BulkEnrichmentItem = {
     id: string;
     jobId: string;
     identifier: string;
-    linkedinUrl: string;
+    linkedinUrl: string | null;
     status: string;
+    inputCompany: string | null;
+    inputDomain: string | null;
+    inputRole: string | null;
     email: string | null;
     mobile: string | null;
     firstName: string | null;
@@ -56,12 +59,14 @@ export type BulkEnrichmentJob = {
     organizationId: string;
     userId: string;
     status: string;
+    jobType: Generated<string>;
     totalRecords: number;
     processedRecords: Generated<number>;
     matchedRecords: Generated<number>;
     failedRecords: Generated<number>;
     originalFileName: string;
     totalCreditsCost: Generated<number>;
+    enrichMobile: Generated<boolean>;
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
     completedAt: Timestamp | null;

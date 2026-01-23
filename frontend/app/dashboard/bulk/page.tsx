@@ -62,7 +62,7 @@ export default function BulkEnrichmentPage() {
             <CardHeader className="border-b">
               <CardTitle>Upload CSV</CardTitle>
               <CardDescription>
-                Your CSV file should contain a column with LinkedIn profile URLs
+                Accepts two CSV formats: (1) LinkedIn URLs with a &quot;linkedin&quot; or &quot;url&quot; column, or (2) Company/role lookup with &quot;company&quot;/&quot;domain&quot; + &quot;role&quot;/&quot;role1&quot;/&quot;role2&quot; columns
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
