@@ -652,3 +652,28 @@ model EmailValidationAttempt {
   @@map("email_validation_attempt")
 }
 
+// ==========================================
+// Blog Feature Models
+// ==========================================
+
+model BlogPost {
+  id            String    @id @default(uuid())
+  slug          String    @unique
+  title         String
+  excerpt       String
+  content       String    @db.Text
+  category      String
+  readTime      String
+  author        String    @default("Enrich Team")
+  isFeatured    Boolean   @default(false)
+  gradientColor String?   // For featured post gradient styling
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([category])
+  @@index([publishedAt])
+  @@index([isFeatured])
+  @@map("blog_post")
+}
+

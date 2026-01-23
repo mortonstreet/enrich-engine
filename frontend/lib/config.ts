@@ -122,6 +122,10 @@ export const ENDPOINTS = {
     UPDATE: (id: string) => `/external/api-keys/${id}`,
     DELETE: (id: string) => `/external/api-keys/${id}`,
   },
+  BLOG: {
+    LIST: '/blog',
+    DETAIL: (slug: string) => `/blog/${slug}`,
+  },
 };
 
 export const QUERY_KEYS = {
@@ -164,4 +168,7 @@ export const QUERY_KEYS = {
   copyGeneratorLists: () => ['copy-generator', 'lists'] as const,
   // External API Keys
   externalApiKeys: () => ['external-api-keys'] as const,
+  // Blog
+  blogPosts: (category?: string) => ['blog', 'posts', category] as const,
+  blogPost: (slug?: string) => ['blog', 'post', slug] as const,
 };

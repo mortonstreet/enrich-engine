@@ -2,6 +2,7 @@
 import { useSession } from "@/lib/auth-client";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
+import DotPatternBackground from "@/components/auth/DotPatternBackground";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
@@ -10,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   // Check if user is on a page that allows logged-in users
   const isAcceptInvitationPage = pathname?.startsWith("/accept-invitation");
-  const isVerifyWithInvitation = pathname?.startsWith("/verify") && 
+  const isVerifyWithInvitation = pathname?.startsWith("/verify") &&
     typeof window !== "undefined" && window.location.search.includes("inviteId");
 
   useEffect(() => {
@@ -22,8 +23,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (isPending) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="min-h-screen grid place-items-center bg-[#F8F8F7]">
+        <DotPatternBackground />
+        <div className="relative z-10 text-muted-foreground">Loading...</div>
       </div>
     );
   }
@@ -33,5 +35,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return null; // Will redirect, so return nothing
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-[#F8F8F7]">
+      <DotPatternBackground />
+      <div className="relative z-10">
+        {children}
+      </div>
+    </div>
+  );
 }

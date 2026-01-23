@@ -19,6 +19,21 @@ export type Account = {
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
 };
+export type BlogPost = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string;
+    content: string;
+    category: string;
+    readTime: string;
+    author: Generated<string>;
+    isFeatured: Generated<boolean>;
+    gradientColor: string | null;
+    publishedAt: Timestamp | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
 export type BulkEnrichmentItem = {
     id: string;
     jobId: string;
@@ -376,6 +391,7 @@ export type Waitlist = {
 };
 export type DB = {
     account: Account;
+    blog_post: BlogPost;
     bulk_enrichment_item: BulkEnrichmentItem;
     bulk_enrichment_job: BulkEnrichmentJob;
     copy_generator_job: CopyGeneratorJob;

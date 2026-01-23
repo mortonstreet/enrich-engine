@@ -12,3 +12,4 @@ export * from './copyGenerator';
 export * from './emailGuess';
 export * from './externalApiKey';
 export * from './costComparison';
+export * from './blog';

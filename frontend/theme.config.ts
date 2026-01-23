@@ -3,11 +3,11 @@
 // Edit this file to change your app's layout and theme
 // ==============================================
 
-export type LayoutType = "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar";
+export type LayoutType = "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar" | "app";
 
 export const themeConfig = {
-  // Layout: "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar"
-  layout: "sidebarWithTopbar" as LayoutType,
+  // Layout: "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar" | "app"
+  layout: "app" as LayoutType,
 
   // Theme colors (hex values) - Light mode
   colors: {

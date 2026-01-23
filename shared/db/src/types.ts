@@ -17,6 +17,7 @@ import {
   ListFavorite,
   ListOpen,
   Lead,
+  BlogPost,
 } from "./generated/types";
 
 
@@ -105,3 +106,9 @@ export type DBLead = Selectable<Lead>;
 export type UpdateDBLead = Updateable<Lead>;
 export type InsertDBLead = Insertable<Lead>;
 export type CreateLeadInput = Omit<DBLead, 'id' | 'createdAt' | 'updatedAt'>;
+
+// Blog types
+export type DBBlogPost = Selectable<BlogPost>;
+export type UpdateDBBlogPost = Updateable<BlogPost>;
+export type InsertDBBlogPost = Insertable<BlogPost>;
+export type CreateBlogPostInput = Omit<DBBlogPost, 'id' | 'createdAt' | 'updatedAt'>;

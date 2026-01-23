@@ -13,6 +13,7 @@ import enrichRoutes from "./enrich";
 import copyGeneratorRoutes from "./copyGenerator";
 import externalApiKeyRoutes from "./externalApiKey";
 import externalRoutes from "./external";
+import blogRoutes from "./blog";
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.use("/enrich", enrichRoutes);
 router.use("/copy-generator", copyGeneratorRoutes);
 router.use("/external/api-keys", externalApiKeyRoutes);
 router.use("/external", externalRoutes);
+router.use("/blog", blogRoutes);
 router.use("/sentry", (req, res) => {
   throw new Error("Testing sentry error");
 });

@@ -98,3 +98,193 @@ html, body { height: 100%; }
   opacity: 0;
   animation: fadeInUp 0.8s ease-out 0.4s forwards;
 }
+
+/* Chart bar fade slide up animation */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Exa.ai Design System */
+:root {
+  --exa-accent-green: #00FF00;
+  --exa-accent-yellow: #FFFF00;
+  --exa-accent-blue: #0000FF;
+  --exa-gradient-start: #667eea;
+  --exa-gradient-end: #764ba2;
+  --exa-dark: #111827;
+}
+
+/* Manus.im Design System */
+:root {
+  --manus-warm-gray: #F8F8F7;
+  --manus-medium-gray: #898988;
+  --manus-dark-gray: #1A1A1A;
+  --manus-border: rgba(0, 0, 0, 0.08);
+}
+
+/* Enrich Engine Brand Colors - Red accent (Cooley-inspired) */
+:root {
+  --enrich-primary: #E63946;
+  --enrich-primary-dark: #C5303C;
+  --enrich-accent: #F07178;
+  --enrich-dark: #1A1A2E;
+}
+
+/* Grain texture overlay */
+.grain-overlay {
+  position: relative;
+}
+
+.grain-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.15;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Exa scroll reveal animation */
+@keyframes scrollFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scroll-reveal {
+  opacity: 0;
+}
+
+.scroll-reveal.visible {
+  animation: scrollFadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Particle float animation */
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-10px) translateX(5px);
+  }
+  50% {
+    transform: translateY(-5px) translateX(-5px);
+  }
+  75% {
+    transform: translateY(-15px) translateX(3px);
+  }
+}
+
+/* Dot pattern pulse animation */
+@keyframes dotPulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Exa typography utilities */
+.exa-heading {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+/* Elegant serif display font for hero - Cooley style */
+.exa-hero-heading {
+  font-family: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
+  font-size: clamp(36px, 8vw, 64px);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  font-weight: 400;
+}
+
+/* Cooley-style serif heading utility */
+.heading-serif {
+  font-family: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
+}
+
+/* Search input Exa style */
+.exa-search-input {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  padding: 20px 24px;
+  font-size: 16px;
+  width: 100%;
+  max-width: 640px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.exa-search-input:focus {
+  outline: none;
+  border-color: rgba(230, 57, 70, 0.3);
+  box-shadow: 0 4px 24px rgba(230, 57, 70, 0.1);
+}
+
+.exa-search-input::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* Manus card shadow */
+.manus-card-shadow {
+  box-shadow: 0px 1px 2px -0.5px rgba(0, 0, 0, 0.12),
+              0px 2px 4px -1px rgba(0, 0, 0, 0.08);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal,
+  .scroll-reveal.visible {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  @keyframes particleFloat {
+    0%, 100% { transform: none; }
+  }
+
+  @keyframes dotPulse {
+    0%, 100% { opacity: 0.4; }
+  }
+}
+
+/* Safe area insets for mobile devices */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Slide-in animation for mobile menu */
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-in {
+  animation-duration: 200ms;
+  animation-fill-mode: both;
+}
+
+.slide-in-from-left {
+  animation-name: slideInFromLeft;
+}

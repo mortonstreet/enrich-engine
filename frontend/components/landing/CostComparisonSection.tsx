@@ -39,19 +39,19 @@ function CostBar({ name, cost, maxCost, color, isEnrichEngine, shouldAnimate }: 
   }, [shouldAnimate, percentage]);
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-24 text-sm font-medium text-right text-muted-foreground">
+    <div className="flex items-center gap-2 sm:gap-4">
+      <div className="w-16 sm:w-24 text-xs sm:text-sm font-medium text-right text-muted-foreground truncate">
         {name}
       </div>
-      <div className="flex-1 relative h-8">
+      <div className="flex-1 relative h-6 sm:h-8">
         <div
           className={`absolute inset-y-0 left-0 rounded-r-lg transition-all duration-1000 ease-out ${
-            isEnrichEngine ? "bg-green-500" : color
+            isEnrichEngine ? "bg-[#E63946]-500" : color
           }`}
           style={{ width: shouldAnimate ? `${width}%` : `${percentage}%` }}
         />
       </div>
-      <div className={`w-16 text-sm font-medium ${isEnrichEngine ? "text-green-600 font-bold" : "text-muted-foreground"}`}>
+      <div className={`w-12 sm:w-16 text-xs sm:text-sm font-medium ${isEnrichEngine ? "text-[#E63946]-600 font-bold" : "text-muted-foreground"}`}>
         ${cost.toFixed(cost < 0.01 ? 3 : 2)}
       </div>
     </div>
@@ -128,21 +128,21 @@ export function CostComparisonSection() {
   const maxSavingsPercent = Math.round((maxSavings / maxCompetitorCost) * 100);
 
   return (
-    <section ref={sectionRef} className="py-20 md:py-28 bg-muted/30 border-y border-border">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-            Cut Your Enrichment Costs by Up to <span className="text-green-600">{maxSavingsPercent}%</span>
+    <section ref={sectionRef} className="py-16 sm:py-20 md:py-28 bg-muted/30 border-y border-border">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 sm:mb-4">
+            Cut Your Enrichment Costs by Up to <span className="text-[#E63946]-600">{maxSavingsPercent}%</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
             We use smart email guessing with validation before falling back to paid providers.
             Same accuracy, fraction of the cost.
           </p>
         </div>
 
         {/* Cost Bar Chart */}
-        <div className="max-w-3xl mx-auto mb-12 space-y-3 p-6 bg-background rounded-xl border border-border">
-          <p className="text-sm font-medium text-muted-foreground mb-4">Cost per email enrichment</p>
+        <div className="max-w-3xl mx-auto mb-8 sm:mb-12 space-y-2 sm:space-y-3 p-4 sm:p-6 bg-background rounded-xl border border-border">
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-3 sm:mb-4">Cost per email enrichment</p>
           {COMPETITORS.map((competitor) => (
             <CostBar
               key={competitor.id}
@@ -164,9 +164,9 @@ export function CostComparisonSection() {
         </div>
 
         {/* Interactive Calculator */}
-        <div className="max-w-2xl mx-auto p-6 bg-background rounded-xl border border-border">
-          <div className="mb-6">
-            <label htmlFor="leadCount" className="block text-sm font-medium text-muted-foreground mb-2">
+        <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-background rounded-xl border border-border">
+          <div className="mb-4 sm:mb-6">
+            <label htmlFor="leadCount" className="block text-xs sm:text-sm font-medium text-muted-foreground mb-2">
               How many leads do you enrich monthly?
             </label>
             <input
@@ -174,30 +174,30 @@ export function CostComparisonSection() {
               type="number"
               value={leadCount}
               onChange={(e) => setLeadCount(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 text-lg font-medium"
+              className="w-full px-3 sm:px-4 py-2 rounded-lg border border-border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-[#E63946]-500/50 text-base sm:text-lg font-medium"
             />
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
             {COMPETITORS.map((competitor) => (
-              <div key={competitor.id} className="text-center p-3 rounded-lg bg-muted/50">
-                <p className="text-xs text-muted-foreground">{competitor.name}</p>
-                <p className="text-lg font-semibold">${(leadCount * competitor.costPerEmail).toFixed(0)}</p>
+              <div key={competitor.id} className="text-center p-2 sm:p-3 rounded-lg bg-muted/50">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{competitor.name}</p>
+                <p className="text-sm sm:text-lg font-semibold">${(leadCount * competitor.costPerEmail).toFixed(0)}</p>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-border pt-4">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Enrich Engine</p>
-                <p className="text-2xl font-bold text-green-600">${enrichEngineCost.toFixed(0)}</p>
+          <div className="border-t border-border pt-3 sm:pt-4">
+            <div className="flex justify-between items-center mb-4 gap-4">
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Enrich Engine</p>
+                <p className="text-xl sm:text-2xl font-bold text-[#E63946]-600">${enrichEngineCost.toFixed(0)}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">You save up to</p>
-                <p className="text-2xl font-bold">
-                  <span className="text-green-600">${maxSavings.toFixed(0)}</span>
-                  <span className="text-lg text-muted-foreground ml-1">({maxSavingsPercent}%)</span>
+              <div className="text-right min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">You save up to</p>
+                <p className="text-xl sm:text-2xl font-bold">
+                  <span className="text-[#E63946]-600">${maxSavings.toFixed(0)}</span>
+                  <span className="text-sm sm:text-lg text-muted-foreground ml-1">({maxSavingsPercent}%)</span>
                 </p>
               </div>
             </div>
@@ -205,9 +205,9 @@ export function CostComparisonSection() {
         </div>
 
         {/* CTA */}
-        <div className="text-center mt-10">
+        <div className="text-center mt-8 sm:mt-10">
           <Link href="/waitlist">
-            <Button size="lg" className="h-12 px-8 text-base font-medium bg-green-600 hover:bg-green-700">
+            <Button size="lg" className="h-10 sm:h-12 px-6 sm:px-8 text-sm sm:text-base font-medium bg-[#E63946]-600 hover:bg-[#E63946]-700">
               Start Saving Now
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>

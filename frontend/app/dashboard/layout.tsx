@@ -11,12 +11,14 @@ import {
   SidebarLayout,
   TopnavWithSidebarLayout,
   SidebarWithTopbarLayout,
+  AppLayout,
 } from "@/components/layouts";
 
 const layoutMap = {
   sidebar: SidebarLayout,
   topnavWithSidebar: TopnavWithSidebarLayout,
   sidebarWithTopbar: SidebarWithTopbarLayout,
+  app: AppLayout,
 } as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
