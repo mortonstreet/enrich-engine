@@ -124,7 +124,7 @@ export default function SearchPage() {
         </div>
 
         {/* Advanced filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4">
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
               <Briefcase className="w-4 h-4 inline mr-1.5" />
@@ -201,22 +201,23 @@ export default function SearchPage() {
           </div>
 
           <div className="border rounded-xl overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
                     Name
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden sm:table-cell">
                     Title
                   </th>
                   <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
                     Company
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden md:table-cell">
                     Location
                   </th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                  <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3 hidden lg:table-cell">
                     Contact
                   </th>
                   <th className="text-right text-sm font-medium text-muted-foreground px-4 py-3">
@@ -229,11 +230,11 @@ export default function SearchPage() {
                   <tr key={result.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm flex-shrink-0">
                           {result.name.charAt(0)}
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{result.name}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{result.name}</p>
                           {result.linkedinUrl && (
                             <a
                               href={`https://${result.linkedinUrl}`}
@@ -245,15 +246,17 @@ export default function SearchPage() {
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           )}
+                          {/* Show title on mobile under name */}
+                          <p className="text-xs text-muted-foreground sm:hidden">{result.title}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{result.title}</td>
+                    <td className="px-4 py-3 text-sm hidden sm:table-cell">{result.title}</td>
                     <td className="px-4 py-3 text-sm">{result.company}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {result.location}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden lg:table-cell">
                       <div className="flex items-center gap-2">
                         {result.email && (
                           <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
@@ -273,15 +276,16 @@ export default function SearchPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add to list
+                      <Button variant="outline" size="sm" className="whitespace-nowrap">
+                        <Plus className="w-4 h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Add to list</span>
                       </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : hasSearched ? (

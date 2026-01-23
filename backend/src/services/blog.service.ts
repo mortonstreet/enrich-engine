@@ -13,7 +13,7 @@ const toSummary = (post: any): BlogPostSummary => ({
   excerpt: post.excerpt,
   category: post.category,
   readTime: post.readTime,
-  author: post.author,
+  author: "Enrich Engine team",
   publishedAt: post.publishedAt,
   isFeatured: post.isFeatured,
   gradientColor: post.gradientColor,
@@ -53,5 +53,9 @@ export const getBlogPost = async (
   slug: string
 ): Promise<GetBlogPostResponse | null> => {
   const post = await blogRepository.findBySlug(slug);
-  return post ?? null;
+  if (!post) return null;
+  return {
+    ...post,
+    author: "Enrich Engine team",
+  };
 };

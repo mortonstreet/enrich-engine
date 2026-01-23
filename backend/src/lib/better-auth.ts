@@ -30,7 +30,7 @@ export const auth = betterAuth({
   advanced: {
     crossSubDomainCookies: {
       enabled: config.nodeEnv === "production",
-      domain: ".enrichengine.xyz",
+      domain: ".enrichengine.io",
     },
   },
   databaseHooks: {

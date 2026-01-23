@@ -6,7 +6,6 @@ import ExaFooter from "@/components/landing/ExaFooter";
 import ScrollReveal from "@/components/landing/ScrollReveal";
 import Navigation from "@/components/landing/Navigation";
 import FeatureShowcase from "@/components/landing/FeatureShowcase";
-import AnimatedPixelBackground from "@/components/landing/AnimatedPixelBackground";
 import AnimatedSearchBar from "@/components/landing/AnimatedSearchBar";
 import EnrichCoreLogo from "@/components/landing/EnrichCoreLogo";
 import BenchmarkChart from "@/components/landing/BenchmarkChart";
@@ -15,9 +14,6 @@ import FeaturesGrid from "@/components/landing/FeaturesGrid";
 export default function Home() {
   return (
     <div className="min-h-screen text-[#111827]">
-      {/* Animated pixel background */}
-      <AnimatedPixelBackground />
-
       {/* Navigation with mega menus - fixed at top */}
       <Navigation />
 

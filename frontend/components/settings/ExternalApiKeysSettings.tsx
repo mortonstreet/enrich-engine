@@ -179,15 +179,15 @@ export function ExternalApiKeysSettings() {
                   return (
                     <div
                       key={apiKey.id}
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 border border-border rounded-lg hover:bg-muted/50 transition"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                          <Key className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start sm:items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                          <Key className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-foreground">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-foreground text-sm sm:text-base truncate">
                               {apiKey.name}
                             </p>
                             {expired ? (
@@ -210,8 +210,8 @@ export function ExternalApiKeysSettings() {
                           <p className="text-xs text-muted-foreground font-mono mt-1">
                             {apiKey.keyPrefix}...
                           </p>
-                          <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                            <span>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-xs text-muted-foreground">
+                            <span className="hidden sm:inline">
                               Scopes:{" "}
                               {apiKey.scopes
                                 .map((s) => SCOPE_INFO[s]?.name || s)
@@ -220,16 +220,16 @@ export function ExternalApiKeysSettings() {
                             {apiKey.lastUsedAt && (
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                Last used: {formatDate(apiKey.lastUsedAt)}
+                                <span className="hidden sm:inline">Last used:</span> {formatDate(apiKey.lastUsedAt)}
                               </span>
                             )}
                             {apiKey.expiresAt && (
-                              <span>Expires: {formatDate(apiKey.expiresAt)}</span>
+                              <span><span className="hidden sm:inline">Expires:</span> {formatDate(apiKey.expiresAt)}</span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -237,7 +237,7 @@ export function ExternalApiKeysSettings() {
                             setDeleteKeyId(apiKey.id);
                             setKeyToDelete(apiKey.name);
                           }}
-                          className="text-destructive hover:text-destructive"
+                          className="text-destructive hover:text-destructive h-8 w-8 sm:h-10 sm:w-10"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -379,7 +379,7 @@ export function ExternalApiKeysSettings() {
             <p className="text-sm font-medium mb-2">Usage Example:</p>
             <code className="text-xs block bg-background p-2 rounded border">
               curl -H "X-API-Key: {newFullKey.slice(0, 20)}..." \<br />
-              &nbsp;&nbsp;https://api.enrichengine.xyz/api/external/lists
+              &nbsp;&nbsp;https://api.enrichengine.io/api/external/lists
             </code>
           </div>
 

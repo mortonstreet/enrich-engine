@@ -4,8 +4,8 @@ const envSchema = z.object({
   API_URL: z.url().default('http://localhost:8000/api'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   // Domain Configuration
-  APP_DOMAIN: z.string().default('app.enrichengine.xyz'),
-  WWW_DOMAIN: z.string().default('www.enrichengine.xyz'),
+  APP_DOMAIN: z.string().default('app.enrichengine.io'),
+  WWW_DOMAIN: z.string().default('www.enrichengine.io'),
   // Pusher
   PUSHER_ENABLED: z.string().default('false').transform((val) => val === 'true'),
   PUSHER_KEY: z.string().default('app-key'),

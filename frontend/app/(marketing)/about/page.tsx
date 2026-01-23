@@ -3,31 +3,29 @@
 import Link from "next/link";
 import Navigation from "@/components/landing/Navigation";
 import ExaFooter from "@/components/landing/ExaFooter";
-import AnimatedPixelBackground from "@/components/landing/AnimatedPixelBackground";
 import ScrollReveal from "@/components/landing/ScrollReveal";
-import DataArtIcon from "@/components/landing/DataArtIcon";
+import EnrichCoreLogo from "@/components/landing/EnrichCoreLogo";
 import { Button } from "@/components/ui/Button";
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen text-[#111827]">
-      <AnimatedPixelBackground />
-      <div className="relative z-10 bg-white">
+      <div className="relative z-10 bg-white pt-16">
         <Navigation />
         <main>
           {/* Hero */}
-          <section className="py-20 md:py-32 bg-white">
-            <div className="max-w-4xl mx-auto px-6">
+          <section className="py-12 sm:py-16 md:py-24 lg:py-32 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
               <ScrollReveal>
                 <h1
-                  className="text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-12 text-center"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-8 sm:mb-10 md:mb-12 text-center"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   Most B2B data is incomplete, outdated, or wrong
                 </h1>
               </ScrollReveal>
 
-              <div className="space-y-6 text-lg text-gray-600 leading-relaxed">
+              <div className="space-y-4 sm:space-y-6 text-base sm:text-lg text-gray-600 leading-relaxed">
                 <ScrollReveal delay={50}>
                   <p>
                     Every sales team deserves accurate contact data. You should be able to enrich
@@ -65,8 +63,8 @@ export default function AboutPage() {
           </section>
 
           {/* How We're Doing It */}
-          <section className="py-20 md:py-28 bg-white border-t border-gray-100">
-            <div className="max-w-6xl mx-auto px-6">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white border-t border-gray-100">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
               <ScrollReveal>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-8">
                   HOW WE&apos;RE DOING IT
@@ -74,11 +72,11 @@ export default function AboutPage() {
               </ScrollReveal>
 
               {/* Multi-source Verification */}
-              <div className="grid md:grid-cols-2 gap-12 items-start mb-24">
+              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start mb-16 md:mb-24">
                 <div>
                   <ScrollReveal>
                     <h2
-                      className="text-3xl md:text-4xl font-normal tracking-tight mb-6"
+                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
                       style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                     >
                       Multi-source verification
@@ -143,11 +141,11 @@ export default function AboutPage() {
               </div>
 
               {/* AI-powered Email Finding */}
-              <div className="grid md:grid-cols-2 gap-12 items-start mb-24">
+              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start mb-16 md:mb-24">
                 <div>
                   <ScrollReveal>
                     <h2
-                      className="text-3xl md:text-4xl font-normal tracking-tight mb-6"
+                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
                       style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                     >
                       AI-powered email finding
@@ -185,11 +183,11 @@ export default function AboutPage() {
               </div>
 
               {/* Infrastructure at Scale */}
-              <div className="grid md:grid-cols-2 gap-12 items-start">
+              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
                 <div>
                   <ScrollReveal>
                     <h2
-                      className="text-3xl md:text-4xl font-normal tracking-tight mb-6"
+                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
                       style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                     >
                       Infrastructure at scale
@@ -236,16 +234,16 @@ export default function AboutPage() {
           </section>
 
           {/* Bottom CTA */}
-          <section className="py-24 md:py-32 bg-white">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-16 sm:py-20 md:py-24 lg:py-32 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
-                <div className="flex justify-center mb-8">
-                  <DataArtIcon />
+                <div className="flex justify-center mb-6 sm:mb-8">
+                  <EnrichCoreLogo />
                 </div>
               </ScrollReveal>
               <ScrollReveal delay={100}>
                 <h2
-                  className="text-3xl md:text-4xl lg:text-5xl font-normal tracking-tight mb-8"
+                  className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-normal tracking-tight mb-6 sm:mb-8"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   Enrichment built for your pipeline

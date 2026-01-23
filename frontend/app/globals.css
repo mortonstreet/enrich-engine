@@ -52,7 +52,11 @@
   --radius-xl: var(--radius-xl);
 }
 
-html, body { height: 100%; }
+html, body {
+  height: 100%;
+  background: #ffffff;
+  overscroll-behavior: none;
+}
 
 :root [data-sonner-toaster][data-rich-colors="true"] [data-type="success"] {
   --sonner-success: var(--color-primary);
@@ -268,6 +272,20 @@ html, body { height: 100%; }
 /* Safe area insets for mobile devices */
 .safe-area-inset-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Hide scrollbar utility - for tab navigation etc */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Slide-in animation for mobile menu */

@@ -72,10 +72,10 @@ export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
 
-  // Close mobile menu on resize to desktop
+  // Close mobile menu on resize to desktop (lg breakpoint = 1024px)
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 1024) {
         setMobileMenuOpen(false);
         setMobileExpanded(null);
       }
@@ -105,8 +105,8 @@ export default function Navigation() {
             <EnrichEngineLogo size={32} showText textSize="md" />
           </Link>
 
-          {/* Center nav */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* Center nav - visible at lg (1024px+) where mega menus fit */}
+          <div className="hidden lg:flex items-center gap-1">
             {/* Products */}
             <div
               className="relative"
@@ -248,20 +248,20 @@ export default function Navigation() {
           <div className="flex items-center gap-3">
             <Link
               href="/contact"
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-black transition-colors hidden sm:block"
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-black transition-colors hidden lg:block"
             >
               Contact sales
             </Link>
-            <Link href="/login" className="hidden sm:block">
+            <Link href="/login" className="hidden lg:block">
               <Button className="bg-[#111827] text-white hover:bg-black rounded-lg px-4 py-2 text-sm font-medium">
                 Sign in
               </Button>
             </Link>
 
-            {/* Mobile menu button */}
+            {/* Mobile menu button - visible below lg (1024px) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
               {mobileMenuOpen ? (
@@ -274,22 +274,22 @@ export default function Navigation() {
         </div>
       </div>
 
-      {/* Mobile menu overlay */}
+      {/* Mobile menu overlay - visible below lg */}
       {mobileMenuOpen && (
         <div
-          className="md:hidden fixed inset-0 top-16 bg-black/20 z-40"
+          className="lg:hidden fixed inset-0 top-16 bg-black/20 z-40"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Mobile menu drawer */}
+      {/* Mobile menu drawer - visible below lg */}
       <div
-        className={`md:hidden fixed top-16 left-0 right-0 bottom-0 bg-white z-50 transform transition-transform duration-300 ease-in-out ${
+        className={`lg:hidden fixed top-16 left-0 right-0 bottom-0 bg-white z-50 transform transition-transform duration-300 ease-in-out ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <div className="h-full overflow-y-auto pb-20">
-          <div className="px-6 py-4 space-y-2">
+          <div className="px-4 sm:px-6 md:px-8 py-4 md:py-6 space-y-2 max-w-2xl mx-auto">
             {/* Products accordion */}
             <div className="border-b border-gray-100">
               <button
@@ -302,7 +302,7 @@ export default function Navigation() {
                 }`} />
               </button>
               {mobileExpanded === "products" && (
-                <div className="pb-4 space-y-2">
+                <div className="pb-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {productsMenu.map((item) => (
                     <Link
                       key={item.id}
@@ -310,12 +310,12 @@ export default function Navigation() {
                       onClick={() => setMobileMenuOpen(false)}
                       className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
                         <item.icon className="w-5 h-5" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="font-medium text-sm block">{item.title}</span>
-                        <p className="text-gray-500 text-xs">{item.description}</p>
+                        <p className="text-gray-500 text-xs line-clamp-2">{item.description}</p>
                       </div>
                     </Link>
                   ))}
@@ -335,35 +335,37 @@ export default function Navigation() {
                 }`} />
               </button>
               {mobileExpanded === "company" && (
-                <div className="pb-4 space-y-2">
-                  {companyMenu.about.map((item) => (
-                    <Link
-                      key={item.title}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                        <item.icon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{item.title}</span>
-                          {item.badge && (
-                            <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">{item.badge}</span>
-                          )}
+                <div className="pb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                    {companyMenu.about.map((item) => (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
+                          <item.icon className="w-5 h-5" />
                         </div>
-                        <p className="text-gray-500 text-xs">{item.description}</p>
-                      </div>
-                    </Link>
-                  ))}
-                  <div className="pt-2 border-t border-gray-100 mt-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{item.title}</span>
+                            {item.badge && (
+                              <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full whitespace-nowrap">{item.badge}</span>
+                            )}
+                          </div>
+                          <p className="text-gray-500 text-xs line-clamp-2">{item.description}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="pt-3 border-t border-gray-100 flex flex-wrap gap-2">
                     {companyMenu.more.map((item) => (
                       <Link
                         key={item.title}
                         href={item.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="block px-3 py-2.5 text-sm text-gray-700 hover:text-black hover:bg-gray-50 rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm text-gray-700 hover:text-black hover:bg-gray-50 rounded-lg transition-colors"
                       >
                         {item.title}
                       </Link>
@@ -395,17 +397,19 @@ export default function Navigation() {
           </div>
 
           {/* Mobile CTA */}
-          <div className="px-6 py-4 border-t border-gray-100 mt-4">
-            <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-[#111827] text-white hover:bg-black rounded-lg px-4 py-3 text-sm font-medium">
-                Sign in
-              </Button>
-            </Link>
-            <Link href="/signup" onClick={() => setMobileMenuOpen(false)} className="block mt-3">
-              <Button variant="outline" className="w-full rounded-lg px-4 py-3 text-sm font-medium">
-                Get started free
-              </Button>
-            </Link>
+          <div className="px-4 sm:px-6 md:px-8 py-4 md:py-6 border-t border-gray-100 mt-4 max-w-2xl mx-auto">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="flex-1">
+                <Button className="w-full bg-[#111827] text-white hover:bg-black rounded-lg px-4 py-3 text-sm font-medium">
+                  Sign in
+                </Button>
+              </Link>
+              <Link href="/signup" onClick={() => setMobileMenuOpen(false)} className="flex-1">
+                <Button variant="outline" className="w-full rounded-lg px-4 py-3 text-sm font-medium">
+                  Get started free
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

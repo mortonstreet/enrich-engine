@@ -7,7 +7,8 @@ import Navigation from "@/components/landing/Navigation";
 import ExaFooter from "@/components/landing/ExaFooter";
 import AnimatedPixelBackground from "@/components/landing/AnimatedPixelBackground";
 import ScrollReveal from "@/components/landing/ScrollReveal";
-import { ArrowLeft, Clock, Calendar, User, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, Loader2 } from "lucide-react";
+import { EnrichEngineLogoStatic } from "@/components/landing/EnrichEngineLogo";
 import { useBlogPost } from "@/hooks/api/useBlog";
 
 function formatDate(date: Date | string | null): string {
@@ -33,9 +34,9 @@ export default function BlogPostPage({
     return (
       <div className="min-h-screen text-[#111827]">
         <AnimatedPixelBackground />
-        <div className="relative z-10 bg-white">
+        <div className="relative z-10 bg-white pt-16">
           <Navigation />
-          <main className="py-32">
+          <main className="py-20 sm:py-24 md:py-32">
             <div className="flex justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
             </div>
@@ -50,17 +51,17 @@ export default function BlogPostPage({
     return (
       <div className="min-h-screen text-[#111827]">
         <AnimatedPixelBackground />
-        <div className="relative z-10 bg-white">
+        <div className="relative z-10 bg-white pt-16">
           <Navigation />
-          <main className="py-32">
-            <div className="max-w-4xl mx-auto px-6 text-center">
-              <h1 className="text-2xl font-semibold mb-4">Post not found</h1>
-              <p className="text-gray-600 mb-8">
+          <main className="py-20 sm:py-24 md:py-32">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+              <h1 className="text-xl sm:text-2xl font-semibold mb-4">Post not found</h1>
+              <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                 The blog post you&apos;re looking for doesn&apos;t exist or has been removed.
               </p>
               <button
                 onClick={() => router.push("/blog")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#111827] text-white rounded-xl hover:bg-black font-medium transition-colors"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-[#111827] text-white rounded-xl hover:bg-black font-medium transition-colors text-sm sm:text-base"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to Blog
@@ -76,12 +77,12 @@ export default function BlogPostPage({
   return (
     <div className="min-h-screen text-[#111827]">
       <AnimatedPixelBackground />
-      <div className="relative z-10 bg-white">
+      <div className="relative z-10 bg-white pt-16">
         <Navigation />
         <main>
           {/* Header */}
-          <section className="py-16 md:py-24 bg-white">
-            <div className="max-w-4xl mx-auto px-6">
+          <section className="py-10 sm:py-14 md:py-20 lg:py-24 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
               <ScrollReveal>
                 <Link
                   href="/blog"
@@ -106,18 +107,16 @@ export default function BlogPostPage({
                 </div>
 
                 <h1
-                  className="text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight mb-6"
+                  className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 sm:mb-6"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   {post.title}
                 </h1>
 
-                <p className="text-xl text-gray-600 mb-8">{post.excerpt}</p>
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8">{post.excerpt}</p>
 
                 <div className="flex items-center gap-3 text-sm text-gray-600">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E63946] to-pink-600 flex items-center justify-center text-white font-semibold">
-                    {post.author.charAt(0)}
-                  </div>
+                  <EnrichEngineLogoStatic size={40} />
                   <div>
                     <div className="font-medium text-gray-900">{post.author}</div>
                   </div>
@@ -127,8 +126,8 @@ export default function BlogPostPage({
           </section>
 
           {/* Content */}
-          <section className="pb-20 bg-white">
-            <div className="max-w-4xl mx-auto px-6">
+          <section className="pb-12 sm:pb-16 md:pb-20 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
               <ScrollReveal delay={100}>
                 <article
                   className="prose prose-lg prose-gray max-w-none
@@ -150,23 +149,23 @@ export default function BlogPostPage({
           </section>
 
           {/* CTA */}
-          <section className="py-16 bg-gray-50">
-            <div className="max-w-xl mx-auto px-6 text-center">
+          <section className="py-10 sm:py-12 md:py-16 bg-gray-50">
+            <div className="max-w-xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
-                <h2 className="text-2xl font-semibold mb-4">Ready to enrich your data?</h2>
-                <p className="text-gray-600 mb-6">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-3 sm:mb-4">Ready to enrich your data?</h2>
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
                   Join thousands of companies using Enrich Engine to power their sales pipelines.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                   <Link
                     href="/signup"
-                    className="px-6 py-3 bg-[#E63946] text-white rounded-xl hover:bg-[#d32f3d] font-medium transition-colors"
+                    className="px-6 py-3 bg-[#E63946] text-white rounded-xl hover:bg-[#d32f3d] font-medium transition-colors text-sm sm:text-base"
                   >
                     Start Free Trial
                   </Link>
                   <Link
                     href="/blog"
-                    className="px-6 py-3 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                    className="px-6 py-3 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm sm:text-base"
                   >
                     Read More Articles
                   </Link>

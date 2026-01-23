@@ -289,8 +289,8 @@ export default function BenchmarkChart() {
   };
 
   return (
-    <section className="py-20 md:py-32 bg-white" ref={chartRef}>
-      <div className="max-w-7xl mx-auto px-6">
+    <section className="py-12 sm:py-16 md:py-24 lg:py-32 bg-white" ref={chartRef}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid lg:grid-cols-[1fr,320px] gap-12 lg:gap-16">
           {/* Chart Area */}
           <div>
@@ -387,18 +387,18 @@ export default function BenchmarkChart() {
 
                                 {/* Bar */}
                                 <div
-                                  className={`w-8 sm:w-10 md:w-14 rounded-t-md transition-all duration-700 relative ${
+                                  className={`w-8 sm:w-10 md:w-14 rounded-t-md transition-all duration-700 ${
                                     provider.isEnrich ? "bg-[#E63946]" : "bg-gray-200"
                                   }`}
                                   style={{
                                     height: isVisible ? `${barHeight * 2}px` : "0px",
                                     transitionDelay: `${groupIdx * 100 + idx * 50}ms`,
                                   }}
-                                >
-                                  {/* Logo inside bar */}
-                                  <div className="absolute top-1.5 sm:top-2 left-1/2 -translate-x-1/2 scale-75 sm:scale-100">
-                                    {provider.logo}
-                                  </div>
+                                />
+
+                                {/* Logo below bar */}
+                                <div className="mt-1.5 sm:mt-2 scale-75 sm:scale-100">
+                                  {provider.logo}
                                 </div>
                               </div>
                             );

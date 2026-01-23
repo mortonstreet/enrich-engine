@@ -27,6 +27,18 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: "Enrich Engine",
   description: "Intelligent email enrichment platform",
+  metadataBase: new URL("https://enrichengine.io"),
+  openGraph: {
+    title: "Enrich Engine",
+    description: "Intelligent email enrichment platform",
+    siteName: "Enrich Engine",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Enrich Engine",
+    description: "Intelligent email enrichment platform",
+  },
 };
 
 export default function RootLayout({

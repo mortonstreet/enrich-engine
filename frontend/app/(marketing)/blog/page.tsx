@@ -91,20 +91,20 @@ export default function BlogPage() {
   return (
     <div className="min-h-screen text-[#111827]">
       <AnimatedPixelBackground />
-      <div className="relative z-10 bg-white">
+      <div className="relative z-10 bg-white pt-16">
         <Navigation />
         <main>
           {/* Hero */}
-          <section className="py-20 md:py-28 bg-white">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
                 <h1
-                  className="text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-6"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-4 sm:mb-6"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   Blog
                 </h1>
-                <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
                   Insights on B2B data, sales strategies, and product updates from the Enrich team.
                 </p>
               </ScrollReveal>
@@ -112,9 +112,9 @@ export default function BlogPage() {
           </section>
 
           {/* Categories */}
-          <section className="py-6 bg-white border-b border-gray-100">
-            <div className="max-w-6xl mx-auto px-6">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <section className="py-4 sm:py-6 bg-white border-b border-gray-100">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                 {(data?.categories || ["All"]).map((cat, i) => (
                   <button
                     key={i}
@@ -152,8 +152,8 @@ export default function BlogPage() {
 
           {/* Featured Post */}
           {data?.featured && selectedCategory === "All" && (
-            <section className="py-12 bg-white">
-              <div className="max-w-6xl mx-auto px-6">
+            <section className="py-8 sm:py-10 md:py-12 bg-white">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6">
                 <ScrollReveal>
                   <FeaturedPostCard post={data.featured} />
                 </ScrollReveal>
@@ -163,9 +163,9 @@ export default function BlogPage() {
 
           {/* Posts Grid */}
           {data && data.posts.length > 0 && (
-            <section className="py-16 md:py-20 bg-gray-50">
-              <div className="max-w-6xl mx-auto px-6">
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <section className="py-10 sm:py-14 md:py-16 lg:py-20 bg-gray-50">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
                   {data.posts
                     .filter((post) => !post.isFeatured || selectedCategory !== "All")
                     .map((post, i) => (
@@ -175,21 +175,21 @@ export default function BlogPage() {
 
                 {/* Pagination */}
                 {data.pagination.totalPages > 1 && (
-                  <div className="flex justify-center items-center gap-4 mt-12">
+                  <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-4 mt-8 sm:mt-12">
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="px-6 py-2 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full sm:w-auto px-6 py-2.5 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                     >
                       Previous
                     </button>
-                    <span className="text-gray-600">
+                    <span className="text-gray-600 text-sm sm:text-base order-first sm:order-none">
                       Page {page} of {data.pagination.totalPages}
                     </span>
                     <button
                       onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
                       disabled={page === data.pagination.totalPages}
-                      className="px-6 py-2 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full sm:w-auto px-6 py-2.5 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                     >
                       Next
                     </button>

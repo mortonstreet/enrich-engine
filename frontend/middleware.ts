@@ -31,13 +31,13 @@ export function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
 
   // Get environment-specific domains
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "app.enrichengine.xyz";
-  const wwwDomain = process.env.NEXT_PUBLIC_WWW_DOMAIN || "www.enrichengine.xyz";
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "app.enrichengine.io";
+  const wwwDomain = process.env.NEXT_PUBLIC_WWW_DOMAIN || "www.enrichengine.io";
 
   // Check if we're in production (custom domains)
-  const isProduction = hostname.includes("enrichengine.xyz");
+  const isProduction = hostname.includes("enrichengine.io");
   const isAppDomain = hostname.startsWith("app.");
-  const isWwwDomain = hostname.startsWith("www.") || hostname === "enrichengine.xyz";
+  const isWwwDomain = hostname.startsWith("www.") || hostname === "enrichengine.io";
 
   // Skip middleware for static files and API routes
   if (

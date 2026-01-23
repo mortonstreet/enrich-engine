@@ -23,22 +23,22 @@ export default function MobileNav() {
   };
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 safe-area-inset-bottom">
-      <div className="flex items-center justify-around px-2 py-2">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 pb-safe">
+      <div className="flex items-center justify-around px-1 py-1">
         {mobileNav.map((item) => {
           const active = isActive(item);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[48px] px-2 py-1.5 rounded-lg transition-colors ${
                 active
                   ? "text-[#E63946]"
-                  : "text-gray-500 hover:text-gray-700"
+                  : "text-gray-500 hover:text-gray-700 active:bg-gray-100"
               }`}
             >
               <item.icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <span className="text-xs font-medium">{item.label}</span>
             </Link>
           );
         })}

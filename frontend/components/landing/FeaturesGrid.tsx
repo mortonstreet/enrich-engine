@@ -38,23 +38,23 @@ const features = [
 
 export default function FeaturesGrid() {
   return (
-    <section id="features" className="py-20 md:py-28 bg-white">
-      <div className="max-w-6xl mx-auto px-6">
+    <section id="features" className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <ScrollReveal>
-          <div className="text-center mb-16">
+          <div className="text-center mb-10 sm:mb-12 md:mb-16">
             <h2
-              className="text-3xl md:text-4xl font-normal tracking-tight mb-4"
+              className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-3 sm:mb-4"
               style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
             >
               Everything you need to enrich leads
             </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+            <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">
               From LinkedIn scraping to verified contact info, we&apos;ve got you covered.
             </p>
           </div>
         </ScrollReveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {features.map((feature, i) => (
             <ScrollReveal key={i} delay={i * 80}>
               <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-gray-200 hover:shadow-lg transition-all duration-300 group">

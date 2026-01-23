@@ -298,8 +298,9 @@ export default function AppSidebar({ onLogout, onOpenCreateOrg }: AppSidebarProp
           </div>
           <button
             onClick={onLogout}
-            className="p-1.5 text-gray-400 hover:text-[#E63946] hover:bg-[#E63946]/5 rounded-lg transition-colors"
+            className="p-2.5 text-gray-400 hover:text-[#E63946] hover:bg-[#E63946]/5 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />
           </button>

@@ -51,8 +51,9 @@ export function ListsTable({
   }
 
   return (
-    <div className="border rounded-lg">
-      <table className="w-full">
+    <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
         <thead className="bg-muted/50 border-b">
           <tr>
             <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-12">
@@ -124,6 +125,7 @@ export function ListsTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

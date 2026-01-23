@@ -77,8 +77,8 @@ function ListsPageContent() {
   return (
     <Page title="Lists" subtitle="Organize and manage your leads">
       {/* Tab Navigation */}
-      <div className="border-b mb-6">
-        <nav className="-mb-px flex space-x-8">
+      <div className="border-b mb-4 sm:mb-6 -mx-4 sm:mx-0 px-4 sm:px-0">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto scrollbar-hide">
           {[
             { id: "all" as Tab, label: "All files" },
             { id: "recents" as Tab, label: "Recents" },
@@ -90,7 +90,7 @@ function ListsPageContent() {
                 setActiveTab(tab.id);
                 setFolderId(null);
               }}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"

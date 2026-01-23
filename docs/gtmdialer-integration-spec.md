@@ -1,8 +1,8 @@
 # GTMDialer - EnrichEngine Integration Specification
 
-> **EnrichEngine Website:** https://enrichengine.xyz
-> **EnrichEngine App:** https://app.enrichengine.xyz
-> **API Base URL:** https://api.enrichengine.xyz/api/external
+> **EnrichEngine Website:** https://enrichengine.io
+> **EnrichEngine App:** https://app.enrichengine.io
+> **API Base URL:** https://api.enrichengine.io/api/external
 
 ## Overview
 
@@ -32,7 +32,7 @@ EnrichEngine uses **API Key authentication** (not OAuth). This is a simple, dire
 ### API Key Setup (User Flow)
 
 Users must first create an API key in EnrichEngine:
-1. Log into EnrichEngine at `https://app.enrichengine.xyz`
+1. Log into EnrichEngine at `https://app.enrichengine.io`
 2. Navigate to **Settings > External API Keys**
 3. Click **Create API Key**
 4. Name it (e.g., "GTMDialer Integration")
@@ -52,7 +52,7 @@ X-API-Key: ee_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ### Base URL
 
 ```
-Production: https://api.enrichengine.xyz/api/external
+Production: https://api.enrichengine.io/api/external
 ```
 
 ### Key Format
@@ -82,7 +82,7 @@ Retrieves all lead lists accessible to the organization.
 
 **Request Example:**
 ```bash
-curl -X GET "https://api.enrichengine.xyz/api/external/lists?page=1&limit=20" \
+curl -X GET "https://api.enrichengine.io/api/external/lists?page=1&limit=20" \
   -H "X-API-Key: ee_xxxxxxxx_xxxxxxxxxxxxx"
 ```
 
@@ -130,7 +130,7 @@ Retrieves a specific list and its leads (paginated).
 
 **Request Example:**
 ```bash
-curl -X GET "https://api.enrichengine.xyz/api/external/lists/abc-123-uuid?page=1&limit=100" \
+curl -X GET "https://api.enrichengine.io/api/external/lists/abc-123-uuid?page=1&limit=100" \
   -H "X-API-Key: ee_xxxxxxxx_xxxxxxxxxxxxx"
 ```
 
@@ -250,13 +250,13 @@ Add EnrichEngine integration settings to GTMDialer.
 ```typescript
 // config/integrations.ts
 interface EnrichEngineConfig {
-  apiKey: string;          // User's API key from enrichengine.xyz
-  baseUrl: string;         // Always https://api.enrichengine.xyz/api/external
+  apiKey: string;          // User's API key from enrichengine.io
+  baseUrl: string;         // Always https://api.enrichengine.io/api/external
   syncInterval?: number;   // minutes, for auto-sync
 }
 
 // Default configuration
-const ENRICHENGINE_BASE_URL = 'https://api.enrichengine.xyz/api/external';
+const ENRICHENGINE_BASE_URL = 'https://api.enrichengine.io/api/external';
 
 // Per-user configuration (stored in database, API key encrypted)
 interface UserEnrichEngineConnection {
@@ -278,7 +278,7 @@ import axios, { AxiosInstance } from 'axios';
 class EnrichEngineClient {
   private client: AxiosInstance;
 
-  constructor(apiKey: string, baseUrl: string = 'https://api.enrichengine.xyz/api/external') {
+  constructor(apiKey: string, baseUrl: string = 'https://api.enrichengine.io/api/external') {
     this.client = axios.create({
       baseURL: baseUrl,
       headers: {
@@ -560,7 +560,7 @@ export function EnrichEngineConnectModal({ isOpen, onClose, onSuccess }) {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm font-medium text-blue-900 mb-2">How to get your API key:</p>
           <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Go to <a href="https://app.enrichengine.xyz/dashboard/settings" target="_blank" rel="noopener" className="underline">app.enrichengine.xyz/dashboard/settings</a></li>
+            <li>Go to <a href="https://app.enrichengine.io/dashboard/settings" target="_blank" rel="noopener" className="underline">app.enrichengine.io/dashboard/settings</a></li>
             <li>Scroll to "External API Keys"</li>
             <li>Click "Create API Key"</li>
             <li>Name it "GTMDialer" and select "Read Lists" permission</li>
@@ -762,8 +762,8 @@ When available, GTMDialer should register webhooks to receive real-time updates:
 EnrichEngine uses a single production environment:
 
 ```
-API URL: https://api.enrichengine.xyz/api/external
-App URL: https://app.enrichengine.xyz
+API URL: https://api.enrichengine.io/api/external
+App URL: https://app.enrichengine.io
 ```
 
 For development/testing:
@@ -835,9 +835,9 @@ const mockLeads: EnrichEngineLead[] = [
 ## Support
 
 For integration support:
-- EnrichEngine App: `https://app.enrichengine.xyz`
-- EnrichEngine Website: `https://enrichengine.xyz`
-- Support Email: `support@enrichengine.xyz`
+- EnrichEngine App: `https://app.enrichengine.io`
+- EnrichEngine Website: `https://enrichengine.io`
+- Support Email: `support@enrichengine.io`
 
 ---
 

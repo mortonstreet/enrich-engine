@@ -6,24 +6,25 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-xl font-semibold tracking-tight">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex justify-between items-center h-14 sm:h-16">
+            <Link href="/" className="text-lg sm:text-xl font-semibold tracking-tight">
               EnrichEngine
             </Link>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1.5 sm:gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Home
+              <span className="hidden sm:inline">Back to Home</span>
+              <span className="sm:hidden">Home</span>
             </Link>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="text-3xl font-semibold tracking-tight mb-8">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-6 sm:mb-8">
           Privacy Policy
         </h1>
 
@@ -89,7 +90,7 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold mb-4">6. Your Rights</h2>
             <p className="text-muted-foreground">
               You have the right to access, correct, or delete your personal
-              information. Contact us at privacy@enrichengine.xyz to exercise
+              information. Contact us at privacy@enrichengine.io to exercise
               these rights.
             </p>
           </section>
@@ -98,17 +99,17 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold mb-4">7. Contact Us</h2>
             <p className="text-muted-foreground">
               If you have questions about this Privacy Policy, please contact us
-              at privacy@enrichengine.xyz.
+              at privacy@enrichengine.io.
             </p>
           </section>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="py-10 border-t border-border mt-12">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-sm text-muted-foreground">
+      <footer className="py-8 sm:py-10 border-t border-border mt-8 sm:mt-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6">
+            <div className="text-sm text-muted-foreground text-center sm:text-left">
               &copy; {new Date().getFullYear()} EnrichEngine. All rights reserved.
             </div>
             <div className="flex gap-6 text-sm text-muted-foreground">
