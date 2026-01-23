@@ -54,16 +54,16 @@ export default function ContactPage() {
         <Navigation />
         <main>
           {/* Hero */}
-          <section className="py-20 md:py-28 bg-white">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
                 <h1
-                  className="text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-6"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-4 sm:mb-6"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   Get in touch
                 </h1>
-                <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
                   Have questions about our API? Want to discuss enterprise pricing?
                   We&apos;d love to hear from you.
                 </p>
@@ -72,21 +72,21 @@ export default function ContactPage() {
           </section>
 
           {/* Contact Methods */}
-          <section className="py-12 bg-gray-50">
-            <div className="max-w-6xl mx-auto px-6">
-              <div className="grid md:grid-cols-3 gap-6">
+          <section className="py-8 sm:py-12 bg-gray-50">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 {contactMethods.map((method, i) => (
                   <ScrollReveal key={i} delay={i * 80}>
                     <a
                       href={method.href}
-                      className="bg-white p-6 rounded-2xl border border-gray-100 hover:border-[#E63946]/30 hover:shadow-lg transition-all block group"
+                      className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 hover:border-[#E63946]/30 hover:shadow-lg transition-all block group"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-[#E63946]/10 flex items-center justify-center text-[#E63946] mb-4 group-hover:bg-[#E63946] group-hover:text-white transition-colors">
-                        <method.icon className="w-6 h-6" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-[#E63946]/10 flex items-center justify-center text-[#E63946] mb-3 sm:mb-4 group-hover:bg-[#E63946] group-hover:text-white transition-colors">
+                        <method.icon className="w-5 h-5 sm:w-6 sm:h-6" />
                       </div>
-                      <h3 className="font-semibold text-lg mb-1">{method.title}</h3>
-                      <p className="text-gray-500 text-sm mb-3">{method.description}</p>
-                      <span className="text-[#E63946] font-medium text-sm">{method.action}</span>
+                      <h3 className="font-semibold text-base sm:text-lg mb-1">{method.title}</h3>
+                      <p className="text-gray-500 text-xs sm:text-sm mb-2 sm:mb-3">{method.description}</p>
+                      <span className="text-[#E63946] font-medium text-xs sm:text-sm">{method.action}</span>
                     </a>
                   </ScrollReveal>
                 ))}
@@ -95,15 +95,15 @@ export default function ContactPage() {
           </section>
 
           {/* Contact Form */}
-          <section className="py-20 md:py-28 bg-white">
-            <div className="max-w-3xl mx-auto px-6">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6">
               <ScrollReveal>
-                <div className="bg-gray-50 rounded-2xl p-8 md:p-12">
-                  <h2 className="text-2xl font-semibold mb-6">Send us a message</h2>
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-12">
+                  <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Send us a message</h2>
+                  <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="name" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                           Your name
                         </label>
                         <input
@@ -111,13 +111,13 @@ export default function ContactPage() {
                           id="name"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946]"
+                          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
                           placeholder="John Doe"
                           required
                         />
                       </div>
                       <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="email" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                           Work email
                         </label>
                         <input
@@ -125,7 +125,7 @@ export default function ContactPage() {
                           id="email"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946]"
+                          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
                           placeholder="john@company.com"
                           required
                         />
@@ -133,7 +133,7 @@ export default function ContactPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="company" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                         Company
                       </label>
                       <input
@@ -141,20 +141,20 @@ export default function ContactPage() {
                         id="company"
                         value={formData.company}
                         onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946]"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
                         placeholder="Acme Inc"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="type" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                         How can we help?
                       </label>
                       <select
                         id="type"
                         value={formData.type}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] bg-white"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] bg-white text-sm sm:text-base"
                       >
                         <option value="general">General inquiry</option>
                         <option value="sales">Talk to sales</option>
@@ -164,7 +164,7 @@ export default function ContactPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="message" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                         Message
                       </label>
                       <textarea
@@ -172,7 +172,7 @@ export default function ContactPage() {
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                         rows={5}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] resize-none"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] resize-none text-sm sm:text-base"
                         placeholder="Tell us more about your needs..."
                         required
                       />
@@ -180,7 +180,7 @@ export default function ContactPage() {
 
                     <Button
                       type="submit"
-                      className="w-full bg-[#111827] text-white hover:bg-black h-12 text-base font-medium"
+                      className="w-full bg-[#111827] text-white hover:bg-black h-11 sm:h-12 text-sm sm:text-base font-medium"
                     >
                       Send message
                       <ArrowRight className="w-4 h-4 ml-2" />
@@ -192,14 +192,14 @@ export default function ContactPage() {
           </section>
 
           {/* Office Location */}
-          <section className="py-16 bg-gray-50">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 bg-gray-50">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
                 <div className="flex items-center justify-center gap-2 text-gray-500 mb-2">
                   <MapPin className="w-4 h-4" />
-                  <span className="text-sm">Headquarters</span>
+                  <span className="text-xs sm:text-sm">Headquarters</span>
                 </div>
-                <p className="text-lg text-gray-800">
+                <p className="text-base sm:text-lg text-gray-800">
                   131 Continental Dr Suite 305<br />
                   Newark, DE 19713
                 </p>

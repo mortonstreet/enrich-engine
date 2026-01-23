@@ -110,28 +110,28 @@ export default function FAQPage() {
         <Navigation />
         <main>
           {/* Hero */}
-          <section className="py-20 md:py-28 bg-white">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
                 <h1
-                  className="text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-6"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-4 sm:mb-6"
                   style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                 >
                   Frequently Asked Questions
                 </h1>
-                <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-6 sm:mb-8">
                   Everything you need to know about Enrich Engine.
                 </p>
                 {/* Search */}
                 <div className="max-w-xl mx-auto">
                   <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search FAQs..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946]"
+                      className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
                     />
                   </div>
                 </div>
@@ -140,14 +140,14 @@ export default function FAQPage() {
           </section>
 
           {/* Categories */}
-          <section className="py-6 bg-gray-50 border-y border-gray-100">
-            <div className="max-w-4xl mx-auto px-6">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <section className="py-4 sm:py-6 bg-gray-50 border-y border-gray-100">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
                       activeCategory === cat.id
                         ? "bg-[#111827] text-white"
                         : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
@@ -161,26 +161,26 @@ export default function FAQPage() {
           </section>
 
           {/* FAQs */}
-          <section className="py-16 md:py-20 bg-white">
-            <div className="max-w-4xl mx-auto px-6">
-              <div className="space-y-4">
+          <section className="py-10 sm:py-12 md:py-16 lg:py-20 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
+              <div className="space-y-3 sm:space-y-4">
                 {filteredFaqs.map((faq, i) => (
                   <ScrollReveal key={i} delay={i * 50}>
-                    <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                    <div className="border border-gray-100 rounded-xl sm:rounded-2xl overflow-hidden">
                       <button
                         onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
-                        className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center justify-between p-4 sm:p-6 text-left hover:bg-gray-50 transition-colors"
                       >
-                        <span className="font-semibold pr-4">{faq.question}</span>
+                        <span className="font-semibold pr-3 sm:pr-4 text-sm sm:text-base">{faq.question}</span>
                         <ChevronDown
-                          className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${
+                          className={`w-4 h-4 sm:w-5 sm:h-5 text-gray-400 flex-shrink-0 transition-transform ${
                             expandedIndex === i ? "rotate-180" : ""
                           }`}
                         />
                       </button>
                       {expandedIndex === i && (
-                        <div className="px-6 pb-6">
-                          <p className="text-gray-600 leading-relaxed">{faq.answer}</p>
+                        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                          <p className="text-gray-600 leading-relaxed text-sm sm:text-base">{faq.answer}</p>
                         </div>
                       )}
                     </div>
@@ -189,31 +189,31 @@ export default function FAQPage() {
               </div>
 
               {filteredFaqs.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No FAQs match your search.</p>
+                <div className="text-center py-8 sm:py-12">
+                  <p className="text-gray-500 text-sm sm:text-base">No FAQs match your search.</p>
                 </div>
               )}
             </div>
           </section>
 
           {/* Still have questions */}
-          <section className="py-16 bg-gray-50">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 bg-gray-50">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <ScrollReveal>
-                <h2 className="text-2xl font-semibold mb-4">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-3 sm:mb-4">
                   Still have questions?
                 </h2>
-                <p className="text-gray-600 mb-8">
+                <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                   Can&apos;t find what you&apos;re looking for? Our team is here to help.
                 </p>
-                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                   <Link href="/contact">
-                    <button className="bg-[#111827] text-white hover:bg-black rounded-xl px-8 py-3 font-medium transition-colors">
+                    <button className="w-full sm:w-auto bg-[#111827] text-white hover:bg-black rounded-lg sm:rounded-xl px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors">
                       Contact support
                     </button>
                   </Link>
                   <Link href="/docs">
-                    <button className="border border-gray-200 text-gray-700 hover:bg-white rounded-xl px-8 py-3 font-medium transition-colors">
+                    <button className="w-full sm:w-auto border border-gray-200 text-gray-700 hover:bg-white rounded-lg sm:rounded-xl px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors">
                       Read the docs
                     </button>
                   </Link>

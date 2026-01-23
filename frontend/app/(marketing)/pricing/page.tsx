@@ -330,23 +330,23 @@ export default function PricingPage() {
 
                 {/* Cost Calculator */}
                 <div className="max-w-2xl mx-auto">
-                  <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 rounded-xl bg-[#E63946]/10 flex items-center justify-center">
-                        <Calculator className="w-5 h-5 text-[#E63946]" />
+                  <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5 sm:p-6 md:p-8">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#E63946]/10 flex items-center justify-center">
+                        <Calculator className="w-4 h-4 sm:w-5 sm:h-5 text-[#E63946]" />
                       </div>
-                      <h3 className="text-xl font-semibold">Cost Calculator</h3>
+                      <h3 className="text-lg sm:text-xl font-semibold">Cost Calculator</h3>
                     </div>
 
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="mb-4 sm:mb-6">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                         How many emails do you need to enrich?
                       </label>
                       <input
                         type="number"
                         value={calculatorValue}
                         onChange={(e) => setCalculatorValue(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-lg font-medium transition-all"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-base sm:text-lg font-medium transition-all"
                       />
                       <input
                         type="range"
@@ -355,18 +355,18 @@ export default function PricingPage() {
                         step="100"
                         value={calculatorValue}
                         onChange={(e) => setCalculatorValue(parseInt(e.target.value))}
-                        className="w-full mt-3 accent-[#E63946]"
+                        className="w-full mt-2 sm:mt-3 accent-[#E63946]"
                       />
                     </div>
 
-                    <div className="flex items-end justify-between p-4 bg-[#111827] rounded-xl text-white">
+                    <div className="flex items-end justify-between p-3 sm:p-4 bg-[#111827] rounded-lg sm:rounded-xl text-white gap-4">
                       <div>
-                        <p className="text-sm text-gray-400 mb-1">Total cost</p>
-                        <p className="text-3xl font-bold">${calculatedCost.toFixed(2)}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-0.5 sm:mb-1">Total cost</p>
+                        <p className="text-2xl sm:text-3xl font-bold">${calculatedCost.toFixed(2)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-400 mb-1">Effective rate</p>
-                        <p className="text-lg font-semibold text-[#E63946]">
+                        <p className="text-xs sm:text-sm text-gray-400 mb-0.5 sm:mb-1">Effective rate</p>
+                        <p className="text-base sm:text-lg font-semibold text-[#E63946]">
                           ${effectiveRate.toFixed(4)}/email
                         </p>
                       </div>
@@ -379,14 +379,14 @@ export default function PricingPage() {
 
           {/* Plans Tab */}
           {activeTab === "plans" && (
-            <section className="pb-20 md:pb-28 bg-white">
-              <div className="max-w-6xl mx-auto px-6">
+            <section className="pb-16 sm:pb-20 md:pb-28 bg-white">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6">
                 {/* Billing toggle */}
-                <div className="flex justify-center mb-12">
-                  <div className="inline-flex items-center gap-4 p-1.5 bg-gray-100 rounded-xl">
+                <div className="flex justify-center mb-8 sm:mb-12">
+                  <div className="inline-flex items-center gap-2 sm:gap-4 p-1 sm:p-1.5 bg-gray-100 rounded-xl">
                     <button
                       onClick={() => setBillingPeriod("monthly")}
-                      className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                         billingPeriod === "monthly"
                           ? "bg-white shadow-sm text-gray-900"
                           : "text-gray-500 hover:text-gray-700"
@@ -396,66 +396,66 @@ export default function PricingPage() {
                     </button>
                     <button
                       onClick={() => setBillingPeriod("annual")}
-                      className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                         billingPeriod === "annual"
                           ? "bg-white shadow-sm text-gray-900"
                           : "text-gray-500 hover:text-gray-700"
                       }`}
                     >
                       Annual
-                      <span className="ml-2 text-xs text-[#E63946] font-semibold">Save 20%</span>
+                      <span className="ml-1.5 sm:ml-2 text-[10px] sm:text-xs text-[#E63946] font-semibold">Save 20%</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Pricing cards */}
-                <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                   {plans.map((plan) => (
                     <div
                       key={plan.name}
-                      className={`relative rounded-2xl p-8 ${
+                      className={`relative rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 ${
                         plan.highlighted
                           ? "bg-[#E63946] text-white ring-2 ring-[#C5303C]"
                           : "bg-white border border-gray-200"
                       }`}
                     >
                       {plan.highlighted && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-white text-[#E63946] text-xs font-semibold rounded-full shadow-sm">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-white text-[#E63946] text-[10px] sm:text-xs font-semibold rounded-full shadow-sm whitespace-nowrap">
                           Most Popular
                         </div>
                       )}
 
-                      <div className="mb-6">
+                      <div className="mb-4 sm:mb-6">
                         <h3
-                          className="text-2xl font-normal mb-2"
+                          className="text-xl sm:text-2xl font-normal mb-1 sm:mb-2"
                           style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                         >
                           {plan.name}
                         </h3>
-                        <p className={`text-sm ${plan.highlighted ? "text-white/80" : "text-gray-500"}`}>
+                        <p className={`text-xs sm:text-sm ${plan.highlighted ? "text-white/80" : "text-gray-500"}`}>
                           {plan.description}
                         </p>
                       </div>
 
-                      <div className="mb-6">
+                      <div className="mb-4 sm:mb-6">
                         {plan.price !== null ? (
                           <>
                             <div className="flex items-baseline gap-1">
-                              <span className="text-4xl font-bold">
+                              <span className="text-3xl sm:text-4xl font-bold">
                                 ${Math.round(plan.price * discount)}
                               </span>
-                              <span className={`text-sm ${plan.highlighted ? "text-white/70" : "text-gray-500"}`}>
+                              <span className={`text-xs sm:text-sm ${plan.highlighted ? "text-white/70" : "text-gray-500"}`}>
                                 /month
                               </span>
                             </div>
-                            <p className={`text-sm mt-1 ${plan.highlighted ? "text-white/70" : "text-gray-500"}`}>
+                            <p className={`text-xs sm:text-sm mt-1 ${plan.highlighted ? "text-white/70" : "text-gray-500"}`}>
                               {plan.credits?.toLocaleString()} credits included
                             </p>
                           </>
                         ) : (
                           <div className="flex items-baseline gap-1">
                             <span
-                              className="text-3xl font-normal"
+                              className="text-2xl sm:text-3xl font-normal"
                               style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
                             >
                               Custom
@@ -466,7 +466,7 @@ export default function PricingPage() {
 
                       <Link href={plan.name === "Enterprise" ? "/contact" : "/signup"}>
                         <Button
-                          className={`w-full mb-8 h-12 text-base font-medium rounded-xl ${
+                          className={`w-full mb-6 sm:mb-8 h-11 sm:h-12 text-sm sm:text-base font-medium rounded-xl ${
                             plan.highlighted
                               ? "bg-white hover:bg-gray-100 text-[#E63946]"
                               : "bg-gray-100 hover:bg-gray-200 text-gray-900"
@@ -477,10 +477,10 @@ export default function PricingPage() {
                         </Button>
                       </Link>
 
-                      <ul className="space-y-3">
+                      <ul className="space-y-2 sm:space-y-3">
                         {plan.features.map((feature) => (
-                          <li key={feature} className="flex items-start gap-3 text-sm">
-                            <Check className={`w-5 h-5 flex-shrink-0 ${plan.highlighted ? "text-white" : "text-[#E63946]"}`} />
+                          <li key={feature} className="flex items-start gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <Check className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${plan.highlighted ? "text-white" : "text-[#E63946]"}`} />
                             <span className={plan.highlighted ? "text-white/90" : "text-gray-600"}>
                               {feature}
                             </span>
@@ -492,7 +492,7 @@ export default function PricingPage() {
                 </div>
 
                 {/* API mention */}
-                <p className="text-center text-gray-500 mt-8">
+                <p className="text-center text-xs sm:text-sm text-gray-500 mt-6 sm:mt-8">
                   All plans include API access.{" "}
                   <button
                     onClick={() => setActiveTab("api")}
@@ -506,44 +506,44 @@ export default function PricingPage() {
           )}
 
           {/* Why We're Cheaper Section */}
-          <section className="py-16 bg-gray-50 border-t border-gray-100">
-            <div className="max-w-4xl mx-auto px-6">
+          <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
               <h2
-                className="text-2xl md:text-3xl font-normal mb-4 text-center"
+                className="text-xl sm:text-2xl md:text-3xl font-normal mb-3 sm:mb-4 text-center"
                 style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
               >
                 How we keep costs so low
               </h2>
-              <p className="text-gray-600 text-center mb-10 max-w-2xl mx-auto">
+              <p className="text-sm sm:text-base text-gray-600 text-center mb-8 sm:mb-10 max-w-2xl mx-auto">
                 We built proprietary email pattern matching that achieves 95%+ accuracy before
                 falling back to expensive third-party providers. You get the same quality data at a fraction of the cost.
               </p>
 
-              <div className="grid md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">1</span>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <span className="text-xl sm:text-2xl">1</span>
                   </div>
-                  <h3 className="font-semibold mb-2">Smart Pattern Matching</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-semibold mb-1.5 sm:mb-2 text-sm sm:text-base">Smart Pattern Matching</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Our algorithms predict email patterns with high accuracy using public data signals.
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">2</span>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <span className="text-xl sm:text-2xl">2</span>
                   </div>
-                  <h3 className="font-semibold mb-2">Real-time Validation</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-semibold mb-1.5 sm:mb-2 text-sm sm:text-base">Real-time Validation</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Every email is verified against SMTP servers to ensure deliverability.
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">3</span>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#E63946]/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <span className="text-xl sm:text-2xl">3</span>
                   </div>
-                  <h3 className="font-semibold mb-2">Smart Fallbacks</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-semibold mb-1.5 sm:mb-2 text-sm sm:text-base">Smart Fallbacks</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Only use premium providers when needed, passing the savings directly to you.
                   </p>
                 </div>
@@ -552,20 +552,20 @@ export default function PricingPage() {
           </section>
 
           {/* FAQs */}
-          <section className="py-20 md:py-28 bg-white">
-            <div className="max-w-4xl mx-auto px-6">
+          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
               <h2
-                className="text-3xl md:text-4xl font-normal tracking-tight mb-12 text-center"
+                className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-8 sm:mb-12 text-center"
                 style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
               >
                 Frequently asked questions
               </h2>
 
-              <div className="grid md:grid-cols-2 gap-x-12 gap-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 sm:gap-x-12 gap-y-6 sm:gap-y-8">
                 {faqs.map((faq, i) => (
                   <div key={i}>
-                    <h3 className="font-semibold mb-2">{faq.q}</h3>
-                    <p className="text-gray-600 text-sm leading-relaxed">{faq.a}</p>
+                    <h3 className="font-semibold mb-1.5 sm:mb-2 text-sm sm:text-base">{faq.q}</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">{faq.a}</p>
                   </div>
                 ))}
               </div>
@@ -573,26 +573,26 @@ export default function PricingPage() {
           </section>
 
           {/* Final CTA */}
-          <section className="py-16 bg-white">
-            <div className="max-w-4xl mx-auto px-6 text-center">
+          <section className="py-12 sm:py-16 bg-white">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
               <h2
-                className="text-2xl md:text-3xl font-normal mb-4 text-[#111827]"
+                className="text-xl sm:text-2xl md:text-3xl font-normal mb-3 sm:mb-4 text-[#111827]"
                 style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
               >
                 Ready to cut your enrichment costs?
               </h2>
-              <p className="text-gray-600 mb-8 max-w-xl mx-auto">
+              <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 max-w-xl mx-auto">
                 Start with $10 in free credits. No credit card required.
               </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                 <Link href="/signup">
-                  <Button className="bg-[#111827] text-white hover:bg-black h-12 px-8 text-base font-medium rounded-xl">
+                  <Button className="w-full sm:w-auto bg-[#111827] text-white hover:bg-black h-11 sm:h-12 px-6 sm:px-8 text-sm sm:text-base font-medium rounded-xl">
                     Get started free
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
                 <Link href="/contact">
-                  <Button variant="outline" className="border-gray-300 text-[#111827] hover:bg-gray-100 h-12 px-8 text-base font-medium rounded-xl">
+                  <Button variant="outline" className="w-full sm:w-auto border-gray-300 text-[#111827] hover:bg-gray-100 h-11 sm:h-12 px-6 sm:px-8 text-sm sm:text-base font-medium rounded-xl">
                     Talk to sales
                   </Button>
                 </Link>

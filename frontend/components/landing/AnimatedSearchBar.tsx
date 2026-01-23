@@ -62,7 +62,7 @@ export default function AnimatedSearchBar() {
   }, [currentQuery, isTyping, isFocused]);
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto px-4 sm:px-0">
       <div className="relative">
         <input
           type="text"
@@ -71,20 +71,20 @@ export default function AnimatedSearchBar() {
           placeholder={isFocused ? "Search for leads..." : ""}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          className="w-full px-6 py-5 pr-16 text-base bg-white border border-gray-200 rounded-2xl shadow-lg shadow-gray-100/50 focus:outline-none focus:border-[#E63946]/30 focus:shadow-[#E63946]/10 focus:shadow-xl transition-all duration-300"
+          className="w-full px-4 sm:px-6 py-4 sm:py-5 pr-14 sm:pr-16 text-sm sm:text-base bg-white border border-gray-200 rounded-xl sm:rounded-2xl shadow-lg shadow-gray-100/50 focus:outline-none focus:border-[#E63946]/30 focus:shadow-[#E63946]/10 focus:shadow-xl transition-all duration-300"
           style={{ caretColor: "#E63946" }}
         />
-        {/* Blinking cursor when typing */}
+        {/* Blinking cursor when typing - hidden on mobile for cleaner look */}
         {!isFocused && (
           <span
-            className="absolute top-1/2 -translate-y-1/2 w-0.5 h-6 bg-[#E63946] animate-pulse"
+            className="absolute top-1/2 -translate-y-1/2 w-0.5 h-5 sm:h-6 bg-[#E63946] animate-pulse hidden sm:block"
             style={{
               left: `min(${24 + displayText.length * 8.5}px, calc(100% - 80px))`,
             }}
           />
         )}
-        <button className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 bg-[#111827] rounded-xl flex items-center justify-center text-white hover:bg-black transition-colors">
-          <ArrowUpRight className="w-5 h-5" />
+        <button className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-11 sm:h-11 bg-[#111827] rounded-lg sm:rounded-xl flex items-center justify-center text-white hover:bg-black transition-colors">
+          <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 
