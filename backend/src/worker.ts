@@ -8,11 +8,26 @@ import { exampleQueue, scheduleRecurringExampleCheck } from "@/queues";
 import { createScrapeWorker } from "@/queues/scrape.queue";
 
 import logger from "@/lib/logger";
+import { getDomainCache } from "@/lib/cache";
+import { warmDomainCache } from "@/lib/cache/cacheWarmer";
+import { destroyAgents } from "@/lib/httpAgent";
 
 logger.info("Starting Worker services...");
 
 export const startWorker = async () => {
   logger.info("Initializing Worker services...");
+
+  // Warm domain cache on startup for faster initial lookups
+  try {
+    const cache = getDomainCache();
+    if (cache) {
+      const warmResult = await warmDomainCache(cache);
+      logger.info({ warmed: warmResult.warmed, skipped: warmResult.skipped }, "Domain cache warmed");
+    }
+  } catch (error) {
+    logger.warn({ error }, "Failed to warm domain cache, continuing without cache warming");
+  }
+
   const eventProcessor = new EventProcessor();
   const enrichmentProcessor = new EnrichmentProcessor();
   const listEnrichmentProcessor = new ListEnrichmentProcessor();
@@ -38,6 +53,8 @@ export const startWorker = async () => {
     await listEnrichmentProcessor.close();
     await copyGeneratorProcessor.close();
     await scrapeWorker.close();
+    // Clean up HTTP connection pools
+    destroyAgents();
     logger.info("Worker services stopped.");
     process.exit(0);
   };

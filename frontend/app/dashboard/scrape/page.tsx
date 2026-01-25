@@ -181,6 +181,7 @@ export default function ScrapePage() {
         processedItems={activeJob?.processedRows || 0}
         foundCount={activeJob?.successCount || 0}
         jobName={activeJob?.name}
+        onClose={() => setShowOverlay(false)}
       />
 
       <div className="space-y-6">

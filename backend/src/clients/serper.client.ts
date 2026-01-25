@@ -1,7 +1,21 @@
 import { config } from "@/config";
 import logger from "@/lib/logger";
+import { getSerperRateLimiter } from "@/lib/rateLimiter/serperRateLimiter";
+import { getHttpsAgent } from "@/lib/httpAgent";
+import { AdaptiveRateLimiter, RateLimitHeaders } from "@/lib/adaptiveRateLimiter";
+import { getDomainCache } from "@/lib/cache";
 
 const SERPER_BASE_URL = "https://google.serper.dev/search";
+
+// Create adaptive rate limiter instance for monitoring API response patterns
+const adaptiveRateLimiter = new AdaptiveRateLimiter({
+  baseTargetQps: 300,
+  minTargetQps: 50,
+  maxTargetQps: 300,
+  onAdjust: (newQps, reason) => {
+    logger.info({ newQps, reason }, "[Serper] Rate adjusted");
+  },
+});
 
 export interface SerperSearchResult {
   title: string;
@@ -18,6 +32,13 @@ export interface SerperResponse {
 }
 
 async function serperFetch(query: string): Promise<SerperResponse> {
+  // Acquire rate limiter token before making request
+  const rateLimiter = getSerperRateLimiter();
+  await rateLimiter.acquire(1);
+
+  // Use connection pooling for better performance
+  const agent = getHttpsAgent();
+
   const response = await fetch(SERPER_BASE_URL, {
     method: "POST",
     headers: {
@@ -28,7 +49,20 @@ async function serperFetch(query: string): Promise<SerperResponse> {
       q: query,
       num: 10,
     }),
+    // @ts-ignore - Node.js fetch supports dispatcher for connection pooling
+    dispatcher: agent,
   });
+
+  // Extract rate limit headers for adaptive limiting
+  const rateLimitHeaders: RateLimitHeaders = {
+    'x-ratelimit-limit': response.headers.get('x-ratelimit-limit') ?? undefined,
+    'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining') ?? undefined,
+    'x-ratelimit-reset': response.headers.get('x-ratelimit-reset') ?? undefined,
+    'retry-after': response.headers.get('retry-after') ?? undefined,
+  };
+
+  // Process response for adaptive rate adjustment
+  adaptiveRateLimiter.processResponse(rateLimitHeaders, response.status);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -297,6 +331,7 @@ function shouldSkipDomain(domain: string): boolean {
 /**
  * Searches for a company's official website domain using Serper.
  * Returns the first non-social-media domain found in search results.
+ * Uses Redis cache to reduce API calls.
  *
  * @param companyName - The company name to search for
  * @returns The company domain or null if not found
@@ -304,6 +339,16 @@ function shouldSkipDomain(domain: string): boolean {
 export async function searchCompanyWebsite(companyName: string): Promise<string | null> {
   if (!companyName || !companyName.trim()) {
     return null;
+  }
+
+  // Check Redis cache first
+  const cache = getDomainCache();
+  if (cache) {
+    const cached = await cache.get(companyName);
+    if (cached !== undefined) {
+      logger.debug({ companyName, domain: cached, cached: true }, "Company domain from cache");
+      return cached; // Return cached value (including null for "not found")
+    }
   }
 
   const query = buildDomainSearchQuery(companyName);
@@ -314,6 +359,10 @@ export async function searchCompanyWebsite(companyName: string): Promise<string 
 
     if (!response.organic || response.organic.length === 0) {
       logger.info({ companyName }, "No search results for company domain");
+      // Cache the null result to avoid repeated lookups
+      if (cache) {
+        await cache.set(companyName, null);
+      }
       return null;
     }
 
@@ -326,11 +375,19 @@ export async function searchCompanyWebsite(companyName: string): Promise<string 
           { companyName, domain, resultUrl: result.link },
           "Found company domain via Serper"
         );
+        // Cache the result
+        if (cache) {
+          await cache.set(companyName, domain);
+        }
         return domain;
       }
     }
 
     logger.info({ companyName }, "No valid company domain found in search results");
+    // Cache the null result
+    if (cache) {
+      await cache.set(companyName, null);
+    }
     return null;
   } catch (error) {
     logger.error(
@@ -339,4 +396,11 @@ export async function searchCompanyWebsite(companyName: string): Promise<string 
     );
     return null;
   }
+}
+
+/**
+ * Gets the current state of the adaptive rate limiter for monitoring
+ */
+export function getAdaptiveRateLimiterState() {
+  return adaptiveRateLimiter.getState();
 }

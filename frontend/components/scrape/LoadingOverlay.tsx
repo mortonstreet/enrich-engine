@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, X } from "lucide-react";
 
 interface LoadingOverlayProps {
   isVisible: boolean;
@@ -8,6 +8,7 @@ interface LoadingOverlayProps {
   processedItems: number;
   foundCount: number;
   jobName?: string;
+  onClose?: () => void;
 }
 
 export function LoadingOverlay({
@@ -16,23 +17,30 @@ export function LoadingOverlay({
   processedItems,
   foundCount,
   jobName,
+  onClose,
 }: LoadingOverlayProps) {
   if (!isVisible) return null;
 
   const progress = totalItems > 0 ? (processedItems / totalItems) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Blurred/fuzzy backdrop */}
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-
+    <div className="fixed bottom-4 right-4 z-50">
       {/* Content */}
-      <div className="relative z-10 bg-card border rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <div className="text-center space-y-6">
+      <div className="bg-card border rounded-xl shadow-2xl p-6 w-80">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 rounded-md hover:bg-muted transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4 text-muted-foreground" />
+        </button>
+
+        <div className="text-center space-y-4">
           {/* Animated loader */}
-          <div className="relative mx-auto w-24 h-24">
+          <div className="relative mx-auto w-16 h-16">
             <div className="absolute inset-0 rounded-full border-4 border-muted" />
-            <svg className="absolute inset-0 w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+            <svg className="absolute inset-0 w-16 h-16 -rotate-90" viewBox="0 0 100 100">
               <circle
                 cx="50"
                 cy="50"
@@ -48,25 +56,25 @@ export function LoadingOverlay({
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
           </div>
 
           {/* Job name */}
           {jobName && (
-            <p className="text-sm font-medium text-muted-foreground">{jobName}</p>
+            <p className="text-xs font-medium text-muted-foreground">{jobName}</p>
           )}
 
           {/* Progress text */}
           <div>
-            <h3 className="text-lg font-semibold">Finding LinkedIn Profiles</h3>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h3 className="text-sm font-semibold">Finding LinkedIn Profiles</h3>
+            <p className="text-xs text-muted-foreground mt-1">
               {processedItems} of {totalItems} processed
             </p>
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
             <div
               className="bg-primary h-full transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
@@ -74,10 +82,10 @@ export function LoadingOverlay({
           </div>
 
           {/* Live counter */}
-          <div className="flex items-center justify-center gap-3 py-4 bg-green-50 dark:bg-green-950/30 rounded-lg">
-            <Users className="w-6 h-6 text-green-600" />
+          <div className="flex items-center justify-center gap-2 py-2 bg-green-50 dark:bg-green-950/30 rounded-lg">
+            <Users className="w-4 h-4 text-green-600" />
             <div className="text-left">
-              <p className="text-2xl font-bold text-green-600 tabular-nums">
+              <p className="text-lg font-bold text-green-600 tabular-nums">
                 {foundCount}
               </p>
               <p className="text-xs text-green-700 dark:text-green-500">
@@ -88,7 +96,7 @@ export function LoadingOverlay({
 
           {/* Tip */}
           <p className="text-xs text-muted-foreground">
-            You can navigate away. The job will continue processing in the background.
+            Job processing in background.
           </p>
         </div>
       </div>

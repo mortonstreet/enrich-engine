@@ -3,6 +3,11 @@ import * as listRepository from "@/repositories/list.repository";
 import * as leadRepository from "@/repositories/lead.repository";
 import * as serperClient from "@/clients/serper.client";
 import { isValidLinkedInProfileUrl } from "@/utils/linkedinValidator";
+import { processBatch } from "@/utils/batchProcessor";
+import { DomainMemo } from "@/utils/domainMemo";
+import { QPS_CONFIG } from "@/config/qps.config";
+import { getDomainCache } from "@/lib/cache";
+import { extractCompaniesFromItems, prefetchDomains } from "@/lib/cache/cacheWarmer";
 import {
   ScrapeJobStatus,
   ScrapeItemStatus,
@@ -15,6 +20,7 @@ import {
   CreateScrapeJobResponse,
   DeleteScrapeJobResponse,
   DBScrapeJob,
+  DBScrapeJobItem,
   RoleConfig,
 } from "@shared/types/src";
 import logger from "@/lib/logger";
@@ -355,8 +361,15 @@ export const resumeScrapeJob = async (
   return updatedJob!;
 };
 
-// How often to sync results to the list (every N items)
-const LIST_SYNC_INTERVAL = 50;
+// How often to sync results to the list (every N batches)
+const LIST_SYNC_BATCH_INTERVAL = 3;
+
+interface ProcessItemResult {
+  success: boolean;
+  linkedinUrl?: string | null;
+  companyDomain?: string | null;
+  error?: unknown;
+}
 
 export const processScrapeJob = async (jobId: string): Promise<void> => {
   const job = await scrapeJobRepository.findById(jobId);
@@ -369,14 +382,58 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     status: ScrapeJobStatus.PROCESSING,
   });
 
-  logger.info({ jobId }, "Starting scrape job processing");
+  logger.info({ jobId, batchSize: QPS_CONFIG.BATCH_SIZE, concurrency: QPS_CONFIG.QUEUE_CONCURRENCY }, "Starting scrape job processing with batch processing");
 
   try {
     // Reset any items stuck in 'processing' status from a previous failed/interrupted run
     await scrapeJobRepository.resetStuckItems(jobId);
 
     const items = await scrapeJobRepository.findPendingItems(jobId);
-    let processedSinceLastSync = 0;
+
+    if (items.length === 0) {
+      await scrapeJobRepository.update(jobId, {
+        status: ScrapeJobStatus.COMPLETED,
+        completedAt: new Date(),
+      });
+      logger.info({ jobId }, "No pending items to process, marking job as completed");
+      return;
+    }
+
+    // Initialize domain memo for this job (reduces duplicate API calls for same company)
+    // Use Redis cache if available, falling back to in-memory DomainMemo
+    const domainMemo = new DomainMemo();
+    const redisCache = getDomainCache();
+
+    // Pre-fetch domains for all companies in this job (Phase 3 optimization)
+    if (redisCache) {
+      try {
+        const companies = extractCompaniesFromItems(
+          items as Array<{ inputData: Record<string, string> }>
+        );
+        if (companies.length > 0) {
+          const prefetchResult = await prefetchDomains(
+            redisCache,
+            companies,
+            (company) => serperClient.searchCompanyWebsite(company),
+            20 // Prefetch 20 at a time
+          );
+          logger.info(
+            {
+              jobId,
+              cached: prefetchResult.cached,
+              fetched: prefetchResult.fetched,
+              failed: prefetchResult.failed,
+            },
+            "Domain prefetch complete"
+          );
+        }
+      } catch (prefetchError) {
+        logger.warn(
+          { error: prefetchError, jobId },
+          "Domain prefetch failed, will fetch on demand"
+        );
+      }
+    }
 
     // Track used LinkedIn URLs per company+role for multi-person scraping
     // Key: company|role, Value: Set of used LinkedIn URLs (normalized)
@@ -396,155 +453,62 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
       }
     }
 
-    for (const item of items) {
-      // Check if job has been paused before processing each item
-      const currentJob = await scrapeJobRepository.findById(jobId);
-      if (currentJob?.status === ScrapeJobStatus.PAUSED) {
-        logger.info({ jobId }, "Scrape job paused, stopping processing");
-        return; // Exit without marking as completed or failed
-      }
+    // Track if job was paused during processing
+    let wasPaused = false;
+    let processedCount = 0;
 
-      try {
-        await scrapeJobRepository.updateItem(item.id, {
-          status: ScrapeItemStatus.PROCESSING,
-        });
+    // Process items in batches using the batch processor
+    await processBatch({
+      items,
+      batchSize: QPS_CONFIG.BATCH_SIZE,
+      delayBetweenItems: QPS_CONFIG.DELAY_BETWEEN_ITEMS_MS,
+      delayBetweenBatches: QPS_CONFIG.DELAY_BETWEEN_BATCHES_MS,
 
-        const inputData = item.inputData as Record<string, string>;
-        let query: string;
-        let linkedinUrl: string | null = null;
-        let firstName: string | null = null;
-        let lastName: string | null = null;
-        let rawResponse: serperClient.SerperResponse | null = null;
-
-        if (job.inputType === ScrapeInputType.NAME) {
-          query = serperClient.buildNameQuery(
-            inputData.first_name || "",
-            inputData.last_name || "",
-            inputData.company
-          );
-          const result = await serperClient.searchLinkedIn(query);
-          linkedinUrl = result.linkedinUrl;
-          firstName = result.firstName;
-          lastName = result.lastName;
-          rawResponse = result.rawResponse;
-        } else {
-          // Role-based search with multi-person support
-          query = serperClient.buildRoleQuery(
-            inputData.company || "",
-            inputData.role || ""
-          );
-
-          // Get the instance index for this company+role
-          const roleInstanceIndex = parseInt(inputData.roleInstanceIndex || "0", 10);
-          const companyRoleKey = getDedupeKey(inputData, job.inputType as ScrapeInputType);
-
-          // Get or create the set of used URLs for this company+role
-          if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
-            usedUrlsByCompanyRole.set(companyRoleKey, new Set());
-          }
-          const usedUrls = usedUrlsByCompanyRole.get(companyRoleKey)!;
-
-          // Search and get the appropriate result
-          const searchResponse = await fetch("https://google.serper.dev/search", {
-            method: "POST",
-            headers: {
-              "X-API-KEY": (await import("@/config")).config.serper.apiKey,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ q: query, num: 10 }),
-          });
-
-          if (!searchResponse.ok) {
-            throw new Error(`Serper API error: ${searchResponse.status}`);
-          }
-
-          rawResponse = await searchResponse.json() as serperClient.SerperResponse;
-
-          // Extract the Nth result that hasn't been used yet
-          const extractedResult = serperClient.extractLinkedInResultByIndex(
-            rawResponse.organic || [],
-            roleInstanceIndex,
-            usedUrls
-          );
-
-          if (extractedResult) {
-            linkedinUrl = extractedResult.linkedinUrl;
-            firstName = extractedResult.firstName;
-            lastName = extractedResult.lastName;
-
-            // Add to used URLs
-            const normalizedUrl = linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
-            usedUrls.add(normalizedUrl);
-          }
-
-          logger.info({
-            itemId: item.id,
-            company: inputData.company,
-            role: inputData.role,
-            roleInstanceIndex,
-            usedUrlsCount: usedUrls.size,
-            foundUrl: linkedinUrl,
-          }, "Processed role-based search with multi-person support");
-        }
-
-        // Store the extracted name from search results (useful for role-based searches)
-        const updatedInputData = { ...inputData };
-        if (firstName && !inputData.first_name) {
-          updatedInputData.first_name = firstName;
-        }
-        if (lastName && !inputData.last_name) {
-          updatedInputData.last_name = lastName;
-        }
-
-        // Search for company domain if we have a company name
-        let companyDomain: string | null = null;
-        if (inputData.company && linkedinUrl) {
-          try {
-            companyDomain = await serperClient.searchCompanyWebsite(inputData.company);
-            logger.info(
-              { itemId: item.id, company: inputData.company, companyDomain },
-              "Company domain search result"
-            );
-          } catch (domainError) {
-            logger.warn(
-              { error: domainError, company: inputData.company },
-              "Failed to search for company domain, continuing without it"
-            );
+      processor: async (item, index) => {
+        // Check if job has been paused (check less frequently for batched processing)
+        if (index % QPS_CONFIG.BATCH_SIZE === 0) {
+          const currentJob = await scrapeJobRepository.findById(jobId);
+          if (currentJob?.status === ScrapeJobStatus.PAUSED) {
+            wasPaused = true;
+            throw new Error("Job paused");
           }
         }
 
-        await scrapeJobRepository.updateItem(item.id, {
-          status: linkedinUrl ? ScrapeItemStatus.COMPLETED : ScrapeItemStatus.NO_RESULT,
-          linkedinUrl,
-          companyDomain,
-          inputData: updatedInputData,
-          serperResponse: rawResponse,
-          processedAt: new Date(),
-        });
+        return processItem(item, job, domainMemo, usedUrlsByCompanyRole);
+      },
 
+      onItemComplete: async (_result, _item, index) => {
+        processedCount++;
+        // Update progress periodically (every 10 items)
+        if (index % 10 === 0) {
+          await updateJobProgress(jobId);
+        }
+      },
+
+      onBatchComplete: async (results, batchIndex) => {
+        // Always update progress after each batch
         await updateJobProgress(jobId);
-        processedSinceLastSync++;
 
-        // Periodically sync results to the list so partial results are available
-        if (processedSinceLastSync >= LIST_SYNC_INTERVAL) {
+        // Sync results to list periodically
+        if ((batchIndex + 1) % LIST_SYNC_BATCH_INTERVAL === 0) {
           await createOrUpdateResultList(jobId);
-          processedSinceLastSync = 0;
         }
 
-        // Rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      } catch (error) {
-        logger.error({ error, itemId: item.id }, "Failed to process scrape item");
+        logger.info({
+          jobId,
+          batchIndex: batchIndex + 1,
+          successCount: results.filter(r => r.success).length,
+          errorCount: results.filter(r => !r.success).length,
+          domainCacheStats: domainMemo.getStats(),
+          processedTotal: processedCount,
+        }, "Batch complete");
+      },
+    });
 
-        await scrapeJobRepository.updateItem(item.id, {
-          status: ScrapeItemStatus.FAILED,
-          errorMessage: error instanceof Error ? error.message : "Unknown error",
-          processedAt: new Date(),
-        });
-
-        await updateJobProgress(jobId);
-        processedSinceLastSync++;
-      }
+    // Check if we stopped due to pause
+    if (wasPaused) {
+      logger.info({ jobId }, "Scrape job paused, stopping processing");
+      return; // Exit without marking as completed or failed
     }
 
     // Final sync to ensure all results are in the list
@@ -555,8 +519,14 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
       completedAt: new Date(),
     });
 
-    logger.info({ jobId }, "Scrape job completed");
+    logger.info({ jobId, domainCacheStats: domainMemo.getStats() }, "Scrape job completed");
   } catch (error) {
+    // Check if this was a pause-related exit
+    if (error instanceof Error && error.message === "Job paused") {
+      logger.info({ jobId }, "Scrape job paused, stopping processing");
+      return;
+    }
+
     logger.error({ error, jobId }, "Scrape job failed");
 
     // Mark any items stuck in 'processing' as failed
@@ -577,6 +547,158 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Process a single scrape item with domain memoization
+ */
+async function processItem(
+  item: DBScrapeJobItem,
+  job: DBScrapeJob,
+  domainMemo: DomainMemo,
+  usedUrlsByCompanyRole: Map<string, Set<string>>
+): Promise<ProcessItemResult> {
+  const inputData = item.inputData as Record<string, string>;
+
+  try {
+    await scrapeJobRepository.updateItem(item.id, {
+      status: ScrapeItemStatus.PROCESSING,
+    });
+
+    let linkedinUrl: string | null = null;
+    let firstName: string | null = null;
+    let lastName: string | null = null;
+    let rawResponse: serperClient.SerperResponse | null = null;
+
+    if (job.inputType === ScrapeInputType.NAME) {
+      const query = serperClient.buildNameQuery(
+        inputData.first_name || "",
+        inputData.last_name || "",
+        inputData.company
+      );
+      const result = await serperClient.searchLinkedIn(query);
+      linkedinUrl = result.linkedinUrl;
+      firstName = result.firstName;
+      lastName = result.lastName;
+      rawResponse = result.rawResponse;
+    } else {
+      // Role-based search with multi-person support
+      const query = serperClient.buildRoleQuery(
+        inputData.company || "",
+        inputData.role || ""
+      );
+
+      // Get the instance index for this company+role
+      const roleInstanceIndex = parseInt(inputData.roleInstanceIndex || "0", 10);
+      const companyRoleKey = getDedupeKey(inputData, job.inputType as ScrapeInputType);
+
+      // Get or create the set of used URLs for this company+role
+      if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
+        usedUrlsByCompanyRole.set(companyRoleKey, new Set());
+      }
+      const usedUrls = usedUrlsByCompanyRole.get(companyRoleKey)!;
+
+      // Search and get the appropriate result
+      const searchResponse = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": (await import("@/config")).config.serper.apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q: query, num: 10 }),
+      });
+
+      if (!searchResponse.ok) {
+        throw new Error(`Serper API error: ${searchResponse.status}`);
+      }
+
+      rawResponse = await searchResponse.json() as serperClient.SerperResponse;
+
+      // Extract the Nth result that hasn't been used yet
+      const extractedResult = serperClient.extractLinkedInResultByIndex(
+        rawResponse.organic || [],
+        roleInstanceIndex,
+        usedUrls
+      );
+
+      if (extractedResult) {
+        linkedinUrl = extractedResult.linkedinUrl;
+        firstName = extractedResult.firstName;
+        lastName = extractedResult.lastName;
+
+        // Add to used URLs
+        const normalizedUrl = linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
+        usedUrls.add(normalizedUrl);
+      }
+
+      logger.debug({
+        itemId: item.id,
+        company: inputData.company,
+        role: inputData.role,
+        roleInstanceIndex,
+        usedUrlsCount: usedUrls.size,
+        foundUrl: linkedinUrl,
+      }, "Processed role-based search with multi-person support");
+    }
+
+    // Store the extracted name from search results (useful for role-based searches)
+    const updatedInputData = { ...inputData };
+    if (firstName && !inputData.first_name) {
+      updatedInputData.first_name = firstName;
+    }
+    if (lastName && !inputData.last_name) {
+      updatedInputData.last_name = lastName;
+    }
+
+    // Search for company domain if we have a company name (with caching)
+    // Redis cache is checked inside searchCompanyWebsite (Phase 3)
+    // DomainMemo provides in-process deduplication for concurrent requests
+    let companyDomain: string | null = null;
+    if (inputData.company && linkedinUrl) {
+      try {
+        if (QPS_CONFIG.DOMAIN_CACHE_ENABLED) {
+          // Use domain memoization for in-process deduplication
+          // The actual Redis cache is checked inside searchCompanyWebsite
+          companyDomain = await domainMemo.getOrFetch(
+            inputData.company,
+            () => serperClient.searchCompanyWebsite(inputData.company)
+          );
+        } else {
+          companyDomain = await serperClient.searchCompanyWebsite(inputData.company);
+        }
+        logger.debug(
+          { itemId: item.id, company: inputData.company, companyDomain },
+          "Company domain search result"
+        );
+      } catch (domainError) {
+        logger.warn(
+          { error: domainError, company: inputData.company },
+          "Failed to search for company domain, continuing without it"
+        );
+      }
+    }
+
+    await scrapeJobRepository.updateItem(item.id, {
+      status: linkedinUrl ? ScrapeItemStatus.COMPLETED : ScrapeItemStatus.NO_RESULT,
+      linkedinUrl,
+      companyDomain,
+      inputData: updatedInputData,
+      serperResponse: rawResponse,
+      processedAt: new Date(),
+    });
+
+    return { success: true, linkedinUrl, companyDomain };
+  } catch (error) {
+    logger.error({ error, itemId: item.id }, "Failed to process scrape item");
+
+    await scrapeJobRepository.updateItem(item.id, {
+      status: ScrapeItemStatus.FAILED,
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      processedAt: new Date(),
+    });
+
+    return { success: false, error };
+  }
+}
 
 export const updateJobProgress = async (jobId: string): Promise<DBScrapeJob | undefined> => {
   const progress = await scrapeJobRepository.getJobProgress(jobId);

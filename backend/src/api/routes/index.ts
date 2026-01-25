@@ -1,4 +1,8 @@
 import { Router } from "express";
+import { getSerperRateLimiter } from "@/lib/rateLimiter/serperRateLimiter";
+import { getDomainCache } from "@/lib/cache";
+import { getAgentStats } from "@/lib/httpAgent";
+import { getAdaptiveRateLimiterState } from "@/clients/serper.client";
 import exampleRoutes from "./example";
 import adminRoutes from "./admin";
 import organizationRoutes from "./organization";
@@ -21,6 +25,41 @@ const router = Router();
 
 router.get("/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+router.get("/health/rate-limiter", async (req, res) => {
+  const limiter = getSerperRateLimiter();
+  const stats = await limiter.getStats?.();
+
+  res.json({
+    status: "ok",
+    rateLimiter: {
+      ...((stats as object) || {}),
+      type: stats ? "redis" : "local",
+    },
+  });
+});
+
+router.get("/health/cache", async (req, res) => {
+  const cache = getDomainCache();
+  const cacheStats = cache ? await cache.getStats() : null;
+  const agentStats = getAgentStats();
+  const adaptiveStats = getAdaptiveRateLimiterState();
+
+  res.json({
+    status: "ok",
+    domainCache: cacheStats
+      ? {
+          hits: cacheStats.hits,
+          misses: cacheStats.misses,
+          hitRate: `${(cacheStats.hitRate * 100).toFixed(1)}%`,
+          size: cacheStats.size,
+          enabled: true,
+        }
+      : { enabled: false },
+    httpAgent: agentStats,
+    adaptiveRateLimiter: adaptiveStats,
+  });
 });
 
 router.use("/example", exampleRoutes);

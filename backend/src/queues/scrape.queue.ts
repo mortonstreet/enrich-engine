@@ -1,5 +1,6 @@
 import { Queue, Worker, Job } from "bullmq";
 import { config } from "@/config";
+import { QPS_CONFIG } from "@/config/qps.config";
 import * as scrapeService from "@/services/scrape.service";
 import logger from "@/lib/logger";
 
@@ -66,7 +67,7 @@ export const createScrapeWorker = () => {
     },
     {
       connection: redisConnection,
-      concurrency: 1,
+      concurrency: QPS_CONFIG.QUEUE_CONCURRENCY,
     }
   );
 

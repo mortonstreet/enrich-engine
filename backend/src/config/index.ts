@@ -40,6 +40,7 @@ const envSchema = z.object({
   MCP_API_KEY: z.string(),
   PROSPEO_API_KEY: z.string(),
   SERPER_API_KEY: z.string(),
+  SERPER_TARGET_QPS: z.coerce.number().default(300),
   ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be 32 bytes (64 hex chars)'),
   // Pusher/Soketi
   PUSHER_ENABLED: z
@@ -119,6 +120,7 @@ export const config = {
   },
   serper: {
     apiKey: env.SERPER_API_KEY,
+    targetQps: env.SERPER_TARGET_QPS,
   },
   encryption: {
     key: env.ENCRYPTION_KEY,
