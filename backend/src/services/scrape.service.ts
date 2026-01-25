@@ -15,6 +15,7 @@ import {
   CreateScrapeJobResponse,
   DeleteScrapeJobResponse,
   DBScrapeJob,
+  RoleConfig,
 } from "@shared/types/src";
 import logger from "@/lib/logger";
 
@@ -46,7 +47,7 @@ const getDedupeKey = (inputData: Record<string, string>, inputType: ScrapeInputT
   }
 };
 
-export const validateCSVColumns = (columns: string[]): CSVColumnValidation => {
+export const validateCSVColumns = (columns: string[], roleConfigs?: RoleConfig[]): CSVColumnValidation => {
   const normalizedColumns = columns.map((c) => c.toLowerCase().trim());
 
   const hasNameColumns = NAME_REQUIRED_COLUMNS.every((col) =>
@@ -54,6 +55,10 @@ export const validateCSVColumns = (columns: string[]): CSVColumnValidation => {
   );
   const hasRoleColumns = normalizedColumns.includes("company") &&
     ROLE_COLUMNS.some((col) => normalizedColumns.includes(col));
+
+  // If roleConfigs are provided from UI, only require company column
+  const hasCompanyWithUIRoles = normalizedColumns.includes("company") &&
+    roleConfigs && roleConfigs.length > 0;
 
   if (hasNameColumns) {
     return {
@@ -66,6 +71,17 @@ export const validateCSVColumns = (columns: string[]): CSVColumnValidation => {
   }
 
   if (hasRoleColumns) {
+    return {
+      isValid: true,
+      inputType: ScrapeInputType.ROLE,
+      columns: normalizedColumns,
+      missingColumns: [],
+      errors: [],
+    };
+  }
+
+  // Company CSV with roles configured in UI (not in CSV)
+  if (hasCompanyWithUIRoles) {
     return {
       isValid: true,
       inputType: ScrapeInputType.ROLE,
@@ -103,6 +119,7 @@ export const createScrapeJob = async (
   name: string,
   inputType: ScrapeInputType,
   rows: ScrapeCSVRow[],
+  roleConfigs?: RoleConfig[],
 ): Promise<CreateScrapeJobResponse> => {
   const job = await scrapeJobRepository.create({
     organizationId,
@@ -131,27 +148,56 @@ export const createScrapeJob = async (
   const roleInstanceCounts = new Map<string, number>();
 
   if (inputType === ScrapeInputType.ROLE) {
-    rows.forEach((row) => {
-      const roles = getRolesFromRow(row);
-      roles.forEach((role) => {
-        const inputData = { ...row, role } as Record<string, string>;
-        const companyRoleKey = getDedupeKey(inputData, inputType);
+    // Check if roleConfigs are provided from UI (company CSV workflow)
+    if (roleConfigs && roleConfigs.length > 0) {
+      // Expand each company row with each role config
+      rows.forEach((row) => {
+        roleConfigs.forEach((config) => {
+          // Create one item per count for each role
+          for (let i = 0; i < config.count; i++) {
+            const inputData = { ...row, role: config.roleName } as Record<string, string>;
+            const companyRoleKey = getDedupeKey(inputData, inputType);
 
-        // Get current instance count for this company+role
-        const instanceIndex = roleInstanceCounts.get(companyRoleKey) ?? 0;
-        roleInstanceCounts.set(companyRoleKey, instanceIndex + 1);
+            // Get current instance count for this company+role
+            const instanceIndex = roleInstanceCounts.get(companyRoleKey) ?? 0;
+            roleInstanceCounts.set(companyRoleKey, instanceIndex + 1);
 
-        // Store instance index in inputData for multi-person scraping
-        inputData.roleInstanceIndex = instanceIndex.toString();
+            // Store instance index in inputData for multi-person scraping
+            inputData.roleInstanceIndex = instanceIndex.toString();
 
-        items.push({
-          jobId: job.id,
-          rowIndex: items.length,
-          inputData,
-          status: ScrapeItemStatus.PENDING,
+            items.push({
+              jobId: job.id,
+              rowIndex: items.length,
+              inputData,
+              status: ScrapeItemStatus.PENDING,
+            });
+          }
         });
       });
-    });
+    } else {
+      // Roles are in CSV columns (legacy behavior)
+      rows.forEach((row) => {
+        const roles = getRolesFromRow(row);
+        roles.forEach((role) => {
+          const inputData = { ...row, role } as Record<string, string>;
+          const companyRoleKey = getDedupeKey(inputData, inputType);
+
+          // Get current instance count for this company+role
+          const instanceIndex = roleInstanceCounts.get(companyRoleKey) ?? 0;
+          roleInstanceCounts.set(companyRoleKey, instanceIndex + 1);
+
+          // Store instance index in inputData for multi-person scraping
+          inputData.roleInstanceIndex = instanceIndex.toString();
+
+          items.push({
+            jobId: job.id,
+            rowIndex: items.length,
+            inputData,
+            status: ScrapeItemStatus.PENDING,
+          });
+        });
+      });
+    }
   } else {
     // For name-based searches, deduplicate as before
     const seenKeys = new Set<string>();

@@ -67,12 +67,15 @@ export function useScrapeJob(jobId?: string, options?: { polling?: boolean }) {
 export function useCreateScrapeJob() {
   const queryClient = useQueryClient();
 
-  return useMutation<CreateScrapeJobResponse, Error, { file: File; name?: string }>({
-    mutationFn: async ({ file, name }) => {
+  return useMutation<CreateScrapeJobResponse, Error, { file: File; name?: string; roleConfigs?: { roleName: string; count: number }[] }>({
+    mutationFn: async ({ file, name, roleConfigs }) => {
       const formData = new FormData();
       formData.append('file', file);
       if (name) {
         formData.append('name', name);
+      }
+      if (roleConfigs && roleConfigs.length > 0) {
+        formData.append('roleConfigs', JSON.stringify(roleConfigs));
       }
 
       const response = await fetch(`${env.API_URL}${ENDPOINTS.SCRAPE.JOBS}`, {

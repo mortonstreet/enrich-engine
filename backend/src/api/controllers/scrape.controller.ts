@@ -13,6 +13,40 @@ import {
   ScrapeCSVRow,
 } from "@shared/types/src";
 
+// Parse a CSV line, properly handling quoted fields with commas inside
+function parseCSVLine(line: string): string[] {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"' && !inQuotes) {
+      inQuotes = true;
+    } else if (char === '"' && inQuotes) {
+      if (nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        inQuotes = false;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  // Don't forget the last value
+  values.push(current.trim());
+
+  return values;
+}
+
 function parseCSV(content: string): { headers: string[]; rows: ScrapeCSVRow[] } {
   const lines = content.split("\n").filter((line) => line.trim());
 
@@ -20,10 +54,10 @@ function parseCSV(content: string): { headers: string[]; rows: ScrapeCSVRow[] } 
     return { headers: [], rows: [] };
   }
 
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().replace(/^["']|["']$/g, ""));
 
   const rows: ScrapeCSVRow[] = lines.slice(1).map((line) => {
-    const values = line.split(",").map((v) => v.trim().replace(/^["']|["']$/g, ""));
+    const values = parseCSVLine(line).map((v) => v.replace(/^["']|["']$/g, ""));
     const row: ScrapeCSVRow = {};
 
     headers.forEach((header, index) => {
@@ -40,7 +74,7 @@ export const createScrapeJob: AuthRequestHandler<CreateScrapeJobRequest> = async
   req,
   res
 ) => {
-  const { name } = req.validated;
+  const { name, roleConfigs } = req.validated;
   const organizationId = req.session.activeOrganizationId;
 
   if (!organizationId) {
@@ -60,7 +94,8 @@ export const createScrapeJob: AuthRequestHandler<CreateScrapeJobRequest> = async
     return res.status(400).json({ error: "CSV file must have at least one data row" });
   }
 
-  const validation = scrapeService.validateCSVColumns(headers);
+  // Pass roleConfigs to validation - if provided, allows company-only CSVs
+  const validation = scrapeService.validateCSVColumns(headers, roleConfigs);
 
   if (!validation.isValid || !validation.inputType) {
     return res.status(400).json({
@@ -77,7 +112,8 @@ export const createScrapeJob: AuthRequestHandler<CreateScrapeJobRequest> = async
     req.user.id,
     jobName,
     validation.inputType as ScrapeInputType,
-    rows
+    rows,
+    roleConfigs
   );
 
   await addScrapeJob(result.job.id);

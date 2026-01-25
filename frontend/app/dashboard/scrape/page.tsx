@@ -98,12 +98,11 @@ export default function ScrapePage() {
     roleConfigs?: RoleConfig[];
   }) => {
     try {
-      // For now, fall back to existing createScrapeJob
-      // TODO: Use new workflow-specific endpoints when backend is ready
       if (data.file) {
         const result = await createJobMutation.mutateAsync({
           file: data.file,
           name: data.name,
+          roleConfigs: data.roleConfigs,
         });
         setActiveJobId(result.job.id);
         setViewMode("job_detail");

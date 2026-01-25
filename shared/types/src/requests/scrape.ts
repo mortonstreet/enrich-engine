@@ -48,8 +48,29 @@ export interface RoleConfig {
 // Request Schemas
 // ============================================
 
+// Role config schema for validation (defined here for reuse)
+const RoleConfigSchemaInternal = z.object({
+  roleName: z.string().min(1, 'Role name is required'),
+  count: z.number().int().positive().max(10, 'Maximum 10 people per role'),
+});
+
 export const CreateScrapeJobRequestSchema = z.object({
   name: z.string().max(255).optional(),
+  // Optional role configs for company-based workflow (roles configured in UI, not CSV)
+  roleConfigs: z.preprocess(
+    (val) => {
+      // Handle string input from FormData
+      if (typeof val === 'string') {
+        try {
+          return JSON.parse(val);
+        } catch {
+          return undefined;
+        }
+      }
+      return val;
+    },
+    z.array(RoleConfigSchemaInternal).optional()
+  ),
 });
 
 export type CreateScrapeJobRequest = z.infer<typeof CreateScrapeJobRequestSchema>;
