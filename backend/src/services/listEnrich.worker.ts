@@ -201,7 +201,7 @@ async function processEmailGuessingBulk(
 
   // Step 2: Get lead details for all items
   const leadIds = allItems.map((item) => item.leadId);
-  const leads = await leadRepository.findByIds(leadIds);
+  const leads = await leadRepository.findByIds(leadIds, organizationId);
   const leadMap = new Map(leads.map((lead) => [lead.id, lead]));
 
   logger.info({ jobId, leadCount: leads.length }, "Fetched lead details");
