@@ -276,13 +276,13 @@ export default function AppSidebar({ onLogout, onOpenCreateOrg }: AppSidebarProp
       {/* Bottom Section */}
       <div className="p-3 border-t border-gray-100 space-y-2">
         {/* Feedback */}
-        <Link
-          href="/contact"
+        <a
+          href="https://www.enrichengine.io/contact"
           className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
         >
           <MessageSquare className="h-4 w-4" />
           <span>Give us feedback</span>
-        </Link>
+        </a>
 
         {/* User Section */}
         <div className="flex items-center gap-2 px-3 py-2">

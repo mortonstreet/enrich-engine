@@ -220,6 +220,14 @@ export function EnrichJobDetailModal({ jobId, onClose }: EnrichJobDetailModalPro
               </div>
             </div>
 
+            {/* Status Message - shown during processing */}
+            {data.job.status === "processing" && data.job.statusMessage && (
+              <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600 flex-shrink-0" />
+                <p className="text-sm text-blue-800">{data.job.statusMessage}</p>
+              </div>
+            )}
+
             {/* Success/Failure Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
               <div>

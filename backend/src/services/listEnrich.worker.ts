@@ -125,6 +125,7 @@ export async function processListEnrichmentJob(jobId: string): Promise<void> {
     // Mark job as completed
     await listEnrichmentJobRepository.updateJob(jobId, {
       status: "completed",
+      statusMessage: null,
       completedAt: new Date(),
     });
 
@@ -207,9 +208,11 @@ async function processEmailGuessingBulk(
   logger.info({ jobId, leadCount: leads.length }, "Fetched lead details");
 
   // Step 3: Resolve domains for all leads (parallel with concurrency limit)
+  const domainMessage = `Resolving company domains for ${leads.length.toLocaleString()} leads...`;
+  await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: domainMessage });
   await sendJobProgressUpdate(organizationId, jobId, {
     status: "processing",
-    statusMessage: "Resolving company domains...",
+    statusMessage: domainMessage,
     processedRows: 0,
     totalRows: allItems.length,
   });
@@ -274,15 +277,17 @@ async function processEmailGuessingBulk(
   }
 
   // Step 6: Upload to bulk API and validate
+  const uniqueEmails = [...new Set(allCandidates.map((c) => c.email))];
+  logger.info({ jobId, uniqueEmailCount: uniqueEmails.length }, "Starting bulk validation");
+
+  const initialMessage = `Uploading ${uniqueEmails.length.toLocaleString()} email candidates for validation...`;
+  await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: initialMessage });
   await sendJobProgressUpdate(organizationId, jobId, {
     status: "processing",
-    statusMessage: "Validating emails...",
+    statusMessage: initialMessage,
     processedRows: 0,
     totalRows: allItems.length,
   });
-
-  const uniqueEmails = [...new Set(allCandidates.map((c) => c.email))];
-  logger.info({ jobId, uniqueEmailCount: uniqueEmails.length }, "Starting bulk validation");
 
   let validationResults: Map<string, BulkValidationResult>;
 
@@ -290,11 +295,18 @@ async function processEmailGuessingBulk(
     validationResults = await validateEmailsBulk(
       uniqueEmails,
       millionVerifierApiKey,
-      (status: BulkFileStatus) => {
-        // Progress callback
+      async (status: BulkFileStatus) => {
+        // Progress callback with detailed MillionVerifier status
+        const verified = status.verified ?? 0;
+        const total = status.total_rows ?? uniqueEmails.length;
+        const statusMessage = `Validating emails: ${verified.toLocaleString()}/${total.toLocaleString()} verified (${status.percent}%)`;
+
+        // Persist status message to database
+        await listEnrichmentJobRepository.updateJob(jobId, { statusMessage });
+
         sendJobProgressUpdate(organizationId, jobId, {
           status: "processing",
-          statusMessage: `Validating emails... ${status.percent}%`,
+          statusMessage,
           processedRows: Math.floor((status.percent / 100) * allItems.length),
           totalRows: allItems.length,
         });
@@ -307,6 +319,15 @@ async function processEmailGuessingBulk(
   logger.info({ jobId, resultsCount: validationResults.size }, "Bulk validation complete");
 
   // Step 7: Process results and find valid emails for each lead
+  const processingMessage = `Processing validation results for ${allItems.length.toLocaleString()} leads...`;
+  await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: processingMessage });
+  await sendJobProgressUpdate(organizationId, jobId, {
+    status: "processing",
+    statusMessage: processingMessage,
+    processedRows: 0,
+    totalRows: allItems.length,
+  });
+
   const processedLeads = await processValidationResults(
     allItems,
     allCandidates,
@@ -320,6 +341,9 @@ async function processEmailGuessingBulk(
   let errorCount = 0;
   let guessSuccessCount = 0;
   let totalValidationCredits = uniqueEmails.length;
+  let processedCount = 0;
+  const totalToProcess = processedLeads.length;
+  const PROGRESS_UPDATE_INTERVAL = 50; // Update progress every 50 leads
 
   for (const result of processedLeads) {
     try {
@@ -351,9 +375,31 @@ async function processEmailGuessingBulk(
         enrichedEmail: result.email,
         processedAt: new Date(),
       });
+
+      processedCount++;
+
+      // Send progress updates periodically
+      if (processedCount % PROGRESS_UPDATE_INTERVAL === 0 || processedCount === totalToProcess) {
+        const updateMessage = `Updating leads: ${processedCount.toLocaleString()}/${totalToProcess.toLocaleString()} (${successCount.toLocaleString()} found)`;
+        await listEnrichmentJobRepository.updateJob(jobId, {
+          statusMessage: updateMessage,
+          processedRows: processedCount,
+          successCount,
+          errorCount,
+        });
+        sendJobProgressUpdate(organizationId, jobId, {
+          status: "processing",
+          statusMessage: updateMessage,
+          processedRows: processedCount,
+          successCount,
+          errorCount,
+          totalRows: totalToProcess,
+        });
+      }
     } catch (error) {
       logger.error({ error, itemId: result.itemId }, "Failed to update lead/item");
       errorCount++;
+      processedCount++;
     }
   }
 

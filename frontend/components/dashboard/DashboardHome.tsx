@@ -244,7 +244,7 @@ export default function DashboardHome() {
 
             {/* Docs Card */}
             <div className="p-4 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors sm:col-span-2 md:col-span-1">
-              <Link href="/docs" className="block">
+              <a href="https://www.enrichengine.io/docs" className="block">
                 <div className="flex items-center gap-2.5 sm:gap-3 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                     <BookOpen className="h-4 w-4 text-gray-600" />
@@ -255,14 +255,14 @@ export default function DashboardHome() {
                   </div>
                   <ExternalLink className="h-4 w-4 text-gray-300 flex-shrink-0" />
                 </div>
-              </Link>
-              <Link href="/demos" className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+              </a>
+              <a href="https://www.enrichengine.io/demos" className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
                 <span className="text-xs sm:text-sm text-gray-600">Demos</span>
                 <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#E63946] text-white rounded">
                   NEW
                 </span>
                 <ExternalLink className="h-3 w-3 text-gray-300 ml-auto" />
-              </Link>
+              </a>
             </div>
           </div>
         </div>

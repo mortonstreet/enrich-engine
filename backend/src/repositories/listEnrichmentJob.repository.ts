@@ -59,6 +59,7 @@ export const findJobByIdWithList = async (id: string) => {
       "job.enrichmentType",
       "job.enrichmentStrategy",
       "job.status",
+      "job.statusMessage",
       "job.totalRows",
       "job.processedRows",
       "job.successCount",
@@ -113,6 +114,7 @@ export const findJobsByOrganization = async (
       "job.vendor",
       "job.enrichmentType",
       "job.status",
+      "job.statusMessage",
       "job.totalRows",
       "job.processedRows",
       "job.successCount",
@@ -144,6 +146,7 @@ export const updateJob = async (
   id: string,
   data: {
     status?: string;
+    statusMessage?: string | null;
     processedRows?: number;
     successCount?: number;
     errorCount?: number;

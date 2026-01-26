@@ -2,7 +2,7 @@ import { transporter } from "@/lib/email";
 
 export const sendEmail = async (to: string, subject: string, text: string) => {
   await transporter.sendMail({
-    from: "noreply@update-me.com",
+    from: "Enrich Engine <noreply@enrichengine.io>",
     to,
     subject,
     text,
@@ -11,7 +11,7 @@ export const sendEmail = async (to: string, subject: string, text: string) => {
 
 export const sendVerificationEmail = async (to: string, url: string) => {
   await transporter.sendMail({
-    from: "update-me <noreply@update-me.com>",
+    from: "Enrich Engine <noreply@enrichengine.io>",
     to,
     subject: "Verify your email",
     html: `
@@ -53,7 +53,7 @@ export const sendVerificationEmail = async (to: string, url: string) => {
                 <tr>
                   <td style="padding: 24px 40px; background-color: #f9f9fa; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e5e5;">
                     <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #999; text-align: center;">
-                      If you didn't create an account with update-me, you can safely ignore this email.<br>
+                      If you didn't create an account with Enrich Engine, you can safely ignore this email.<br>
                       This verification link will expire in 1 hour.
                     </p>
                   </td>
@@ -70,7 +70,7 @@ export const sendVerificationEmail = async (to: string, url: string) => {
 
 export const sendResetPasswordEmail = async (to: string, url: string) => {
   await transporter.sendMail({
-    from: "update-me <noreply@update-me.com>",
+    from: "Enrich Engine <noreply@enrichengine.io>",
     to,
     subject: "Reset your password",
     html: `
@@ -146,7 +146,7 @@ export const sendEnrichmentCompletedEmail = async ({
   const enrichmentLabel = enrichmentType === "email" ? "Email" : "Phone";
 
   await transporter.sendMail({
-    from: "update-me <noreply@update-me.com>",
+    from: "Enrich Engine <noreply@enrichengine.io>",
     to: email,
     subject: `Your ${enrichmentLabel.toLowerCase()} enrichment is complete - ${listName}`,
     html: `
@@ -228,9 +228,9 @@ export const sendOrganizationInvitation = async ({
   inviteLink: string;
 }) => {
   await transporter.sendMail({
-    from: "update-me <noreply@update-me.com>",
+    from: "Enrich Engine <noreply@enrichengine.io>",
     to: email,
-    subject: `${invitedByUsername} invited you to join ${teamName} on update-me`,
+    subject: `${invitedByUsername} invited you to join ${teamName} on Enrich Engine`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -249,7 +249,7 @@ export const sendOrganizationInvitation = async ({
                       You've been invited!
                     </h1>
                     <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #666;">
-                      <strong>${invitedByUsername}</strong> (${invitedByEmail}) has invited you to join the <strong>${teamName}</strong> organization on update-me.
+                      <strong>${invitedByUsername}</strong> (${invitedByEmail}) has invited you to join the <strong>${teamName}</strong> organization on Enrich Engine.
                     </p>
                     <table role="presentation" style="margin: 0 auto;">
                       <tr>

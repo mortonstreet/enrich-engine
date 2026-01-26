@@ -97,6 +97,7 @@ export interface ListEnrichmentJobResponse {
   enrichmentType: EnrichmentType;
   enrichmentStrategy?: 'direct' | 'guess_first' | 'guess_only';
   status: ListEnrichmentJobStatus;
+  statusMessage?: string | null;
   totalRows: number;
   processedRows: number;
   successCount: number;

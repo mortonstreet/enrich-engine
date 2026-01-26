@@ -479,6 +479,7 @@ model ListEnrichmentJob {
   vendor          String    @default("prospeo") // prospeo, apollo, hunter, clearbit
   enrichmentType  String    // email, phone
   status          String    @default("pending") // pending, processing, completed, failed
+  statusMessage   String?   // Human-readable status message for UI
   totalRows       Int
   processedRows   Int       @default(0)
   successCount    Int       @default(0)

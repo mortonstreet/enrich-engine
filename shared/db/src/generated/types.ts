@@ -244,6 +244,7 @@ export type ListEnrichmentJob = {
     vendor: Generated<string>;
     enrichmentType: string;
     status: Generated<string>;
+    statusMessage: string | null;
     totalRows: number;
     processedRows: Generated<number>;
     successCount: Generated<number>;
