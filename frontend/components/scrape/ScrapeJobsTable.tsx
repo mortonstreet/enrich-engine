@@ -50,7 +50,7 @@ export function ScrapeJobsTable({ jobs, onJobSelect }: ScrapeJobsTableProps) {
 
   const handleDownload = (jobId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    downloadScrapeResults(jobId);
+    downloadScrapeResults(jobId, true);
   };
 
   const handlePause = async (jobId: string, e: React.MouseEvent) => {
