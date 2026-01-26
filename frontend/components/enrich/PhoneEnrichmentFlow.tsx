@@ -73,8 +73,8 @@ export function PhoneEnrichmentFlow({
         <h3 className="font-medium mb-2">{listName}</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-muted-foreground">Total Leads</p>
-            <p className="font-semibold">{listStats?.totalLeads ?? 0}</p>
+            <p className="text-muted-foreground">Enrichable Leads</p>
+            <p className="font-semibold">{listStats?.leadsWithLinkedinCount ?? 0}</p>
           </div>
           <div>
             <p className="text-muted-foreground">Need Phone Numbers</p>

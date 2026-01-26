@@ -76,6 +76,8 @@ export const ENDPOINTS = {
     RESUME: (jobId: string) => `/scrape/jobs/${jobId}/resume`,
     RENAME: (jobId: string) => `/scrape/jobs/${jobId}/rename`,
     SYNC: (jobId: string) => `/scrape/jobs/${jobId}/sync`,
+    RERUN: (jobId: string) => `/scrape/jobs/${jobId}/rerun`,
+    ROLE_ANALYTICS: (jobId: string) => `/scrape/jobs/${jobId}/role-analytics`,
   },
   LISTS: {
     BASE: '/lists',
@@ -154,6 +156,7 @@ export const QUERY_KEYS = {
   bulkJobStatus: (jobId?: string) => ['enrichment', 'bulk', jobId] as const,
   scrapeJobs: () => ['scrape', 'jobs'] as const,
   scrapeJob: (jobId?: string) => ['scrape', 'job', jobId] as const,
+  scrapeRoleAnalytics: (jobId?: string) => ['scrape', 'role-analytics', jobId] as const,
   lists: (folderId?: string | null, search?: string, ownerId?: string) =>
     ['lists', folderId, search, ownerId] as const,
   listDetail: (id?: string) => ['lists', 'detail', id] as const,

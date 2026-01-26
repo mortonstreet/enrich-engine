@@ -26,12 +26,14 @@ export function ListSelector({ value, onChange, enrichmentType }: ListSelectorPr
   const error = enrichmentType === "first_line" ? copyGenListsError : enrichListsError;
 
   // Map lists to a common format
+  // For email/phone enrichment, show leads with LinkedIn (enrichable) instead of total
   const lists =
     enrichmentType === "first_line"
       ? (copyGenListsData?.lists ?? []).map((l) => ({
           id: l.id,
           name: l.name,
           totalLeads: l.totalLeads,
+          enrichableLeads: l.totalLeads, // All leads are enrichable for first line
           needsEnrichment:
             enrichmentType === "first_line" ? l.leadsWithoutFirstLine : 0,
           hasLinkedinColumn: true, // Not relevant for first line
@@ -40,6 +42,7 @@ export function ListSelector({ value, onChange, enrichmentType }: ListSelectorPr
           id: l.id,
           name: l.name,
           totalLeads: l.totalLeads,
+          enrichableLeads: l.leadsWithLinkedinCount, // Only leads with LinkedIn profiles
           needsEnrichment:
             enrichmentType === "email"
               ? l.unenrichedEmailCount
@@ -132,7 +135,7 @@ export function ListSelector({ value, onChange, enrichmentType }: ListSelectorPr
                 <div className="min-w-0">
                   <p className="font-medium truncate">{list.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {list.totalLeads} leads
+                    {list.enrichableLeads} leads
                   </p>
                 </div>
               </div>

@@ -222,3 +222,46 @@ export interface DomainCSVRow {
   website?: string;
   [key: string]: string | undefined;
 }
+
+// ============================================
+// Re-run Not-Found Items
+// ============================================
+
+export const CreateRerunJobRequestSchema = z.object({
+  sourceJobId: z.string().uuid(),
+  name: z.string().max(255).optional(),
+  roleConfigs: z.array(z.object({
+    roleName: z.string().min(1, 'Role name is required'),
+    count: z.number().int().positive().max(10, 'Maximum 10 people per role'),
+  })).min(1, 'At least one role is required').max(10),
+});
+
+export type CreateRerunJobRequest = z.infer<typeof CreateRerunJobRequestSchema>;
+
+export type CreateRerunJobResponse = {
+  job: DBScrapeJob;
+  message: string;
+  notFoundCount: number;
+  newItemCount: number;
+};
+
+// ============================================
+// Role Analytics
+// ============================================
+
+export interface RoleAnalytics {
+  roleName: string;
+  total: number;
+  found: number;
+  notFound: number;
+  hitRate: number;
+}
+
+export interface RoleAnalyticsResponse {
+  analytics: RoleAnalytics[];
+  suggestions: Array<{
+    originalRole: string;
+    suggestedRoles: string[];
+    reason: string;
+  }>;
+}

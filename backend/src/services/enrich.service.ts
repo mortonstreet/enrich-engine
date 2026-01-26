@@ -178,10 +178,11 @@ export async function getListsForEnrichment(
       try {
         const hasLinkedin = await leadRepository.hasLinkedinColumn(list.id);
 
-        // Get counts of unenriched leads for each enrichment type
-        const [unenrichedEmailCount, unenrichedPhoneCount] = await Promise.all([
+        // Get counts of unenriched leads for each enrichment type and total with LinkedIn
+        const [unenrichedEmailCount, unenrichedPhoneCount, leadsWithLinkedinCount] = await Promise.all([
           listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "email"),
           listEnrichmentJobRepository.countUnenrichedLeadsByList(list.id, "phone"),
+          leadRepository.countLeadsWithLinkedin(list.id),
         ]);
 
         logger.info({
@@ -189,6 +190,7 @@ export async function getListsForEnrichment(
           listName: list.name,
           unenrichedEmailCount,
           unenrichedPhoneCount,
+          leadsWithLinkedinCount,
           totalLeads: list.leadCount ?? 0,
         }, "Processed list for enrichment");
 
@@ -196,12 +198,13 @@ export async function getListsForEnrichment(
           id: list.id,
           name: list.name,
           leadCount: list.leadCount ?? 0,
-          totalLeads: list.leadCount ?? 0, // Alias for consistency
+          totalLeads: list.leadCount ?? 0, // Alias for leadCount
           source: (list.source ?? "uploaded") as "uploaded" | "scraped",
           hasLinkedinColumn: hasLinkedin,
           createdAt: list.createdAt ? list.createdAt.toISOString() : new Date().toISOString(),
           unenrichedEmailCount,
           unenrichedPhoneCount,
+          leadsWithLinkedinCount,
         };
       } catch (err) {
         logger.error({ error: err, listId: list.id }, "Error processing list for enrichment");
@@ -218,6 +221,7 @@ export async function getListsForEnrichment(
           createdAt: list.createdAt ? list.createdAt.toISOString() : new Date().toISOString(),
           unenrichedEmailCount: fallbackCount,
           unenrichedPhoneCount: fallbackCount,
+          leadsWithLinkedinCount: 0,
         };
       }
     })

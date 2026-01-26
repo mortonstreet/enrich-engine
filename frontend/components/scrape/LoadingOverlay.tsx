@@ -26,7 +26,7 @@ export function LoadingOverlay({
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {/* Content */}
-      <div className="bg-card border rounded-xl shadow-2xl p-6 w-80">
+      <div className="relative bg-card border rounded-xl shadow-2xl p-6 w-80">
         {/* Close button */}
         <button
           onClick={onClose}

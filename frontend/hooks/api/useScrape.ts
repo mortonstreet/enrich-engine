@@ -10,6 +10,9 @@ import {
   DBScrapeJob,
   RenameScrapeJobResponse,
   SyncScrapeJobResponse,
+  CreateRerunJobResponse,
+  RoleConfig,
+  RoleAnalyticsResponse,
 } from '@shared/types/src';
 
 /**
@@ -38,7 +41,9 @@ export function useScrapeJobs(options?: { page?: number; limit?: number; status?
 /**
  * Query hook for single scrape job with optional polling for active jobs
  */
-export function useScrapeJob(jobId?: string, options?: { polling?: boolean }) {
+export function useScrapeJob(jobId?: string, options?: { polling?: boolean; pollingInterval?: number }) {
+  const interval = options?.pollingInterval ?? 3000;
+
   return useQuery<ScrapeJobDetailResponse>({
     queryKey: QUERY_KEYS.scrapeJob(jobId),
     queryFn: async () => {
@@ -54,7 +59,7 @@ export function useScrapeJob(jobId?: string, options?: { polling?: boolean }) {
         data?.status === ScrapeJobStatus.PENDING ||
         data?.status === ScrapeJobStatus.PAUSED
       ) {
-        return 3000;
+        return interval;
       }
       return false;
     },
@@ -196,5 +201,39 @@ export function useSyncScrapeJob() {
       queryClient.invalidateQueries({ queryKey: ['lists'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.allLeads() });
     },
+  });
+}
+
+/**
+ * Mutation hook for creating a re-run job from not-found items
+ */
+export function useCreateRerunJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CreateRerunJobResponse, Error, { sourceJobId: string; name?: string; roleConfigs: RoleConfig[] }>({
+    mutationFn: async ({ sourceJobId, name, roleConfigs }) => {
+      return await post<CreateRerunJobResponse>(ENDPOINTS.SCRAPE.RERUN(sourceJobId), {
+        sourceJobId,
+        name,
+        roleConfigs,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.scrapeJobs() });
+    },
+  });
+}
+
+/**
+ * Query hook for fetching role analytics for a scrape job
+ */
+export function useRoleAnalytics(jobId?: string) {
+  return useQuery<RoleAnalyticsResponse>({
+    queryKey: QUERY_KEYS.scrapeRoleAnalytics(jobId),
+    queryFn: async () => {
+      if (!jobId) throw new Error('Job ID is required');
+      return await get<RoleAnalyticsResponse>(ENDPOINTS.SCRAPE.ROLE_ANALYTICS(jobId));
+    },
+    enabled: !!jobId,
   });
 }

@@ -248,3 +248,45 @@ export const getJobProgress = async (jobId: string): Promise<{
     errorCount: result?.errorCount ?? 0,
   };
 };
+
+export const findNotFoundItems = async (jobId: string): Promise<DBScrapeJobItem[]> => {
+  return db
+    .selectFrom("scrape_job_item")
+    .where("jobId", "=", jobId)
+    .where((eb) =>
+      eb.or([
+        eb("status", "=", "no_result"),
+        eb("status", "=", "failed"),
+      ])
+    )
+    .orderBy("rowIndex", "asc")
+    .selectAll()
+    .execute();
+};
+
+export const getRoleAnalytics = async (jobId: string): Promise<Array<{
+  roleName: string;
+  total: number;
+  found: number;
+  notFound: number;
+}>> => {
+  const result = await db
+    .selectFrom("scrape_job_item")
+    .where("jobId", "=", jobId)
+    .select([
+      sql<string>`"inputData"->>'role'`.as("roleName"),
+      sql<number>`count(*)::int`.as("total"),
+      sql<number>`count(*) filter (where status = 'completed' and "linkedinUrl" is not null)::int`.as("found"),
+      sql<number>`count(*) filter (where status in ('failed', 'no_result') or (status = 'completed' and "linkedinUrl" is null))::int`.as("notFound"),
+    ])
+    .groupBy(sql`"inputData"->>'role'`)
+    .having(sql`"inputData"->>'role'`, "is not", null)
+    .execute();
+
+  return result.map((row) => ({
+    roleName: row.roleName || "Unknown",
+    total: row.total,
+    found: row.found,
+    notFound: row.notFound,
+  }));
+};

@@ -183,6 +183,8 @@ export interface ListForEnrichmentResponse {
   // Count of leads with LinkedIn URLs that haven't been enriched yet (per type)
   unenrichedEmailCount: number;
   unenrichedPhoneCount: number;
+  // Count of leads with valid LinkedIn URLs (enrichable leads)
+  leadsWithLinkedinCount: number;
 }
 
 export interface ListsForEnrichmentResponse {

@@ -339,12 +339,36 @@ export async function getJobCostComparison(
     };
   });
 
+  // Get email validation breakdown by status
+  const validationBreakdown = await listEnrichmentJobRepository.countValidationAttemptsByStatus(jobId);
+
+  // Calculate cost per validation status category
+  const emailBreakdown = {
+    validEmails: {
+      count: validationBreakdown.valid,
+      cost: Math.round(validationBreakdown.valid * COSTS.EMAIL_VALIDATION * 10000) / 10000,
+    },
+    catchAllEmails: {
+      count: validationBreakdown.catchAll,
+      cost: Math.round(validationBreakdown.catchAll * COSTS.EMAIL_VALIDATION * 10000) / 10000,
+    },
+    invalidEmails: {
+      count: validationBreakdown.bounced,
+      cost: Math.round(validationBreakdown.bounced * COSTS.EMAIL_VALIDATION * 10000) / 10000,
+    },
+    unknownEmails: {
+      count: validationBreakdown.unknown + validationBreakdown.error,
+      cost: Math.round((validationBreakdown.unknown + validationBreakdown.error) * COSTS.EMAIL_VALIDATION * 10000) / 10000,
+    },
+  };
+
   return {
     jobId: job.id,
     actualCost: Math.round(actualCost * 100) / 100,
     costPerEmail: Math.round(costPerEmail * 10000) / 10000,
     successfulEnrichments,
     competitorComparisons,
+    emailBreakdown,
   };
 }
 

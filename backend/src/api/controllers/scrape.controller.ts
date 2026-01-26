@@ -9,6 +9,7 @@ import {
   PauseScrapeJobRequest,
   RenameScrapeJobRequest,
   SyncScrapeJobRequest,
+  CreateRerunJobRequest,
   ScrapeInputType,
   ScrapeCSVRow,
 } from "@shared/types/src";
@@ -274,6 +275,47 @@ export const syncScrapeJob: AuthRequestHandler<SyncScrapeJobRequest> = async (
   }
 
   const result = await scrapeService.syncScrapeJobToList(jobId, organizationId);
+
+  res.json(result);
+};
+
+export const createRerunJob: AuthRequestHandler<CreateRerunJobRequest> = async (
+  req,
+  res
+) => {
+  const { sourceJobId, name, roleConfigs } = req.validated;
+  const organizationId = req.session.activeOrganizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({ error: "No active organization" });
+  }
+
+  const result = await scrapeService.createRerunJob(
+    sourceJobId,
+    organizationId,
+    req.user.id,
+    name,
+    roleConfigs
+  );
+
+  // Add the new job to the queue
+  await addScrapeJob(result.job.id);
+
+  res.json(result);
+};
+
+export const getRoleAnalytics: AuthRequestHandler<GetScrapeJobRequest> = async (
+  req,
+  res
+) => {
+  const { jobId } = req.validated;
+  const organizationId = req.session.activeOrganizationId;
+
+  if (!organizationId) {
+    return res.status(400).json({ error: "No active organization" });
+  }
+
+  const result = await scrapeService.getRoleAnalytics(jobId, organizationId);
 
   res.json(result);
 };

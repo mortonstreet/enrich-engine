@@ -274,6 +274,16 @@ export const findPendingItems = async (
     .execute();
 };
 
+export const findAllPendingItems = async (jobId: string) => {
+  return db
+    .selectFrom("list_enrichment_job_item")
+    .where("jobId", "=", jobId)
+    .where("status", "=", "pending")
+    .orderBy("createdAt", "asc")
+    .selectAll()
+    .execute();
+};
+
 export const updateItem = async (
   id: string,
   data: {
@@ -360,4 +370,52 @@ export const countUnenrichedLeadsByList = async (
     .executeTakeFirst();
 
   return result?.count ?? 0;
+};
+
+/**
+ * Count email validation attempts by status for a given job.
+ * Returns breakdown of valid, catch_all, bounced, unknown, and error counts.
+ */
+export const countValidationAttemptsByStatus = async (jobId: string): Promise<{
+  valid: number;
+  catchAll: number;
+  bounced: number;
+  unknown: number;
+  error: number;
+  total: number;
+}> => {
+  // First get all job item IDs
+  const jobItems = await db
+    .selectFrom("list_enrichment_job_item")
+    .where("jobId", "=", jobId)
+    .select("id")
+    .execute();
+
+  if (jobItems.length === 0) {
+    return { valid: 0, catchAll: 0, bounced: 0, unknown: 0, error: 0, total: 0 };
+  }
+
+  const jobItemIds = jobItems.map((item) => item.id);
+
+  const result = await db
+    .selectFrom("email_validation_attempt")
+    .where("jobItemId", "in", jobItemIds)
+    .select([
+      sql<number>`count(*) filter (where status = 'valid')::int`.as("valid"),
+      sql<number>`count(*) filter (where status = 'catch_all')::int`.as("catchAll"),
+      sql<number>`count(*) filter (where status = 'bounced')::int`.as("bounced"),
+      sql<number>`count(*) filter (where status = 'unknown')::int`.as("unknown"),
+      sql<number>`count(*) filter (where status = 'error')::int`.as("error"),
+      sql<number>`count(*)::int`.as("total"),
+    ])
+    .executeTakeFirst();
+
+  return {
+    valid: result?.valid ?? 0,
+    catchAll: result?.catchAll ?? 0,
+    bounced: result?.bounced ?? 0,
+    unknown: result?.unknown ?? 0,
+    error: result?.error ?? 0,
+    total: result?.total ?? 0,
+  };
 };

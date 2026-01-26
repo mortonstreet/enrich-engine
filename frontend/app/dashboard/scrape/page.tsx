@@ -12,9 +12,12 @@ import { CompanyCsvFlow } from "@/components/scrape/CompanyCsvFlow";
 import { DomainCsvFlow } from "@/components/scrape/DomainCsvFlow";
 import { SingleUrlFlow } from "@/components/scrape/SingleUrlFlow";
 import { LoadingOverlay } from "@/components/scrape/LoadingOverlay";
-import { useCreateScrapeJob, useScrapeJobs, useScrapeJob, useSyncScrapeJob, downloadScrapeResults } from "@/hooks/api/useScrape";
+import { RerunModal } from "@/components/scrape/RerunModal";
+import { RoleAnalyticsCard } from "@/components/scrape/RoleAnalyticsCard";
+import { useCreateScrapeJob, useScrapeJobs, useScrapeJob, useSyncScrapeJob, useRoleAnalytics, downloadScrapeResults } from "@/hooks/api/useScrape";
+import { useScrapeProgress } from "@/hooks/useScrapeProgress";
 import { toast } from "sonner";
-import { Upload, Loader2, Download, CheckCircle, Clock, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, ListPlus, Pause, Play, Filter } from "lucide-react";
+import { Upload, Loader2, Download, CheckCircle, Clock, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, ListPlus, Pause, Play, Filter, RefreshCw } from "lucide-react";
 import { ScrapeJobStatus, ScrapeWorkflowType, RoleConfig } from "@shared/types/src";
 
 const ITEMS_PER_PAGE = 25;
@@ -36,18 +39,28 @@ export default function ScrapePage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resultsPage, setResultsPage] = useState(1);
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [jobsPage, setJobsPage] = useState(1);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [showRerunModal, setShowRerunModal] = useState(false);
 
   const createJobMutation = useCreateScrapeJob();
   const syncJobMutation = useSyncScrapeJob();
+
+  // Subscribe to real-time scrape progress updates via WebSocket
+  useScrapeProgress();
+
   const { data: jobsData, isLoading: isLoadingJobs } = useScrapeJobs({
     page: jobsPage,
     limit: JOBS_PER_PAGE,
   });
   const { data: activeJob } = useScrapeJob(activeJobId ?? undefined, {
     polling: activeJobId !== null,
+    pollingInterval: 15000, // 15s fallback polling (WebSocket provides real-time updates)
   });
+  const { data: roleAnalytics } = useRoleAnalytics(
+    activeJob?.inputType === "role" ? activeJobId ?? undefined : undefined
+  );
 
   // Handle workflow selection
   const handleWorkflowSelect = (type: ScrapeWorkflowType) => {
@@ -144,6 +157,7 @@ export default function ScrapePage() {
     setViewMode("job_detail");
     setResultsPage(1);
     setResultFilter("all");
+    setRoleFilter(null);
   };
 
   const handleBackToJobs = () => {
@@ -161,11 +175,18 @@ export default function ScrapePage() {
     setShowOverlay(false);
   }
 
-  // Filter items based on result filter
+  // Filter items based on result filter and role filter
   const filteredItems = activeJob?.items?.filter((item) => {
-    if (resultFilter === "all") return true;
-    if (resultFilter === "found") return item.status === "completed" && item.linkedinUrl;
-    if (resultFilter === "not_found") return item.status === "no_result" || item.status === "failed" || (item.status === "completed" && !item.linkedinUrl);
+    // Result filter
+    if (resultFilter === "found" && !(item.status === "completed" && item.linkedinUrl)) return false;
+    if (resultFilter === "not_found" && !(item.status === "no_result" || item.status === "failed" || (item.status === "completed" && !item.linkedinUrl))) return false;
+
+    // Role filter
+    if (roleFilter) {
+      const inputData = item.inputData as Record<string, string>;
+      if (inputData.role !== roleFilter) return false;
+    }
+
     return true;
   }) || [];
 
@@ -384,7 +405,7 @@ export default function ScrapePage() {
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-5 gap-4">
                     <div className="p-4 rounded-lg bg-muted/50">
                       <p className="text-sm text-muted-foreground">Total</p>
                       <p className="text-2xl font-semibold">{activeJob.totalRows}</p>
@@ -400,6 +421,14 @@ export default function ScrapePage() {
                     <div className="p-4 rounded-lg bg-red-50">
                       <p className="text-sm text-red-700">Not Found</p>
                       <p className="text-2xl font-semibold text-red-700">{activeJob.errorCount}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-primary/10">
+                      <p className="text-sm text-primary">Hit Rate</p>
+                      <p className="text-2xl font-semibold text-primary">
+                        {activeJob.totalRows > 0
+                          ? `${Math.round((activeJob.successCount / activeJob.totalRows) * 100)}%`
+                          : '-'}
+                      </p>
                     </div>
                   </div>
 
@@ -450,10 +479,31 @@ export default function ScrapePage() {
                         </a>
                       </Button>
                     )}
+                    {isJobComplete && activeJob.errorCount > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowRerunModal(true)}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Re-Run Not Found
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Role Analytics Card - only for role-based jobs */}
+            {roleAnalytics && roleAnalytics.analytics.length > 0 && (
+              <RoleAnalyticsCard
+                analytics={roleAnalytics}
+                selectedRole={roleFilter}
+                onRoleSelect={(role) => {
+                  setRoleFilter(role);
+                  setResultsPage(1);
+                }}
+              />
+            )}
 
             {activeJob.items && activeJob.items.length > 0 && (() => {
               const totalItems = filteredItems.length;
@@ -592,6 +642,21 @@ export default function ScrapePage() {
           </>
         )}
       </div>
+
+      {/* Re-run Modal */}
+      {activeJob && (
+        <RerunModal
+          isOpen={showRerunModal}
+          onClose={() => setShowRerunModal(false)}
+          job={activeJob}
+          onSuccess={(newJobId) => {
+            setActiveJobId(newJobId);
+            setShowOverlay(true);
+            setResultsPage(1);
+            setResultFilter("all");
+          }}
+        />
+      )}
     </Page>
   );
 }

@@ -210,6 +210,7 @@ export class ListEnrichmentProcessor {
             },
           }),
         },
+        concurrency: 5, // Process up to 5 enrichment jobs concurrently
       }
     );
   }

@@ -22,8 +22,15 @@ import {
   DBScrapeJob,
   DBScrapeJobItem,
   RoleConfig,
+  CreateRerunJobResponse,
+  RoleAnalytics,
+  RoleAnalyticsResponse,
+  ScrapeProgressPayload,
+  channels,
+  PUSHER_EVENTS,
 } from "@shared/types/src";
 import logger from "@/lib/logger";
+import { sendPusherEvent } from "@/lib/pusher";
 
 const NAME_REQUIRED_COLUMNS = ["first_name", "last_name"];
 const ROLE_COLUMNS = ["role", "role1", "role2", "role3"];
@@ -364,6 +371,29 @@ export const resumeScrapeJob = async (
 // How often to sync results to the list (every N batches)
 const LIST_SYNC_BATCH_INTERVAL = 3;
 
+/**
+ * Send scrape progress update via Pusher to the organization channel
+ */
+async function sendScrapeProgressUpdate(
+  orgId: string,
+  jobId: string,
+  data: Omit<ScrapeProgressPayload, "jobId">
+): Promise<void> {
+  try {
+    const payload: ScrapeProgressPayload = {
+      jobId,
+      ...data,
+    };
+    await sendPusherEvent(
+      channels.privateOrg(orgId),
+      PUSHER_EVENTS.SCRAPE_PROGRESS,
+      payload
+    );
+  } catch (error) {
+    logger.warn({ error, orgId, jobId }, "Failed to send scrape progress update");
+  }
+}
+
 interface ProcessItemResult {
   success: boolean;
   linkedinUrl?: string | null;
@@ -380,6 +410,15 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
 
   await scrapeJobRepository.update(jobId, {
     status: ScrapeJobStatus.PROCESSING,
+  });
+
+  // Send initial processing update via Pusher
+  await sendScrapeProgressUpdate(job.organizationId, jobId, {
+    status: ScrapeJobStatus.PROCESSING,
+    processedRows: job.processedRows,
+    totalRows: job.totalRows,
+    successCount: job.successCount,
+    errorCount: job.errorCount,
   });
 
   logger.info({ jobId, batchSize: QPS_CONFIG.BATCH_SIZE, concurrency: QPS_CONFIG.QUEUE_CONCURRENCY }, "Starting scrape job processing with batch processing");
@@ -487,7 +526,18 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
 
       onBatchComplete: async (results, batchIndex) => {
         // Always update progress after each batch
-        await updateJobProgress(jobId);
+        const updatedJob = await updateJobProgress(jobId);
+
+        // Send real-time progress update via Pusher
+        if (updatedJob) {
+          await sendScrapeProgressUpdate(job.organizationId, jobId, {
+            status: updatedJob.status,
+            processedRows: updatedJob.processedRows,
+            totalRows: updatedJob.totalRows,
+            successCount: updatedJob.successCount,
+            errorCount: updatedJob.errorCount,
+          });
+        }
 
         // Sync results to list periodically
         if ((batchIndex + 1) % LIST_SYNC_BATCH_INTERVAL === 0) {
@@ -514,10 +564,21 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     // Final sync to ensure all results are in the list
     await createResultList(jobId);
 
-    await scrapeJobRepository.update(jobId, {
+    const completedJob = await scrapeJobRepository.update(jobId, {
       status: ScrapeJobStatus.COMPLETED,
       completedAt: new Date(),
     });
+
+    // Send final completion update via Pusher
+    if (completedJob) {
+      await sendScrapeProgressUpdate(job.organizationId, jobId, {
+        status: completedJob.status,
+        processedRows: completedJob.processedRows,
+        totalRows: completedJob.totalRows,
+        successCount: completedJob.successCount,
+        errorCount: completedJob.errorCount,
+      });
+    }
 
     logger.info({ jobId, domainCacheStats: domainMemo.getStats() }, "Scrape job completed");
   } catch (error) {
@@ -539,10 +600,21 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
       logger.error({ error: syncError, jobId }, "Failed to sync results before marking job as failed");
     }
 
-    await scrapeJobRepository.update(jobId, {
+    const failedJob = await scrapeJobRepository.update(jobId, {
       status: ScrapeJobStatus.FAILED,
       completedAt: new Date(),
     });
+
+    // Send failure update via Pusher
+    if (failedJob) {
+      await sendScrapeProgressUpdate(job.organizationId, jobId, {
+        status: failedJob.status,
+        processedRows: failedJob.processedRows,
+        totalRows: failedJob.totalRows,
+        successCount: failedJob.successCount,
+        errorCount: failedJob.errorCount,
+      });
+    }
 
     throw error;
   }
@@ -1022,5 +1094,179 @@ export const getDownloadData = async (
   return {
     fileName: `${job.name.replace(/[^a-zA-Z0-9]/g, "_")}_results.csv`,
     rows,
+  };
+};
+
+// ============================================
+// Re-run Not-Found Items
+// ============================================
+
+export const createRerunJob = async (
+  sourceJobId: string,
+  organizationId: string,
+  userId: string,
+  name: string | undefined,
+  roleConfigs: RoleConfig[],
+): Promise<CreateRerunJobResponse> => {
+  // Get the source job and verify ownership
+  const sourceJob = await scrapeJobRepository.findById(sourceJobId);
+
+  if (!sourceJob) {
+    throw new Error("Source scrape job not found");
+  }
+
+  if (sourceJob.organizationId !== organizationId) {
+    throw new Error("Unauthorized access to scrape job");
+  }
+
+  // Get not-found items from the source job
+  const notFoundItems = await scrapeJobRepository.findNotFoundItems(sourceJobId);
+
+  if (notFoundItems.length === 0) {
+    throw new Error("No not-found items to re-run");
+  }
+
+  // Extract unique companies from not-found items
+  const uniqueCompanies = new Set<string>();
+  for (const item of notFoundItems) {
+    const inputData = item.inputData as Record<string, string>;
+    if (inputData.company) {
+      uniqueCompanies.add(inputData.company);
+    }
+  }
+
+  if (uniqueCompanies.size === 0) {
+    throw new Error("No companies found in not-found items");
+  }
+
+  // Create rows for the new job (one row per company)
+  const rows: ScrapeCSVRow[] = Array.from(uniqueCompanies).map((company) => ({
+    company,
+  }));
+
+  // Generate job name
+  const jobName = name || `${sourceJob.name} - Re-run`;
+
+  // Create the new job with the new role configs
+  const result = await createScrapeJob(
+    organizationId,
+    userId,
+    jobName,
+    ScrapeInputType.ROLE,
+    rows,
+    roleConfigs
+  );
+
+  logger.info(
+    {
+      sourceJobId,
+      newJobId: result.job.id,
+      notFoundCount: notFoundItems.length,
+      uniqueCompanies: uniqueCompanies.size,
+      newItemCount: result.job.totalRows,
+    },
+    "Created re-run job from not-found items"
+  );
+
+  return {
+    job: result.job,
+    message: `Created re-run job with ${result.job.totalRows} items from ${uniqueCompanies.size} companies`,
+    notFoundCount: notFoundItems.length,
+    newItemCount: result.job.totalRows,
+  };
+};
+
+// ============================================
+// Role Analytics
+// ============================================
+
+// Mapping of roles to similar alternatives for suggestions
+const SIMILAR_ROLES: Record<string, string[]> = {
+  "CEO": ["Founder", "Co-Founder", "Managing Director", "President"],
+  "Founder": ["CEO", "Co-Founder", "Owner", "President"],
+  "Co-Founder": ["Founder", "CEO", "Owner"],
+  "CTO": ["VP Engineering", "Chief Technology Officer", "Head of Engineering"],
+  "CFO": ["VP Finance", "Chief Financial Officer", "Finance Director"],
+  "COO": ["VP Operations", "Chief Operating Officer", "Operations Director"],
+  "VP Sales": ["Head of Sales", "Sales Director", "Chief Revenue Officer", "CRO"],
+  "Head of Sales": ["VP Sales", "Sales Director", "Director of Sales"],
+  "VP Marketing": ["Head of Marketing", "Marketing Director", "CMO"],
+  "Head of Marketing": ["VP Marketing", "Marketing Director", "Director of Marketing"],
+  "VP Engineering": ["CTO", "Head of Engineering", "Engineering Director"],
+  "Head of Engineering": ["VP Engineering", "Engineering Director", "CTO"],
+  "VP Product": ["Head of Product", "Product Director", "CPO"],
+  "Head of Product": ["VP Product", "Product Director", "Director of Product"],
+  "Head of Growth": ["VP Growth", "Growth Director", "Growth Lead"],
+  "VP Growth": ["Head of Growth", "Growth Director", "Chief Growth Officer"],
+};
+
+export const getRoleAnalytics = async (
+  jobId: string,
+  organizationId: string,
+): Promise<RoleAnalyticsResponse> => {
+  const job = await scrapeJobRepository.findById(jobId);
+
+  if (!job) {
+    throw new Error("Scrape job not found");
+  }
+
+  if (job.organizationId !== organizationId) {
+    throw new Error("Unauthorized access to scrape job");
+  }
+
+  // Only return analytics for role-based jobs
+  if (job.inputType !== ScrapeInputType.ROLE) {
+    return {
+      analytics: [],
+      suggestions: [],
+    };
+  }
+
+  const rawAnalytics = await scrapeJobRepository.getRoleAnalytics(jobId);
+
+  const analytics: RoleAnalytics[] = rawAnalytics.map((row) => ({
+    roleName: row.roleName,
+    total: row.total,
+    found: row.found,
+    notFound: row.notFound,
+    hitRate: row.total > 0 ? Math.round((row.found / row.total) * 100) : 0,
+  }));
+
+  // Generate suggestions for low hit-rate roles (< 40%)
+  const suggestions: Array<{
+    originalRole: string;
+    suggestedRoles: string[];
+    reason: string;
+  }> = [];
+
+  for (const role of analytics) {
+    if (role.hitRate < 40 && role.notFound > 0) {
+      const normalizedRole = role.roleName.trim();
+
+      // Find similar roles
+      let suggestedRoles: string[] = [];
+      for (const [key, alternatives] of Object.entries(SIMILAR_ROLES)) {
+        if (normalizedRole.toLowerCase().includes(key.toLowerCase()) ||
+            key.toLowerCase().includes(normalizedRole.toLowerCase())) {
+          suggestedRoles = alternatives.filter((alt) =>
+            !analytics.some((a) => a.roleName.toLowerCase() === alt.toLowerCase())
+          );
+          break;
+        }
+      }
+
+      if (suggestedRoles.length > 0) {
+        suggestions.push({
+          originalRole: role.roleName,
+          suggestedRoles: suggestedRoles.slice(0, 3),
+          reason: `Low hit rate (${role.hitRate}%) - try alternative titles`,
+        });
+      }
+    }
+  }
+
+  return {
+    analytics,
+    suggestions,
   };
 };

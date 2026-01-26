@@ -9,6 +9,8 @@ import {
   resumeScrapeJob,
   renameScrapeJob,
   syncScrapeJob,
+  createRerunJob,
+  getRoleAnalytics,
 } from "@/api/controllers/scrape.controller";
 import { authenticatedRoute } from "./utils";
 import { withBetterAuth } from "../middlewares/auth";
@@ -28,6 +30,8 @@ import {
   RenameScrapeJobRequestSchema,
   SyncScrapeJobRequest,
   SyncScrapeJobRequestSchema,
+  CreateRerunJobRequest,
+  CreateRerunJobRequestSchema,
 } from "@shared/types/src";
 import multer from "multer";
 
@@ -118,6 +122,22 @@ router.post(
   withBetterAuth,
   validateAndMerge(SyncScrapeJobRequestSchema),
   authenticatedRoute<SyncScrapeJobRequest>(syncScrapeJob)
+);
+
+// Re-run not-found items with different roles
+router.post(
+  "/jobs/:jobId/rerun",
+  withBetterAuth,
+  validateAndMerge(CreateRerunJobRequestSchema),
+  authenticatedRoute<CreateRerunJobRequest>(createRerunJob)
+);
+
+// Get role analytics for a job
+router.get(
+  "/jobs/:jobId/role-analytics",
+  withBetterAuth,
+  validateAndMerge(GetScrapeJobRequestSchema),
+  authenticatedRoute<GetScrapeJobRequest>(getRoleAnalytics)
 );
 
 export default router;

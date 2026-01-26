@@ -175,6 +175,7 @@ export function ScrapeJobsTable({ jobs, onJobSelect }: ScrapeJobsTableProps) {
             <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Status</th>
             <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Progress</th>
             <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Success</th>
+            <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Hit Rate</th>
             <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Errors</th>
             <th className="text-left py-3 px-4 font-medium text-sm text-muted-foreground">Created</th>
             <th className="text-right py-3 px-4 font-medium text-sm text-muted-foreground">Actions</th>
@@ -262,6 +263,21 @@ export function ScrapeJobsTable({ jobs, onJobSelect }: ScrapeJobsTableProps) {
               </td>
               <td className="py-3 px-4">
                 <span className="text-green-600 font-medium">{job.successCount}</span>
+              </td>
+              <td className="py-3 px-4">
+                {job.totalRows > 0 ? (
+                  <span className={`font-medium ${
+                    Math.round((job.successCount / job.totalRows) * 100) > 70
+                      ? "text-green-600"
+                      : Math.round((job.successCount / job.totalRows) * 100) >= 40
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                  }`}>
+                    {Math.round((job.successCount / job.totalRows) * 100)}%
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
               </td>
               <td className="py-3 px-4">
                 <span className="text-red-600 font-medium">{job.errorCount}</span>

@@ -154,6 +154,17 @@ export const hasLinkedinColumn = async (listId: string): Promise<boolean> => {
   return !!result;
 };
 
+export const countLeadsWithLinkedin = async (listId: string): Promise<number> => {
+  const result = await db
+    .selectFrom("lead")
+    .where("listId", "=", listId)
+    .where("linkedinUrl", "is not", null)
+    .where("linkedinUrl", "!=", "")
+    .select(sql<number>`count(*)::int`.as("count"))
+    .executeTakeFirst();
+  return result?.count ?? 0;
+};
+
 export type FindAllLeadsOptions = {
   page: number;
   limit: number;
