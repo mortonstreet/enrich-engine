@@ -48,6 +48,8 @@ model User {
   vendorApiKeys        VendorApiKey[]
   copyGeneratorJobs    CopyGeneratorJob[]
   externalApiKeys      ExternalApiKey[]
+  icpClassificationJobs IcpClassificationJob[]
+  personalizationJobs  PersonalizationJob[]
 
   @@unique([email])
   @@map("user")
@@ -118,6 +120,9 @@ model Organization {
   vendorApiKeys        VendorApiKey[]
   copyGeneratorJobs    CopyGeneratorJob[]
   externalApiKeys      ExternalApiKey[]
+  enrichedContacts     EnrichedContact[]
+  icpClassificationJobs IcpClassificationJob[]
+  personalizationJobs  PersonalizationJob[]
 
   @@unique([slug])
   @@map("organization")
@@ -453,6 +458,18 @@ model Lead {
   firstLine      String?  // AI-generated personalized first line
   companyDomain  String?  // Cached company domain for email guessing
   emailBounced   Boolean  @default(false) // Flag for bounced email validation
+  // ICP classification fields
+  icpScore        Float?
+  icpContext      Json?      // Company insights, personalization hooks
+  icpClassifiedAt DateTime?
+  // Multi-column personalization fields
+  subject            String?   // Email subject
+  openingParagraph   String?   // First paragraph
+  followUp1          String?   // Follow-up 1 content
+  followUp2          String?   // Follow-up 2 content
+  followUp3          String?   // Follow-up 3 content
+  callToAction       String?   // CTA
+  personalizedFields Json?     // Flexible custom columns
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -716,5 +733,122 @@ model BlogPost {
   @@index([publishedAt])
   @@index([isFeatured])
   @@map("blog_post")
+}
+
+// ==========================================
+// Enriched Contact Cache (Org-Wide Deduplication)
+// ==========================================
+
+model EnrichedContact {
+  id              String   @id @default(uuid())
+  organizationId  String
+  linkedinUrl     String?  // Primary dedup key (normalized)
+  emailNormalized String?  // Secondary dedup key
+  nameHash        String?  // MD5 hash of firstName+lastName+company
+
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  company         String?
+  companyDomain   String?
+  role            String?
+  emailPattern    String?  // Pattern that worked
+  emailSource     String?  // "guessed", "prospeo", "imported"
+  enrichedAt      DateTime @default(now())
+
+  // ICP fields
+  icpScore        Float?
+  icpContext      Json?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, linkedinUrl])
+  @@index([organizationId, emailNormalized])
+  @@index([organizationId, nameHash])
+  @@map("enriched_contact")
+}
+
+// ==========================================
+// ICP Classification Feature Models
+// ==========================================
+
+model IcpClassificationJob {
+  id              String    @id @default(uuid())
+  organizationId  String
+  userId          String
+  listId          String
+  userPrompt      String    @db.Text  // User's ICP criteria/instructions
+  status          String    @default("pending") // pending, processing, completed, failed
+  totalRows       Int
+  processedRows   Int       @default(0)
+  successCount    Int       @default(0)
+  errorCount      Int       @default(0)
+  tokensUsed      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([listId])
+  @@index([status])
+  @@map("icp_classification_job")
+}
+
+// ==========================================
+// Multi-Column Personalization Feature Models
+// ==========================================
+
+model PersonalizationJob {
+  id              String    @id @default(uuid())
+  organizationId  String
+  userId          String
+  listId          String
+  columnConfigs   Json      // Array of ColumnConfig objects
+  useIcpContext   Boolean   @default(false)
+  status          String    @default("pending") // pending, processing, completed, failed
+  totalRows       Int
+  processedRows   Int       @default(0)
+  successCount    Int       @default(0)
+  errorCount      Int       @default(0)
+  tokensUsed      Int       @default(0)
+  estimatedCost   Float     @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id])
+  items        PersonalizationJobItem[]
+
+  @@index([organizationId])
+  @@index([listId])
+  @@index([status])
+  @@map("personalization_job")
+}
+
+model PersonalizationJobItem {
+  id              String    @id @default(uuid())
+  jobId           String
+  leadId          String
+  status          String    @default("pending") // pending, processing, completed, failed
+  generatedColumns Json?    // Generated column values
+  tokensUsed      Int       @default(0)
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+  processedAt     DateTime?
+
+  job PersonalizationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([leadId])
+  @@index([status])
+  @@map("personalization_job_item")
 }
 

@@ -8,6 +8,7 @@ import { DomainMemo } from "@/utils/domainMemo";
 import { QPS_CONFIG } from "@/config/qps.config";
 import { getDomainCache } from "@/lib/cache";
 import { extractCompaniesFromItems, prefetchDomains } from "@/lib/cache/cacheWarmer";
+import { extractDomainFromUrl, extractCompanyFromLinkedIn } from "@/utils/domainExtractor";
 import {
   ScrapeJobStatus,
   ScrapeItemStatus,
@@ -34,6 +35,53 @@ import { sendPusherEvent } from "@/lib/pusher";
 
 const NAME_REQUIRED_COLUMNS = ["first_name", "last_name"];
 const ROLE_COLUMNS = ["role", "role1", "role2", "role3"];
+
+/**
+ * Extracts a usable company name from a URL or returns the value as-is.
+ * Handles:
+ * - LinkedIn company URLs (extracts company name from slug)
+ * - Website URLs (extracts domain name without TLD)
+ * - Plain text company names (returns as-is)
+ */
+function extractCompanyNameFromInput(companyInput: string): string {
+  if (!companyInput || !companyInput.trim()) {
+    return companyInput;
+  }
+
+  const trimmed = companyInput.trim();
+
+  // Check if it's a URL
+  try {
+    const url = new URL(trimmed);
+
+    // Check if it's a LinkedIn company URL
+    if (url.hostname.includes("linkedin.com")) {
+      const linkedinCompany = extractCompanyFromLinkedIn(trimmed);
+      if (linkedinCompany) {
+        // Capitalize first letter of each word for better search results
+        return linkedinCompany
+          .split(" ")
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+      }
+    }
+
+    // It's a regular website URL - extract domain and use as company identifier
+    const domain = extractDomainFromUrl(trimmed);
+    if (domain) {
+      // Remove common TLDs and use the main part as company name
+      const domainParts = domain.split(".");
+      // Get the main part (e.g., "pearlstreetcp" from "pearlstreetcp.com")
+      const mainPart = domainParts[0];
+      // Return the domain as-is for search (works well with Google)
+      return domain;
+    }
+  } catch {
+    // Not a valid URL, return as-is
+  }
+
+  return trimmed;
+}
 
 const getRolesFromRow = (row: ScrapeCSVRow): string[] => {
   const roles: string[] = [];
@@ -654,8 +702,10 @@ async function processItem(
       rawResponse = result.rawResponse;
     } else {
       // Role-based search with multi-person support
+      // Extract company name from URL if input is a URL
+      const companyName = extractCompanyNameFromInput(inputData.company || "");
       const query = serperClient.buildRoleQuery(
-        inputData.company || "",
+        companyName,
         inputData.role || ""
       );
 
@@ -727,20 +777,33 @@ async function processItem(
     let companyDomain: string | null = null;
     if (inputData.company && linkedinUrl) {
       try {
-        if (QPS_CONFIG.DOMAIN_CACHE_ENABLED) {
+        // First check if the company input is a URL - if so, extract domain directly
+        const directDomain = extractDomainFromUrl(inputData.company);
+        if (directDomain) {
+          // Input is a URL, use the extracted domain directly
+          companyDomain = directDomain;
+          logger.debug(
+            { itemId: item.id, company: inputData.company, companyDomain },
+            "Company domain extracted directly from URL input"
+          );
+        } else if (QPS_CONFIG.DOMAIN_CACHE_ENABLED) {
           // Use domain memoization for in-process deduplication
           // The actual Redis cache is checked inside searchCompanyWebsite
           companyDomain = await domainMemo.getOrFetch(
             inputData.company,
             () => serperClient.searchCompanyWebsite(inputData.company)
           );
+          logger.debug(
+            { itemId: item.id, company: inputData.company, companyDomain },
+            "Company domain search result"
+          );
         } else {
           companyDomain = await serperClient.searchCompanyWebsite(inputData.company);
+          logger.debug(
+            { itemId: item.id, company: inputData.company, companyDomain },
+            "Company domain search result"
+          );
         }
-        logger.debug(
-          { itemId: item.id, company: inputData.company, companyDomain },
-          "Company domain search result"
-        );
       } catch (domainError) {
         logger.warn(
           { error: domainError, company: inputData.company },

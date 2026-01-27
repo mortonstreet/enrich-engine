@@ -18,6 +18,10 @@ import {
   ListOpen,
   Lead,
   BlogPost,
+  EnrichedContact,
+  IcpClassificationJob,
+  PersonalizationJob,
+  PersonalizationJobItem,
 } from "./generated/types";
 
 
@@ -112,3 +116,26 @@ export type DBBlogPost = Selectable<BlogPost>;
 export type UpdateDBBlogPost = Updateable<BlogPost>;
 export type InsertDBBlogPost = Insertable<BlogPost>;
 export type CreateBlogPostInput = Omit<DBBlogPost, 'id' | 'createdAt' | 'updatedAt'>;
+
+// Enriched Contact types (for org-wide deduplication)
+export type DBEnrichedContact = Selectable<EnrichedContact>;
+export type UpdateDBEnrichedContact = Updateable<EnrichedContact>;
+export type InsertDBEnrichedContact = Insertable<EnrichedContact>;
+export type CreateEnrichedContactInput = Omit<DBEnrichedContact, 'id' | 'createdAt' | 'updatedAt'>;
+
+// ICP Classification types
+export type DBIcpClassificationJob = Selectable<IcpClassificationJob>;
+export type UpdateDBIcpClassificationJob = Updateable<IcpClassificationJob>;
+export type InsertDBIcpClassificationJob = Insertable<IcpClassificationJob>;
+export type CreateIcpClassificationJobInput = Omit<DBIcpClassificationJob, 'id' | 'createdAt' | 'updatedAt'>;
+
+// Personalization types
+export type DBPersonalizationJob = Selectable<PersonalizationJob>;
+export type UpdateDBPersonalizationJob = Updateable<PersonalizationJob>;
+export type InsertDBPersonalizationJob = Insertable<PersonalizationJob>;
+export type CreatePersonalizationJobInput = Omit<DBPersonalizationJob, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type DBPersonalizationJobItem = Selectable<PersonalizationJobItem>;
+export type UpdateDBPersonalizationJobItem = Updateable<PersonalizationJobItem>;
+export type InsertDBPersonalizationJobItem = Insertable<PersonalizationJobItem>;
+export type CreatePersonalizationJobItemInput = Omit<DBPersonalizationJobItem, 'id' | 'createdAt'>;

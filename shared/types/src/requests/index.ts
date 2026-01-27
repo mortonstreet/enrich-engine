@@ -15,3 +15,4 @@ export * from './costComparison';
 export * from './blog';
 export * from './search';
 export * from './verification';
+export * from './personalization';

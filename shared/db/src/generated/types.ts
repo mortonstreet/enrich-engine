@@ -142,6 +142,27 @@ export type EmailValidationAttempt = {
     createdAt: Generated<Timestamp>;
     processedAt: Timestamp | null;
 };
+export type EnrichedContact = {
+    id: string;
+    organizationId: string;
+    linkedinUrl: string | null;
+    emailNormalized: string | null;
+    nameHash: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+    company: string | null;
+    companyDomain: string | null;
+    role: string | null;
+    emailPattern: string | null;
+    emailSource: string | null;
+    enrichedAt: Generated<Timestamp>;
+    icpScore: number | null;
+    icpContext: unknown | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+};
 export type Enrichment = {
     id: string;
     organizationId: string;
@@ -184,6 +205,22 @@ export type ExternalApiKey = {
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
 };
+export type IcpClassificationJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    listId: string;
+    userPrompt: string;
+    status: Generated<string>;
+    totalRows: number;
+    processedRows: Generated<number>;
+    successCount: Generated<number>;
+    errorCount: Generated<number>;
+    tokensUsed: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
 export type Invitation = {
     id: string;
     organizationId: string;
@@ -209,6 +246,16 @@ export type Lead = {
     firstLine: string | null;
     companyDomain: string | null;
     emailBounced: Generated<boolean>;
+    icpScore: number | null;
+    icpContext: unknown | null;
+    icpClassifiedAt: Timestamp | null;
+    subject: string | null;
+    openingParagraph: string | null;
+    followUp1: string | null;
+    followUp2: string | null;
+    followUp3: string | null;
+    callToAction: string | null;
+    personalizedFields: unknown | null;
     createdAt: Generated<Timestamp>;
     updatedAt: Timestamp;
 };
@@ -319,6 +366,35 @@ export type Organization = {
     createdAt: Timestamp;
     metadata: string | null;
 };
+export type PersonalizationJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    listId: string;
+    columnConfigs: unknown;
+    useIcpContext: Generated<boolean>;
+    status: Generated<string>;
+    totalRows: number;
+    processedRows: Generated<number>;
+    successCount: Generated<number>;
+    errorCount: Generated<number>;
+    tokensUsed: Generated<number>;
+    estimatedCost: Generated<number>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
+export type PersonalizationJobItem = {
+    id: string;
+    jobId: string;
+    leadId: string;
+    status: Generated<string>;
+    generatedColumns: unknown | null;
+    tokensUsed: Generated<number>;
+    errorMessage: string | null;
+    createdAt: Generated<Timestamp>;
+    processedAt: Timestamp | null;
+};
 export type ScrapeJob = {
     id: string;
     organizationId: string;
@@ -427,9 +503,11 @@ export type DB = {
     domain_email_pattern: DomainEmailPattern;
     domain_mx_cache: DomainMxCache;
     email_validation_attempt: EmailValidationAttempt;
+    enriched_contact: EnrichedContact;
     enrichment: Enrichment;
     example: Example;
     external_api_key: ExternalApiKey;
+    icp_classification_job: IcpClassificationJob;
     invitation: Invitation;
     lead: Lead;
     lead_list: LeadList;
@@ -441,6 +519,8 @@ export type DB = {
     member: Member;
     notification: Notification;
     organization: Organization;
+    personalization_job: PersonalizationJob;
+    personalization_job_item: PersonalizationJobItem;
     scrape_job: ScrapeJob;
     scrape_job_item: ScrapeJobItem;
     session: Session;

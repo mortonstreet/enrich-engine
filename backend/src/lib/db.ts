@@ -11,7 +11,9 @@ const dialect = new PostgresDialect({
     user: config.db.user,
     password: config.db.password,
     database: config.db.database,
-    max: 20,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   }),
 });
 

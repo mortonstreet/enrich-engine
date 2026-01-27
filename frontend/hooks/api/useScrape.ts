@@ -67,15 +67,27 @@ export function useScrapeJob(jobId?: string, options?: { polling?: boolean; poll
 }
 
 /**
- * Mutation hook for creating a scrape job with CSV upload
+ * Mutation hook for creating a scrape job with CSV upload or single URL
  */
 export function useCreateScrapeJob() {
   const queryClient = useQueryClient();
 
-  return useMutation<CreateScrapeJobResponse, Error, { file: File; name?: string; roleConfigs?: { roleName: string; count: number }[] }>({
-    mutationFn: async ({ file, name, roleConfigs }) => {
+  return useMutation<CreateScrapeJobResponse, Error, { file?: File; sourceUrl?: string; name?: string; roleConfigs?: { roleName: string; count: number }[] }>({
+    mutationFn: async ({ file, sourceUrl, name, roleConfigs }) => {
       const formData = new FormData();
-      formData.append('file', file);
+
+      // If sourceUrl is provided (single URL flow), create a CSV file from it
+      if (sourceUrl && !file) {
+        const csvContent = `company\n"${sourceUrl}"`;
+        const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+        const csvFile = new File([csvBlob], 'single-url.csv', { type: 'text/csv' });
+        formData.append('file', csvFile);
+      } else if (file) {
+        formData.append('file', file);
+      } else {
+        throw new Error('Either file or sourceUrl is required');
+      }
+
       if (name) {
         formData.append('name', name);
       }

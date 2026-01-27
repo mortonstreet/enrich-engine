@@ -111,9 +111,10 @@ export default function ScrapePage() {
     roleConfigs?: RoleConfig[];
   }) => {
     try {
-      if (data.file) {
+      if (data.file || data.sourceUrl) {
         const result = await createJobMutation.mutateAsync({
           file: data.file,
+          sourceUrl: data.sourceUrl,
           name: data.name,
           roleConfigs: data.roleConfigs,
         });
@@ -123,7 +124,7 @@ export default function ScrapePage() {
         setShowOverlay(true);
         toast.success("Scrape job created! Processing started.");
       } else {
-        toast.error("File upload required for this workflow");
+        toast.error("File upload or company URL required for this workflow");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create scrape job");

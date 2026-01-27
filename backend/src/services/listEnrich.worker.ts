@@ -5,6 +5,7 @@ import * as domainPatternRepository from "@/repositories/domainPattern.repositor
 import * as emailValidationRepository from "@/repositories/emailValidation.repository";
 import * as userRepository from "@/repositories/user.repository";
 import * as listRepository from "@/repositories/list.repository";
+import * as enrichedContactRepository from "@/repositories/enrichedContact.repository";
 import { sendEnrichmentCompletedEmail } from "@/clients/email.client";
 import { decrypt } from "@/lib/encryption";
 import { findEmailWithKey, findMobileWithKey } from "@/clients/prospeo.client";
@@ -47,6 +48,14 @@ interface ProcessedLead {
   status: "completed" | "not_found" | "failed";
   wasGuessed: boolean;
   validationCredits: number;
+}
+
+interface CachedEnrichment {
+  itemId: string;
+  leadId: string;
+  email: string | null;
+  phone: string | null;
+  source: "cached";
 }
 
 // ============================================
@@ -207,25 +216,134 @@ async function processEmailGuessingBulk(
 
   logger.info({ jobId, leadCount: leads.length }, "Fetched lead details");
 
+  // Step 2.5: DEDUPLICATION - Check for already-enriched contacts in master cache
+  const linkedinUrls = leads
+    .filter((l) => l.linkedinUrl)
+    .map((l) => l.linkedinUrl as string);
+
+  const existingEnrichedMap = await enrichedContactRepository.findExistingByLinkedinUrls(
+    organizationId,
+    linkedinUrls
+  );
+
+  // Also check by name hash for leads without LinkedIn URLs
+  const leadsWithoutLinkedin = leads.filter((l) => !l.linkedinUrl && l.firstName && l.lastName && l.company);
+  const existingByNameHash = await enrichedContactRepository.findExistingByNameHashes(
+    organizationId,
+    leadsWithoutLinkedin
+  );
+
+  // Apply cached enrichment data and separate into cached vs needs-processing
+  const cachedEnrichments: CachedEnrichment[] = [];
+  const itemsToProcess: typeof allItems = [];
+  let cachedCount = 0;
+
+  for (const item of allItems) {
+    const lead = leadMap.get(item.leadId);
+    if (!lead) {
+      itemsToProcess.push(item);
+      continue;
+    }
+
+    // Check LinkedIn URL cache first
+    const normalizedUrl = lead.linkedinUrl
+      ? enrichedContactRepository.normalizeLinkedinUrl(lead.linkedinUrl)
+      : null;
+    const cachedByLinkedin = normalizedUrl ? existingEnrichedMap.get(normalizedUrl) : undefined;
+
+    // Then check name hash cache
+    const nameHash = enrichedContactRepository.generateNameHash(lead.firstName, lead.lastName, lead.company);
+    const cachedByNameHash = nameHash ? existingByNameHash.get(nameHash) : undefined;
+
+    const cached = cachedByLinkedin || cachedByNameHash;
+
+    if (cached && cached.email) {
+      // Use cached data - free enrichment!
+      cachedEnrichments.push({
+        itemId: item.id,
+        leadId: item.leadId,
+        email: cached.email,
+        phone: cached.phone,
+        source: "cached",
+      });
+      cachedCount++;
+    } else {
+      // Need to process this lead
+      itemsToProcess.push(item);
+    }
+  }
+
+  logger.info(
+    { jobId, cachedCount, toProcessCount: itemsToProcess.length },
+    "Deduplication complete - using cached enrichments where available"
+  );
+
+  // Apply cached enrichments immediately
+  if (cachedEnrichments.length > 0) {
+    const cacheMessage = `Applying ${cachedCount} cached enrichments...`;
+    await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: cacheMessage });
+    await sendJobProgressUpdate(organizationId, jobId, {
+      status: "processing",
+      statusMessage: cacheMessage,
+      processedRows: 0,
+      totalRows: allItems.length,
+    });
+
+    for (const cached of cachedEnrichments) {
+      await leadRepository.update(cached.leadId, { email: cached.email });
+      await listEnrichmentJobRepository.updateItem(cached.itemId, {
+        status: "completed",
+        enrichedEmail: cached.email,
+        processedAt: new Date(),
+      });
+    }
+
+    logger.info({ jobId, cachedCount }, "Applied cached enrichments");
+  }
+
+  // If all items were cached, we're done
+  if (itemsToProcess.length === 0) {
+    await db
+      .updateTable("list_enrichment_job")
+      .set({
+        processedRows: allItems.length,
+        successCount: cachedCount,
+        errorCount: 0,
+        guessSuccessCount: cachedCount,
+        validationCredits: 0,
+        updatedAt: new Date(),
+      })
+      .where("id", "=", jobId)
+      .execute();
+
+    logger.info({ jobId, cachedCount }, "All leads enriched from cache - no API calls needed");
+    return;
+  }
+
   // Step 3: Resolve domains for all leads (parallel with concurrency limit)
-  const domainMessage = `Resolving company domains for ${leads.length.toLocaleString()} leads...`;
+  // Only process items that weren't in cache
+  const leadsToProcess = itemsToProcess
+    .map((item) => leadMap.get(item.leadId))
+    .filter((lead): lead is NonNullable<typeof lead> => lead !== undefined);
+
+  const domainMessage = `Resolving company domains for ${leadsToProcess.length.toLocaleString()} leads...`;
   await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: domainMessage });
   await sendJobProgressUpdate(organizationId, jobId, {
     status: "processing",
     statusMessage: domainMessage,
-    processedRows: 0,
+    processedRows: cachedCount,
     totalRows: allItems.length,
   });
 
-  const domainMap = await resolveDomainsBatch(leads, DOMAIN_LOOKUP_CONCURRENCY);
+  const domainMap = await resolveDomainsBatch(leadsToProcess, DOMAIN_LOOKUP_CONCURRENCY);
   logger.info({ jobId, domainsResolved: domainMap.size }, "Resolved domains");
 
   // Step 4: Generate all email candidates
   const allCandidates: LeadEmailCandidate[] = [];
   const leadsWithoutDomain: string[] = [];
-  const itemToLeadMap = new Map(allItems.map((item) => [item.id, item.leadId]));
+  const itemToLeadMap = new Map(itemsToProcess.map((item) => [item.id, item.leadId]));
 
-  for (const item of allItems) {
+  for (const item of itemsToProcess) {
     const lead = leadMap.get(item.leadId);
     if (!lead) continue;
 
@@ -319,17 +437,17 @@ async function processEmailGuessingBulk(
   logger.info({ jobId, resultsCount: validationResults.size }, "Bulk validation complete");
 
   // Step 7: Process results and find valid emails for each lead
-  const processingMessage = `Processing validation results for ${allItems.length.toLocaleString()} leads...`;
+  const processingMessage = `Processing validation results for ${itemsToProcess.length.toLocaleString()} leads...`;
   await listEnrichmentJobRepository.updateJob(jobId, { statusMessage: processingMessage });
   await sendJobProgressUpdate(organizationId, jobId, {
     status: "processing",
     statusMessage: processingMessage,
-    processedRows: 0,
+    processedRows: cachedCount,
     totalRows: allItems.length,
   });
 
   const processedLeads = await processValidationResults(
-    allItems,
+    itemsToProcess,
     allCandidates,
     validationResults,
     leadMap,
@@ -347,6 +465,8 @@ async function processEmailGuessingBulk(
 
   for (const result of processedLeads) {
     try {
+      const lead = leadMap.get(result.leadId);
+
       // Update lead with email if found
       if (result.email) {
         await leadRepository.update(result.leadId, { email: result.email });
@@ -356,6 +476,22 @@ async function processEmailGuessingBulk(
         // Record pattern success for domain learning
         if (result.domain && result.pattern) {
           await domainPatternRepository.recordSuccess(result.domain, result.pattern);
+        }
+
+        // Save to org-wide enrichment cache for deduplication
+        if (lead) {
+          await enrichedContactRepository.upsert({
+            organizationId,
+            linkedinUrl: lead.linkedinUrl,
+            firstName: lead.firstName,
+            lastName: lead.lastName,
+            email: result.email,
+            company: lead.company,
+            companyDomain: result.domain,
+            role: lead.role,
+            emailPattern: result.pattern,
+            emailSource: "guessed",
+          });
         }
       } else {
         // Mark lead as bounced if no email found
@@ -411,23 +547,41 @@ async function processEmailGuessingBulk(
     );
 
     for (const itemId of leadsWithoutDomain) {
-      const item = allItems.find((i) => i.id === itemId);
+      const item = itemsToProcess.find((i) => i.id === itemId);
       if (!item) continue;
+      const lead = leadMap.get(item.leadId);
 
       try {
         const response = await findEmailWithKey(item.linkedinUrl, prospeoApiKey);
 
         if (response.success && response.response?.email?.email) {
+          const foundEmail = response.response.email.email;
+
           await leadRepository.update(item.leadId, {
-            email: response.response.email.email,
+            email: foundEmail,
           });
 
           await listEnrichmentJobRepository.updateItem(itemId, {
             status: "completed",
-            enrichedEmail: response.response.email.email,
+            enrichedEmail: foundEmail,
             prospeoResponse: response,
             processedAt: new Date(),
           });
+
+          // Save to org-wide enrichment cache
+          if (lead) {
+            await enrichedContactRepository.upsert({
+              organizationId,
+              linkedinUrl: lead.linkedinUrl,
+              firstName: lead.firstName,
+              lastName: lead.lastName,
+              email: foundEmail,
+              company: lead.company,
+              companyDomain: response.response?.company_domain,
+              role: lead.role,
+              emailSource: "prospeo",
+            });
+          }
 
           successCount++;
           await incrementFallbackCount(jobId);
@@ -463,14 +617,17 @@ async function processEmailGuessingBulk(
     }
   }
 
-  // Step 10: Update job counters
+  // Step 10: Update job counters (include cached enrichments in totals)
+  const totalSuccessCount = successCount + cachedCount;
+  const totalGuessSuccessCount = guessSuccessCount + cachedCount;
+
   await db
     .updateTable("list_enrichment_job")
     .set({
       processedRows: allItems.length,
-      successCount,
+      successCount: totalSuccessCount,
       errorCount,
-      guessSuccessCount,
+      guessSuccessCount: totalGuessSuccessCount,
       validationCredits: totalValidationCredits,
       updatedAt: new Date(),
     })
@@ -478,7 +635,14 @@ async function processEmailGuessingBulk(
     .execute();
 
   logger.info(
-    { jobId, successCount, errorCount, guessSuccessCount, validationCredits: totalValidationCredits },
+    {
+      jobId,
+      totalSuccessCount,
+      cachedCount,
+      newEnrichments: successCount,
+      errorCount,
+      validationCredits: totalValidationCredits,
+    },
     "Bulk email guessing complete"
   );
 }
