@@ -35,6 +35,7 @@ import { sendPusherEvent } from "@/lib/pusher";
 
 const NAME_REQUIRED_COLUMNS = ["first_name", "last_name"];
 const ROLE_COLUMNS = ["role", "role1", "role2", "role3"];
+const DOMAIN_COLUMNS = ["domain", "website"];
 
 /**
  * Extracts a usable company name from a URL or returns the value as-is.
@@ -117,6 +118,11 @@ export const validateCSVColumns = (columns: string[], roleConfigs?: RoleConfig[]
   const hasRoleColumns = normalizedColumns.includes("company") &&
     ROLE_COLUMNS.some((col) => normalizedColumns.includes(col));
 
+  // Check for domain/website columns (domain CSV workflow)
+  const hasDomainColumns = DOMAIN_COLUMNS.some((col) =>
+    normalizedColumns.includes(col)
+  );
+
   // If roleConfigs are provided from UI, only require company column
   const hasCompanyWithUIRoles = normalizedColumns.includes("company") &&
     roleConfigs && roleConfigs.length > 0;
@@ -146,6 +152,17 @@ export const validateCSVColumns = (columns: string[], roleConfigs?: RoleConfig[]
     return {
       isValid: true,
       inputType: ScrapeInputType.ROLE,
+      columns: normalizedColumns,
+      missingColumns: [],
+      errors: [],
+    };
+  }
+
+  // Domain CSV with roles configured in UI
+  if (hasDomainColumns && roleConfigs && roleConfigs.length > 0) {
+    return {
+      isValid: true,
+      inputType: ScrapeInputType.DOMAIN,
       columns: normalizedColumns,
       missingColumns: [],
       errors: [],
@@ -208,7 +225,30 @@ export const createScrapeJob = async (
   // Key: company|role, Value: count of instances
   const roleInstanceCounts = new Map<string, number>();
 
-  if (inputType === ScrapeInputType.ROLE) {
+  if (inputType === ScrapeInputType.DOMAIN) {
+    // Domain CSV workflow: map domain/website column to company field, expand with roleConfigs
+    rows.forEach((row) => {
+      const domainValue = (row as Record<string, string>).domain || (row as Record<string, string>).website || "";
+      (roleConfigs || []).forEach((config) => {
+        for (let i = 0; i < config.count; i++) {
+          const inputData = { ...row, company: domainValue, role: config.roleName } as Record<string, string>;
+          const companyRoleKey = getDedupeKey(inputData, ScrapeInputType.ROLE);
+
+          const instanceIndex = roleInstanceCounts.get(companyRoleKey) ?? 0;
+          roleInstanceCounts.set(companyRoleKey, instanceIndex + 1);
+
+          inputData.roleInstanceIndex = instanceIndex.toString();
+
+          items.push({
+            jobId: job.id,
+            rowIndex: items.length,
+            inputData,
+            status: ScrapeItemStatus.PENDING,
+          });
+        }
+      });
+    });
+  } else if (inputType === ScrapeInputType.ROLE) {
     // Check if roleConfigs are provided from UI (company CSV workflow)
     if (roleConfigs && roleConfigs.length > 0) {
       // Expand each company row with each role config

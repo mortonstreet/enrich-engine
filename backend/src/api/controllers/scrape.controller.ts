@@ -75,7 +75,20 @@ export const createScrapeJob: AuthRequestHandler<CreateScrapeJobRequest> = async
   req,
   res
 ) => {
-  const { name, roleConfigs } = req.validated;
+  const { name, roleConfigs: validatedRoleConfigs } = req.validated;
+
+  // Fallback: parse roleConfigs from req.body if validateAndMerge didn't capture it
+  // This handles multipart/form-data where multer text fields may not merge correctly
+  let roleConfigs = validatedRoleConfigs;
+  if (!roleConfigs && req.body?.roleConfigs) {
+    try {
+      const raw = req.body.roleConfigs;
+      roleConfigs = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {
+      // ignore parse errors, proceed without roleConfigs
+    }
+  }
+
   const organizationId = req.session.activeOrganizationId;
 
   if (!organizationId) {
