@@ -20,6 +20,7 @@ import externalRoutes from "./external";
 import blogRoutes from "./blog";
 import searchRoutes from "./search";
 import verificationRoutes from "./verification";
+import companySearchRoutes from "./companySearch";
 
 const router = Router();
 
@@ -79,6 +80,7 @@ router.use("/external", externalRoutes);
 router.use("/blog", blogRoutes);
 router.use("/search", searchRoutes);
 router.use("/verification", verificationRoutes);
+router.use("/company-search", companySearchRoutes);
 router.use("/sentry", (req, res) => {
   throw new Error("Testing sentry error");
 });

@@ -16,3 +16,4 @@ export * from './blog';
 export * from './search';
 export * from './verification';
 export * from './personalization';
+export * from './companySearch';

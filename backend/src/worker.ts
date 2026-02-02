@@ -6,6 +6,7 @@ import {
 } from "@/queues/workers";
 import { exampleQueue, scheduleRecurringExampleCheck } from "@/queues";
 import { createScrapeWorker } from "@/queues/scrape.queue";
+import { createCompanySearchWorker } from "@/queues/companySearch.queue";
 
 import logger from "@/lib/logger";
 import { getDomainCache } from "@/lib/cache";
@@ -33,6 +34,7 @@ export const startWorker = async () => {
   const listEnrichmentProcessor = new ListEnrichmentProcessor();
   const copyGeneratorProcessor = new CopyGeneratorProcessor();
   const scrapeWorker = createScrapeWorker();
+  const companySearchWorker = createCompanySearchWorker();
 
   try {
     const jobs = await exampleQueue.getJobSchedulers();
@@ -53,6 +55,7 @@ export const startWorker = async () => {
     await listEnrichmentProcessor.close();
     await copyGeneratorProcessor.close();
     await scrapeWorker.close();
+    await companySearchWorker.close();
     // Clean up HTTP connection pools
     destroyAgents();
     logger.info("Worker services stopped.");

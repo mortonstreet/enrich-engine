@@ -31,6 +31,104 @@ export interface SerperResponse {
   };
 }
 
+export async function serperPaginatedFetch(
+  query: string,
+  page: number = 1,
+  num: number = 100
+): Promise<SerperResponse> {
+  const rateLimiter = getSerperRateLimiter();
+  await rateLimiter.acquire(1);
+
+  const agent = getHttpsAgent();
+
+  const response = await fetch(SERPER_BASE_URL, {
+    method: "POST",
+    headers: {
+      "X-API-KEY": config.serper.apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      q: query,
+      num,
+      page,
+    }),
+    // @ts-ignore - Node.js fetch supports dispatcher for connection pooling
+    dispatcher: agent,
+  });
+
+  const rateLimitHeaders: RateLimitHeaders = {
+    'x-ratelimit-limit': response.headers.get('x-ratelimit-limit') ?? undefined,
+    'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining') ?? undefined,
+    'x-ratelimit-reset': response.headers.get('x-ratelimit-reset') ?? undefined,
+    'retry-after': response.headers.get('retry-after') ?? undefined,
+  };
+
+  adaptiveRateLimiter.processResponse(rateLimitHeaders, response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error({ status: response.status, errorText }, "Serper API error (paginated)");
+    throw new Error(`Serper API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json() as Promise<SerperResponse>;
+}
+
+const LINKEDIN_COMPANY_PATTERN = /^https?:\/\/(www\.)?linkedin\.com\/company\//;
+
+export interface ExtractedCompanyResult {
+  companyName: string;
+  linkedinUrl: string;
+  snippet: string;
+  position: number;
+}
+
+/**
+ * Extracts company name from a LinkedIn company page title.
+ * Titles are typically: "Company Name | LinkedIn" or "Company Name - Overview | LinkedIn"
+ */
+export function extractCompanyNameFromTitle(title: string): string {
+  let cleanTitle = title
+    .replace(/\s*\|\s*LinkedIn\s*$/i, "")
+    .replace(/\s*-\s*LinkedIn\s*$/i, "")
+    .replace(/\s*-\s*Overview\s*$/i, "")
+    .replace(/\s*-\s*Products\s*$/i, "")
+    .replace(/\s*-\s*About\s*$/i, "")
+    .trim();
+
+  // If title still has a pipe, take the first part (company name)
+  const pipeIndex = cleanTitle.indexOf(" | ");
+  if (pipeIndex !== -1) {
+    cleanTitle = cleanTitle.substring(0, pipeIndex).trim();
+  }
+
+  return cleanTitle;
+}
+
+/**
+ * Extracts company results from Serper search results.
+ * Only includes results linking to LinkedIn company pages.
+ */
+export function extractCompanyResults(results: SerperSearchResult[]): ExtractedCompanyResult[] {
+  const companyResults: ExtractedCompanyResult[] = [];
+
+  for (const result of results) {
+    if (LINKEDIN_COMPANY_PATTERN.test(result.link)) {
+      const companyName = extractCompanyNameFromTitle(result.title);
+      if (companyName) {
+        companyResults.push({
+          companyName,
+          linkedinUrl: result.link,
+          snippet: result.snippet || "",
+          position: result.position,
+        });
+      }
+    }
+  }
+
+  return companyResults;
+}
+
 async function serperFetch(query: string): Promise<SerperResponse> {
   // Acquire rate limiter token before making request
   const rateLimiter = getSerperRateLimiter();

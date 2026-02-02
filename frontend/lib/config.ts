@@ -131,6 +131,14 @@ export const ENDPOINTS = {
   SEARCH: {
     PEOPLE: '/search/people',
   },
+  COMPANY_SEARCH: {
+    GENERATE_QUERY: '/company-search/generate-query',
+    PREVIEW: '/company-search/preview',
+    JOBS: '/company-search/jobs',
+    JOB: (jobId: string) => `/company-search/jobs/${jobId}`,
+    DOWNLOAD: (jobId: string) => `/company-search/jobs/${jobId}/download`,
+    PEOPLE_SEARCH: (jobId: string) => `/company-search/jobs/${jobId}/people-search`,
+  },
   VERIFICATION: {
     JOBS: '/verification/jobs',
     JOB: (jobId: string) => `/verification/jobs/${jobId}`,
@@ -186,6 +194,9 @@ export const QUERY_KEYS = {
   blogPost: (slug?: string) => ['blog', 'post', slug] as const,
   // Search
   searchPeople: () => ['search', 'people'] as const,
+  // Company Search
+  companySearchJobs: () => ['company-search', 'jobs'] as const,
+  companySearchJob: (jobId?: string) => ['company-search', 'job', jobId] as const,
   // Verification
   verificationJobs: () => ['verification', 'jobs'] as const,
   verificationJob: (jobId?: string) => ['verification', 'job', jobId] as const,

@@ -22,6 +22,8 @@ import {
   IcpClassificationJob,
   PersonalizationJob,
   PersonalizationJobItem,
+  CompanySearchJob,
+  CompanySearchItem,
 } from "./generated/types";
 
 
@@ -139,3 +141,13 @@ export type DBPersonalizationJobItem = Selectable<PersonalizationJobItem>;
 export type UpdateDBPersonalizationJobItem = Updateable<PersonalizationJobItem>;
 export type InsertDBPersonalizationJobItem = Insertable<PersonalizationJobItem>;
 export type CreatePersonalizationJobItemInput = Omit<DBPersonalizationJobItem, 'id' | 'createdAt'>;
+
+// Company Search types
+export type DBCompanySearchJob = Selectable<CompanySearchJob>;
+export type UpdateDBCompanySearchJob = Updateable<CompanySearchJob>;
+export type InsertDBCompanySearchJob = Insertable<CompanySearchJob>;
+export type CreateCompanySearchJobInput = Omit<DBCompanySearchJob, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type DBCompanySearchItem = Selectable<CompanySearchItem>;
+export type InsertDBCompanySearchItem = Insertable<CompanySearchItem>;
+export type CreateCompanySearchItemInput = Omit<DBCompanySearchItem, 'id' | 'createdAt'>;

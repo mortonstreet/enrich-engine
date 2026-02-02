@@ -852,3 +852,55 @@ model PersonalizationJobItem {
   @@map("personalization_job_item")
 }
 
+// ==========================================
+// Company Search Feature Models
+// ==========================================
+
+model CompanySearchJob {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  userId               String
+  name                 String
+  status               String    @default("pending") // pending, generating_query, previewing, scraping, deduplicating, completed, failed
+  naturalLanguageQuery String    @db.Text
+  generatedSearchQuery String?   @db.Text
+  finalSearchQuery     String?   @db.Text
+  totalPages           Int       @default(0)
+  scrapedPages         Int       @default(0)
+  maxPages             Int       @default(10)
+  rawResultCount       Int       @default(0)
+  dedupedResultCount   Int       @default(0)
+  scrapeJobId          String?   // Optional link to people search ScrapeJob
+  errorMessage         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  completedAt          DateTime?
+
+  items CompanySearchItem[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@map("company_search_job")
+}
+
+model CompanySearchItem {
+  id              String    @id @default(uuid())
+  jobId           String
+  companyName     String
+  linkedinUrl     String?
+  companyDomain   String?
+  source          String?   // e.g. "serper_page_1"
+  serperPosition  Int?
+  isDuplicate     Boolean   @default(false)
+  duplicateOfId   String?
+  rawSnippet      String?   @db.Text
+  createdAt       DateTime  @default(now())
+
+  job CompanySearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([isDuplicate])
+  @@map("company_search_item")
+}
+

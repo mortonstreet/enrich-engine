@@ -71,6 +71,39 @@ export type BulkEnrichmentJob = {
     updatedAt: Timestamp;
     completedAt: Timestamp | null;
 };
+export type CompanySearchItem = {
+    id: string;
+    jobId: string;
+    companyName: string;
+    linkedinUrl: string | null;
+    companyDomain: string | null;
+    source: string | null;
+    serperPosition: number | null;
+    isDuplicate: Generated<boolean>;
+    duplicateOfId: string | null;
+    rawSnippet: string | null;
+    createdAt: Generated<Timestamp>;
+};
+export type CompanySearchJob = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    name: string;
+    status: Generated<string>;
+    naturalLanguageQuery: string;
+    generatedSearchQuery: string | null;
+    finalSearchQuery: string | null;
+    totalPages: Generated<number>;
+    scrapedPages: Generated<number>;
+    maxPages: Generated<number>;
+    rawResultCount: Generated<number>;
+    dedupedResultCount: Generated<number>;
+    scrapeJobId: string | null;
+    errorMessage: string | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Timestamp;
+    completedAt: Timestamp | null;
+};
 export type CopyGeneratorJob = {
     id: string;
     organizationId: string;
@@ -497,6 +530,8 @@ export type DB = {
     blog_post: BlogPost;
     bulk_enrichment_item: BulkEnrichmentItem;
     bulk_enrichment_job: BulkEnrichmentJob;
+    company_search_item: CompanySearchItem;
+    company_search_job: CompanySearchJob;
     copy_generator_job: CopyGeneratorJob;
     copy_generator_job_item: CopyGeneratorJobItem;
     credit_transaction: CreditTransaction;
