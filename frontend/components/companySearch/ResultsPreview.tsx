@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/base-input";
-import { ExternalLink, Play, Loader2 } from "lucide-react";
+import { ExternalLink, Play, Loader2, ArrowLeft } from "lucide-react";
 import { CompanySearchPreviewItem } from "@shared/types/src";
 
 interface ResultsPreviewProps {
@@ -25,7 +25,7 @@ export function ResultsPreview({
   onBack,
   isCreating,
 }: ResultsPreviewProps) {
-  const [maxPages, setMaxPages] = useState(Math.min(estimatedPages, 10));
+  const [maxPages, setMaxPages] = useState(10);
   const [jobName, setJobName] = useState("");
 
   return (
@@ -79,8 +79,14 @@ export function ResultsPreview({
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            No LinkedIn company results found. Try adjusting the query.
+          <div className="text-center py-8 space-y-3">
+            <p className="text-muted-foreground">
+              No LinkedIn company results found. Try adjusting the query.
+            </p>
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Edit Query
+            </Button>
           </div>
         )}
       </div>
@@ -101,7 +107,7 @@ export function ResultsPreview({
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-                Max Pages (up to ~{maxPages * 100} companies)
+                Max Pages (~100 results per page)
               </label>
               <Input
                 type="number"

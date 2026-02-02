@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/base-input";
-import { Loader2, Search, Pencil, Check } from "lucide-react";
+import { Loader2, Search, Pencil, Check, AlertCircle } from "lucide-react";
 
 interface QueryPreviewProps {
   query: string;
@@ -11,9 +11,10 @@ interface QueryPreviewProps {
   onPreview: (query: string) => void;
   onBack: () => void;
   isPreviewing: boolean;
+  previewError?: string;
 }
 
-export function QueryPreview({ query, explanation, onPreview, onBack, isPreviewing }: QueryPreviewProps) {
+export function QueryPreview({ query, explanation, onPreview, onBack, isPreviewing, previewError }: QueryPreviewProps) {
   const [editedQuery, setEditedQuery] = useState(query);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -44,6 +45,13 @@ export function QueryPreview({ query, explanation, onPreview, onBack, isPreviewi
         )}
       </div>
 
+      {previewError && (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3 mb-4">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>Preview failed: {previewError}. Try editing the query or retrying.</span>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <Button variant="outline" onClick={onBack}>
           Back
@@ -60,7 +68,7 @@ export function QueryPreview({ query, explanation, onPreview, onBack, isPreviewi
           ) : (
             <>
               <Search className="w-4 h-4 mr-2" />
-              Preview Results
+              {previewError ? "Retry Preview" : "Preview Results"}
             </>
           )}
         </Button>

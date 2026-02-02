@@ -111,6 +111,7 @@ export function SmartCompanySearch() {
           onPreview={handlePreview}
           onBack={() => setStep("input")}
           isPreviewing={previewSearch.isPending}
+          previewError={previewSearch.error?.message}
         />
       )}
 

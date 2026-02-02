@@ -99,12 +99,8 @@ export async function generateSearchQuery(
 export async function previewSearch(
   searchQuery: string
 ): Promise<PreviewCompanySearchResponse> {
-  const response = await serperPaginatedFetch(searchQuery, 1, 10);
+  const response = await serperPaginatedFetch(searchQuery, 1, 100);
   const companies = extractCompanyResults(response.organic || []);
-
-  // Estimate total pages based on first page results
-  const totalResults = companies.length;
-  const estimatedPages = totalResults >= 10 ? 10 : 1;
 
   return {
     results: companies.map((c) => ({
@@ -113,8 +109,8 @@ export async function previewSearch(
       snippet: c.snippet,
       position: c.position,
     })),
-    totalResults,
-    estimatedPages,
+    totalResults: companies.length,
+    estimatedPages: 10,
   };
 }
 
@@ -193,11 +189,31 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
       logger.info({ jobId, page, maxPages }, "Scraping company search page");
 
       const response = await serperPaginatedFetch(job.finalSearchQuery, page, 100);
-      const companies = extractCompanyResults(response.organic || []);
+      const organicResults = response.organic || [];
+      const companies = extractCompanyResults(organicResults);
+
+      if (organicResults.length === 0) {
+        logger.info({ jobId, page }, "No more results from Serper, stopping pagination");
+        break;
+      }
 
       if (companies.length === 0) {
-        logger.info({ jobId, page }, "No more results, stopping pagination");
-        break;
+        logger.info({ jobId, page }, "No LinkedIn companies on this page, continuing to next page");
+        scrapedPages = page;
+        await companySearchJobRepo.update(jobId, {
+          scrapedPages: page,
+          totalPages: maxPages,
+        });
+        await sendProgressUpdate(job.organizationId, jobId, {
+          status: CompanySearchJobStatus.SCRAPING,
+          scrapedPages: page,
+          totalPages: maxPages,
+        });
+        if (organicResults.length < 100) {
+          logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
+          break;
+        }
+        continue;
       }
 
       // Create items for this page
@@ -225,9 +241,9 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
         totalPages: maxPages,
       });
 
-      // Stop if we got fewer results than requested
-      if (companies.length < 100) {
-        logger.info({ jobId, page, resultCount: companies.length }, "Partial page, stopping pagination");
+      // Stop if Serper returned fewer raw results than requested (end of results)
+      if (organicResults.length < 100) {
+        logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
         break;
       }
     }
