@@ -1,7 +1,7 @@
 import { config } from "@/config";
 import logger from "@/lib/logger";
 import { getSerperRateLimiter } from "@/lib/rateLimiter/serperRateLimiter";
-import { getHttpsAgent } from "@/lib/httpAgent";
+
 import { AdaptiveRateLimiter, RateLimitHeaders } from "@/lib/adaptiveRateLimiter";
 import { getDomainCache } from "@/lib/cache";
 
@@ -39,8 +39,6 @@ export async function serperPaginatedFetch(
   const rateLimiter = getSerperRateLimiter();
   await rateLimiter.acquire(1);
 
-  const agent = getHttpsAgent();
-
   const response = await fetch(SERPER_BASE_URL, {
     method: "POST",
     headers: {
@@ -52,8 +50,6 @@ export async function serperPaginatedFetch(
       num,
       page,
     }),
-    // @ts-ignore - Node.js fetch supports dispatcher for connection pooling
-    dispatcher: agent,
   });
 
   const rateLimitHeaders: RateLimitHeaders = {
@@ -134,9 +130,6 @@ async function serperFetch(query: string): Promise<SerperResponse> {
   const rateLimiter = getSerperRateLimiter();
   await rateLimiter.acquire(1);
 
-  // Use connection pooling for better performance
-  const agent = getHttpsAgent();
-
   const response = await fetch(SERPER_BASE_URL, {
     method: "POST",
     headers: {
@@ -147,8 +140,6 @@ async function serperFetch(query: string): Promise<SerperResponse> {
       q: query,
       num: 10,
     }),
-    // @ts-ignore - Node.js fetch supports dispatcher for connection pooling
-    dispatcher: agent,
   });
 
   // Extract rate limit headers for adaptive limiting
