@@ -34,7 +34,7 @@ export interface SerperResponse {
 export async function serperPaginatedFetch(
   query: string,
   page: number = 1,
-  num: number = 100
+  num: number = 10
 ): Promise<SerperResponse> {
   const rateLimiter = getSerperRateLimiter();
   await rateLimiter.acquire(1);
@@ -70,7 +70,7 @@ export async function serperPaginatedFetch(
   return response.json() as Promise<SerperResponse>;
 }
 
-const LINKEDIN_COMPANY_PATTERN = /^https?:\/\/(www\.)?linkedin\.com\/company\//;
+const LINKEDIN_COMPANY_PATTERN = /^https?:\/\/([a-z]{2}\.|www\.)?linkedin\.com\/company\//;
 
 export interface ExtractedCompanyResult {
   companyName: string;

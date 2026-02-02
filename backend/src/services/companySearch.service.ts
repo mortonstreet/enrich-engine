@@ -99,7 +99,7 @@ export async function generateSearchQuery(
 export async function previewSearch(
   searchQuery: string
 ): Promise<PreviewCompanySearchResponse> {
-  const response = await serperPaginatedFetch(searchQuery, 1, 100);
+  const response = await serperPaginatedFetch(searchQuery, 1);
   const companies = extractCompanyResults(response.organic || []);
 
   return {
@@ -188,7 +188,7 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
     for (let page = 1; page <= maxPages; page++) {
       logger.info({ jobId, page, maxPages }, "Scraping company search page");
 
-      const response = await serperPaginatedFetch(job.finalSearchQuery, page, 100);
+      const response = await serperPaginatedFetch(job.finalSearchQuery, page);
       const organicResults = response.organic || [];
       const companies = extractCompanyResults(organicResults);
 
@@ -209,7 +209,7 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
           scrapedPages: page,
           totalPages: maxPages,
         });
-        if (organicResults.length < 100) {
+        if (organicResults.length < 10) {
           logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
           break;
         }
@@ -242,7 +242,7 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
       });
 
       // Stop if Serper returned fewer raw results than requested (end of results)
-      if (organicResults.length < 100) {
+      if (organicResults.length < 10) {
         logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
         break;
       }
@@ -370,7 +370,7 @@ function normalizeLinkedInUrl(url: string): string {
     .toLowerCase()
     .trim()
     .replace(/\/+$/, "")
-    .replace(/^https?:\/\/(www\.)?/, "");
+    .replace(/^https?:\/\/([a-z]{2}\.|www\.)?/, "");
 }
 
 function normalizeCompanyName(name: string): string {

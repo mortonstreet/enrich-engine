@@ -25,7 +25,7 @@ export function ResultsPreview({
   onBack,
   isCreating,
 }: ResultsPreviewProps) {
-  const [maxPages, setMaxPages] = useState(10);
+  const [maxPages, setMaxPages] = useState(20);
   const [jobName, setJobName] = useState("");
 
   return (
@@ -107,14 +107,14 @@ export function ResultsPreview({
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-                Max Pages (~100 results per page)
+                Max Pages (~10 results per page)
               </label>
               <Input
                 type="number"
                 min={1}
-                max={20}
+                max={50}
                 value={maxPages}
-                onChange={(e) => setMaxPages(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+                onChange={(e) => setMaxPages(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
               />
             </div>
           </div>
