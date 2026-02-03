@@ -1,7 +1,9 @@
 import {
   buildRoleQuery,
+  buildRoleQueries,
   extractAllLinkedInResults,
   ExtractedLinkedInResult,
+  rankResultsBySeniority,
 } from "@/clients/serper.client";
 import { SearchResultPerson, SearchPeopleResponse } from "@shared/types/src";
 import logger from "@/lib/logger";
@@ -148,11 +150,41 @@ export async function searchPeople(params: {
   logger.info({ searchQuery, page, limit }, "Searching for people via Serper");
 
   try {
-    // Request more results to handle pagination
-    const totalNeeded = page * limit;
-    const response = await serperFetch(searchQuery, Math.min(totalNeeded + 10, 100));
+    let allResults: ExtractedLinkedInResult[];
 
-    const allResults = extractAllLinkedInResults(response.organic || []);
+    // When both role and company are provided, use multi-query to pool results
+    if (searchRole && searchCompany) {
+      const roleQueries = buildRoleQueries(searchCompany, searchRole, 4);
+      type PooledResult = ExtractedLinkedInResult & { queryPriority: number };
+      const pooledResults: PooledResult[] = [];
+      const seenUrls = new Set<string>();
+
+      for (const rq of roleQueries) {
+        const totalNeeded = page * limit;
+        const response = await serperFetch(rq.query, Math.min(totalNeeded + 10, 100));
+        const extracted = extractAllLinkedInResults(response.organic || []);
+
+        for (const result of extracted) {
+          const normalizedUrl = result.linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
+          if (!seenUrls.has(normalizedUrl)) {
+            seenUrls.add(normalizedUrl);
+            pooledResults.push({ ...result, queryPriority: rq.priority });
+          }
+        }
+
+        // Early exit if we have plenty of results for pagination
+        if (pooledResults.length >= page * limit + 10) {
+          break;
+        }
+      }
+
+      allResults = rankResultsBySeniority(pooledResults, searchRole);
+    } else {
+      // Single query for non role+company searches
+      const totalNeeded = page * limit;
+      const response = await serperFetch(searchQuery, Math.min(totalNeeded + 10, 100));
+      allResults = extractAllLinkedInResults(response.organic || []);
+    }
 
     // Apply pagination
     const startIndex = (page - 1) * limit;

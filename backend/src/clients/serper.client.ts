@@ -314,6 +314,156 @@ export function buildRoleQuery(company: string, role: string): string {
   return `site:linkedin.com/in/ "${role}" "${company}"`;
 }
 
+// ============================================
+// Role Hierarchy & Multi-Query Search
+// ============================================
+
+/**
+ * Map from canonical roles to ordered lists of related titles.
+ * Used for both query generation (finding variants) and result ranking.
+ * Order matters: earlier entries are closer matches.
+ */
+export const ROLE_HIERARCHY: Record<string, string[]> = {
+  // PE / Finance
+  "Managing Partner": ["Partner", "Founding Partner", "Senior Partner", "General Partner"],
+  "Partner": ["Managing Partner", "Founding Partner", "Senior Partner", "General Partner", "Principal"],
+  "Founding Partner": ["Managing Partner", "Partner", "General Partner"],
+  "General Partner": ["Managing Partner", "Partner", "Founding Partner"],
+  "Senior Partner": ["Managing Partner", "Partner"],
+  "Managing Director": ["Director", "Senior Managing Director", "Executive Director", "Partner"],
+  "Principal": ["Vice President", "Senior Principal", "Partner", "Director"],
+  "Head of Investments": ["Investment Director", "Chief Investment Officer", "Director of Investments", "Partner"],
+  "Vice President": ["Senior Vice President", "Associate Vice President", "Principal", "Director"],
+  "Senior Vice President": ["Vice President", "Executive Vice President", "Managing Director"],
+  "Associate": ["Senior Associate", "Analyst", "Vice President"],
+  "Investment Director": ["Head of Investments", "Director of Investments", "Principal"],
+
+  // C-Suite / Leadership
+  "CEO": ["Founder", "Co-Founder", "Managing Director", "President", "Chief Executive Officer"],
+  "Founder": ["CEO", "Co-Founder", "Owner", "President"],
+  "Co-Founder": ["Founder", "CEO", "Owner"],
+  "President": ["CEO", "Managing Director", "General Manager"],
+  "CTO": ["VP Engineering", "Chief Technology Officer", "Head of Engineering", "VP of Technology"],
+  "CFO": ["VP Finance", "Chief Financial Officer", "Finance Director", "Head of Finance"],
+  "COO": ["VP Operations", "Chief Operating Officer", "Operations Director"],
+  "CMO": ["VP Marketing", "Chief Marketing Officer", "Head of Marketing"],
+  "CRO": ["VP Sales", "Chief Revenue Officer", "Head of Sales"],
+
+  // Tech / Engineering
+  "VP Engineering": ["CTO", "Head of Engineering", "Engineering Director", "SVP Engineering"],
+  "Head of Engineering": ["VP Engineering", "Engineering Director", "CTO", "Director of Engineering"],
+  "Engineering Director": ["Head of Engineering", "VP Engineering", "Senior Engineering Manager"],
+
+  // Sales / Revenue
+  "VP Sales": ["Head of Sales", "Sales Director", "Chief Revenue Officer", "CRO"],
+  "Head of Sales": ["VP Sales", "Sales Director", "Director of Sales"],
+
+  // Marketing
+  "VP Marketing": ["Head of Marketing", "Marketing Director", "CMO"],
+  "Head of Marketing": ["VP Marketing", "Marketing Director", "Director of Marketing"],
+
+  // Product
+  "VP Product": ["Head of Product", "Product Director", "CPO", "Chief Product Officer"],
+  "Head of Product": ["VP Product", "Product Director", "Director of Product"],
+
+  // Growth
+  "Head of Growth": ["VP Growth", "Growth Director", "Growth Lead"],
+  "VP Growth": ["Head of Growth", "Growth Director", "Chief Growth Officer"],
+};
+
+/**
+ * Finds related roles for a given role title by looking up the hierarchy.
+ * Tries exact match first, then case-insensitive, then partial match.
+ */
+export function findRelatedRoles(role: string): string[] {
+  // Exact match
+  if (ROLE_HIERARCHY[role]) {
+    return ROLE_HIERARCHY[role];
+  }
+
+  // Case-insensitive match
+  const lowerRole = role.toLowerCase();
+  for (const [key, variants] of Object.entries(ROLE_HIERARCHY)) {
+    if (key.toLowerCase() === lowerRole) {
+      return variants;
+    }
+  }
+
+  // Partial match: check if role contains or is contained by a key
+  for (const [key, variants] of Object.entries(ROLE_HIERARCHY)) {
+    if (lowerRole.includes(key.toLowerCase()) || key.toLowerCase().includes(lowerRole)) {
+      return variants;
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Generates multiple query variations for a role search.
+ * Returns queries in priority order:
+ *   0: Original exact-match query
+ *   1..N: Related role variant queries
+ *   99: Company-only fallback (catches any title)
+ */
+export function buildRoleQueries(
+  company: string,
+  role: string,
+  maxQueries: number = 4
+): Array<{ query: string; priority: number; roleVariant: string }> {
+  const queries: Array<{ query: string; priority: number; roleVariant: string }> = [];
+
+  // Priority 0: original exact-match query
+  queries.push({
+    query: buildRoleQuery(company, role),
+    priority: 0,
+    roleVariant: role,
+  });
+
+  // Priority 1+: related role variants
+  const relatedRoles = findRelatedRoles(role);
+  for (let i = 0; i < relatedRoles.length && queries.length < maxQueries - 1; i++) {
+    queries.push({
+      query: buildRoleQuery(company, relatedRoles[i]),
+      priority: i + 1,
+      roleVariant: relatedRoles[i],
+    });
+  }
+
+  // Priority 99: company-only fallback
+  if (queries.length < maxQueries) {
+    queries.push({
+      query: `site:linkedin.com/in/ "${company}"`,
+      priority: 99,
+      roleVariant: "__company_fallback__",
+    });
+  }
+
+  return queries.slice(0, maxQueries);
+}
+
+/**
+ * Ranks pooled LinkedIn results by relevance to the requested role.
+ * Results from higher-priority queries come first,
+ * then within same priority, prefer titles containing the requested role.
+ */
+export function rankResultsBySeniority(
+  results: Array<ExtractedLinkedInResult & { queryPriority: number }>,
+  requestedRole: string
+): Array<ExtractedLinkedInResult & { queryPriority: number }> {
+  const lowerRole = requestedRole.toLowerCase();
+  return [...results].sort((a, b) => {
+    // First sort by query priority (lower is better)
+    if (a.queryPriority !== b.queryPriority) {
+      return a.queryPriority - b.queryPriority;
+    }
+    // Within same priority, prefer titles containing the requested role
+    const aHasRole = a.title.toLowerCase().includes(lowerRole) ? 0 : 1;
+    const bHasRole = b.title.toLowerCase().includes(lowerRole) ? 0 : 1;
+    return aHasRole - bHasRole;
+  });
+}
+
 export async function searchLinkedIn(query: string): Promise<{
   linkedinUrl: string | null;
   firstName: string | null;

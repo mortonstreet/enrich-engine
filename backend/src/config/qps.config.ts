@@ -30,3 +30,7 @@ export const QPS_CONFIG = {
     return this.EFFECTIVE_ITEMS_PER_SECOND * 1.5; // Assuming 50% domain cache hits
   },
 } as const;
+
+// Multi-query role search settings
+export const MAX_ROLE_QUERIES_PER_ITEM = 4; // Max query variations per role search item
+export const MIN_RESULTS_FOR_EARLY_EXIT = 3; // Stop making more queries once this many unused results are pooled

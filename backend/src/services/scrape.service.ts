@@ -5,7 +5,7 @@ import * as serperClient from "@/clients/serper.client";
 import { isValidLinkedInProfileUrl } from "@/utils/linkedinValidator";
 import { processBatch } from "@/utils/batchProcessor";
 import { DomainMemo } from "@/utils/domainMemo";
-import { QPS_CONFIG } from "@/config/qps.config";
+import { QPS_CONFIG, MAX_ROLE_QUERIES_PER_ITEM, MIN_RESULTS_FOR_EARLY_EXIT } from "@/config/qps.config";
 import { getDomainCache } from "@/lib/cache";
 import { extractCompaniesFromItems, prefetchDomains } from "@/lib/cache/cacheWarmer";
 import { extractDomainFromUrl, extractCompanyFromLinkedIn } from "@/utils/domainExtractor";
@@ -91,6 +91,15 @@ const getRolesFromRow = (row: ScrapeCSVRow): string[] => {
   if (row.role2?.trim()) roles.push(row.role2.trim());
   if (row.role3?.trim()) roles.push(row.role3.trim());
   return roles;
+};
+
+/**
+ * Returns a company-level key for URL exclusion across all roles at the same company.
+ * This means finding "Kevin Daugherty" for "Partner" also excludes him from "Managing Director" search.
+ */
+const getCompanyDedupeKey = (inputData: Record<string, string>): string => {
+  const company = (inputData.company || "").toLowerCase().trim();
+  return `company:${company}`;
 };
 
 // Generate a unique key for deduplication based on input type
@@ -562,9 +571,14 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
       }
     }
 
-    // Track used LinkedIn URLs per company+role for multi-person scraping
-    // Key: company|role, Value: Set of used LinkedIn URLs (normalized)
+    // Track used LinkedIn URLs for multi-person scraping
+    // For ROLE jobs: use company-level keys so all roles at same company share exclusions
+    // For NAME jobs: use company|role keys (existing behavior)
     const usedUrlsByCompanyRole = new Map<string, Set<string>>();
+
+    // Cache Serper responses to avoid duplicate API calls for same query
+    // Key: query string, Value: SerperResponse
+    const searchResultCache = new Map<string, serperClient.SerperResponse>();
 
     // Load all known LinkedIn URLs across the entire organization for global dedup
     // This prevents re-searching people found in prior jobs
@@ -576,17 +590,19 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     for (const completedItem of allItems) {
       if (completedItem.status === ScrapeItemStatus.COMPLETED && completedItem.linkedinUrl) {
         const itemData = completedItem.inputData as Record<string, string>;
-        const companyRoleKey = getDedupeKey(itemData, job.inputType as ScrapeInputType);
-        if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
-          usedUrlsByCompanyRole.set(companyRoleKey, new Set());
+        // Use company-level key for ROLE jobs, company|role for NAME jobs
+        const dedupeKey = (job.inputType as ScrapeInputType) === ScrapeInputType.ROLE
+          ? getCompanyDedupeKey(itemData)
+          : getDedupeKey(itemData, job.inputType as ScrapeInputType);
+        if (!usedUrlsByCompanyRole.has(dedupeKey)) {
+          usedUrlsByCompanyRole.set(dedupeKey, new Set());
         }
         const normalizedUrl = completedItem.linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
-        usedUrlsByCompanyRole.get(companyRoleKey)!.add(normalizedUrl);
+        usedUrlsByCompanyRole.get(dedupeKey)!.add(normalizedUrl);
       }
     }
 
-    // Merge global exclude URLs into every company+role bucket
-    // Also seed a default set for new buckets that will be created during processing
+    // Merge global exclude URLs into every bucket
     for (const [key, urlSet] of usedUrlsByCompanyRole) {
       for (const url of globalExcludeUrls) {
         urlSet.add(url);
@@ -617,7 +633,7 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
           }
         }
 
-        return processItem(item, job, domainMemo, usedUrlsByCompanyRole, globalUrlSet);
+        return processItem(item, job, domainMemo, usedUrlsByCompanyRole, globalUrlSet, searchResultCache);
       },
 
       onItemComplete: async (_result, _item, index) => {
@@ -732,7 +748,8 @@ async function processItem(
   job: DBScrapeJob,
   domainMemo: DomainMemo,
   usedUrlsByCompanyRole: Map<string, Set<string>>,
-  globalExcludeUrls?: Set<string>
+  globalExcludeUrls?: Set<string>,
+  searchResultCache?: Map<string, serperClient.SerperResponse>
 ): Promise<ProcessItemResult> {
   const inputData = item.inputData as Record<string, string>;
 
@@ -758,54 +775,72 @@ async function processItem(
       lastName = result.lastName;
       rawResponse = result.rawResponse;
     } else {
-      // Role-based search with multi-person support
-      // Extract company name from URL if input is a URL
+      // Role-based search with multi-query support
       const companyName = extractCompanyNameFromInput(inputData.company || "");
-      const query = serperClient.buildRoleQuery(
-        companyName,
-        inputData.role || ""
-      );
-
-      // Get the instance index for this company+role
+      const role = inputData.role || "";
       const roleInstanceIndex = parseInt(inputData.roleInstanceIndex || "0", 10);
-      const companyRoleKey = getDedupeKey(inputData, job.inputType as ScrapeInputType);
 
-      // Get or create the set of used URLs for this company+role
-      if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
-        // Seed new buckets with global exclude URLs to avoid re-finding people from prior jobs
-        usedUrlsByCompanyRole.set(companyRoleKey, new Set(globalExcludeUrls));
+      // Use company-level key so all roles at same company share URL exclusions
+      const companyKey = getCompanyDedupeKey(inputData);
+
+      // Get or create the set of used URLs for this company
+      if (!usedUrlsByCompanyRole.has(companyKey)) {
+        usedUrlsByCompanyRole.set(companyKey, new Set(globalExcludeUrls));
       }
-      const usedUrls = usedUrlsByCompanyRole.get(companyRoleKey)!;
+      const usedUrls = usedUrlsByCompanyRole.get(companyKey)!;
 
-      // Search and get the appropriate result
-      const searchResponse = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: {
-          "X-API-KEY": (await import("@/config")).config.serper.apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ q: query, num: 10 }),
-      });
+      // Generate multiple query variations
+      const roleQueries = serperClient.buildRoleQueries(companyName, role, MAX_ROLE_QUERIES_PER_ITEM);
 
-      if (!searchResponse.ok) {
-        throw new Error(`Serper API error: ${searchResponse.status}`);
+      // Pool results across all queries
+      type PooledResult = serperClient.ExtractedLinkedInResult & { queryPriority: number };
+      const pooledResults: PooledResult[] = [];
+      const seenUrls = new Set<string>();
+
+      for (const rq of roleQueries) {
+        // Check cache first to avoid duplicate API calls
+        let response: serperClient.SerperResponse;
+        if (searchResultCache?.has(rq.query)) {
+          response = searchResultCache.get(rq.query)!;
+        } else {
+          response = await serperClient.serperPaginatedFetch(rq.query, 1, 10);
+          searchResultCache?.set(rq.query, response);
+        }
+
+        // Store the first response as rawResponse for logging
+        if (!rawResponse) {
+          rawResponse = response;
+        }
+
+        // Extract LinkedIn results and add to pool
+        const extracted = serperClient.extractAllLinkedInResults(response.organic || []);
+        for (const result of extracted) {
+          const normalizedUrl = result.linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
+          // Dedup within pool and skip already-used URLs
+          if (!seenUrls.has(normalizedUrl) && !usedUrls.has(normalizedUrl)) {
+            seenUrls.add(normalizedUrl);
+            pooledResults.push({ ...result, queryPriority: rq.priority });
+          }
+        }
+
+        // Early exit if we have enough unused results
+        if (pooledResults.length >= MIN_RESULTS_FOR_EARLY_EXIT) {
+          break;
+        }
       }
 
-      rawResponse = await searchResponse.json() as serperClient.SerperResponse;
+      // Rank pooled results by relevance
+      const ranked = serperClient.rankResultsBySeniority(pooledResults, role);
 
-      // Extract the Nth result that hasn't been used yet
-      const extractedResult = serperClient.extractLinkedInResultByIndex(
-        rawResponse.organic || [],
-        roleInstanceIndex,
-        usedUrls
-      );
+      // Pick the first unused result (offset by roleInstanceIndex for multi-person)
+      const selectedResult = ranked[roleInstanceIndex] ?? ranked[0] ?? null;
 
-      if (extractedResult) {
-        linkedinUrl = extractedResult.linkedinUrl;
-        firstName = extractedResult.firstName;
-        lastName = extractedResult.lastName;
+      if (selectedResult) {
+        linkedinUrl = selectedResult.linkedinUrl;
+        firstName = selectedResult.firstName;
+        lastName = selectedResult.lastName;
 
-        // Add to used URLs
+        // Add selected URL to used set
         const normalizedUrl = linkedinUrl.toLowerCase().trim().replace(/\/$/, "");
         usedUrls.add(normalizedUrl);
       }
@@ -815,9 +850,11 @@ async function processItem(
         company: inputData.company,
         role: inputData.role,
         roleInstanceIndex,
+        queriesUsed: roleQueries.length,
+        pooledResultCount: pooledResults.length,
         usedUrlsCount: usedUrls.size,
         foundUrl: linkedinUrl,
-      }, "Processed role-based search with multi-person support");
+      }, "Processed multi-query role search");
     }
 
     // Store the extracted name from search results (useful for role-based searches)
@@ -1329,20 +1366,42 @@ export const createRerunJob = async (
 
 // Mapping of roles to similar alternatives for suggestions
 const SIMILAR_ROLES: Record<string, string[]> = {
+  // C-Suite / Leadership
   "CEO": ["Founder", "Co-Founder", "Managing Director", "President"],
   "Founder": ["CEO", "Co-Founder", "Owner", "President"],
   "Co-Founder": ["Founder", "CEO", "Owner"],
   "CTO": ["VP Engineering", "Chief Technology Officer", "Head of Engineering"],
   "CFO": ["VP Finance", "Chief Financial Officer", "Finance Director"],
   "COO": ["VP Operations", "Chief Operating Officer", "Operations Director"],
+
+  // PE / Finance
+  "Managing Partner": ["Partner", "Founding Partner", "General Partner", "Senior Partner"],
+  "Partner": ["Managing Partner", "Founding Partner", "General Partner", "Principal"],
+  "Founding Partner": ["Managing Partner", "Partner", "General Partner"],
+  "General Partner": ["Managing Partner", "Partner", "Founding Partner"],
+  "Managing Director": ["Director", "Senior Managing Director", "Partner", "Executive Director"],
+  "Principal": ["Vice President", "Senior Principal", "Partner", "Director"],
+  "Head of Investments": ["Investment Director", "Chief Investment Officer", "Director of Investments"],
+  "Vice President": ["Senior Vice President", "Principal", "Director", "Associate Vice President"],
+  "Associate": ["Senior Associate", "Analyst", "Vice President"],
+
+  // Sales / Revenue
   "VP Sales": ["Head of Sales", "Sales Director", "Chief Revenue Officer", "CRO"],
   "Head of Sales": ["VP Sales", "Sales Director", "Director of Sales"],
+
+  // Marketing
   "VP Marketing": ["Head of Marketing", "Marketing Director", "CMO"],
   "Head of Marketing": ["VP Marketing", "Marketing Director", "Director of Marketing"],
+
+  // Engineering
   "VP Engineering": ["CTO", "Head of Engineering", "Engineering Director"],
   "Head of Engineering": ["VP Engineering", "Engineering Director", "CTO"],
+
+  // Product
   "VP Product": ["Head of Product", "Product Director", "CPO"],
   "Head of Product": ["VP Product", "Product Director", "Director of Product"],
+
+  // Growth
   "Head of Growth": ["VP Growth", "Growth Director", "Growth Lead"],
   "VP Growth": ["Head of Growth", "Growth Director", "Chief Growth Officer"],
 };
