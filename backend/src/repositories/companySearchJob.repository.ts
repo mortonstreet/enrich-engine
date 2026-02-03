@@ -17,6 +17,7 @@ export type CreateCompanySearchJobData = {
   finalSearchQuery?: string;
   maxPages?: number;
   status?: string;
+  queryVariations?: unknown;
 };
 
 export type CreateCompanySearchItemData = {

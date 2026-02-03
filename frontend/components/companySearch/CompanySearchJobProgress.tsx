@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Progress } from "@/components/ui/Progress";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { CompanySearchJobStatus, DBCompanySearchJob } from "@shared/types/src";
@@ -18,6 +19,16 @@ const statusLabels: Record<string, string> = {
   failed: "Failed",
 };
 
+function parseQueryVariations(raw: unknown): Array<{ query: string; explanation: string }> {
+  try {
+    if (!raw) return [];
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function CompanySearchJobProgress({ job }: CompanySearchJobProgressProps) {
   const isActive = [
     CompanySearchJobStatus.PENDING,
@@ -27,6 +38,12 @@ export function CompanySearchJobProgress({ job }: CompanySearchJobProgressProps)
 
   const isCompleted = job.status === CompanySearchJobStatus.COMPLETED;
   const isFailed = job.status === CompanySearchJobStatus.FAILED;
+
+  const variations = useMemo(() => parseQueryVariations((job as any).queryVariations), [job]);
+  const totalQueries = variations.length + 1; // primary + variations
+  const currentVariation = job.maxPages > 0
+    ? Math.min(Math.floor(job.scrapedPages / job.maxPages) + 1, totalQueries)
+    : 1;
 
   const progressValue = job.totalPages > 0
     ? Math.round((job.scrapedPages / job.totalPages) * 100)
@@ -50,17 +67,24 @@ export function CompanySearchJobProgress({ job }: CompanySearchJobProgressProps)
         <div className="space-y-2">
           <Progress value={progressValue} className="h-2" />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Page {job.scrapedPages} of {job.maxPages || job.totalPages}</span>
+            <span>
+              Page {job.scrapedPages} of {job.totalPages}
+              {totalQueries > 1 && ` (query ${currentVariation} of ${totalQueries})`}
+            </span>
             <span>{progressValue}%</span>
           </div>
         </div>
       )}
 
       {isCompleted && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-semibold">{job.scrapedPages}</p>
             <p className="text-xs text-muted-foreground">Pages Scraped</p>
+          </div>
+          <div className="text-center p-3 bg-muted/50 rounded-lg">
+            <p className="text-lg font-semibold">{totalQueries}</p>
+            <p className="text-xs text-muted-foreground">Query Variations</p>
           </div>
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-semibold">{job.rawResultCount}</p>

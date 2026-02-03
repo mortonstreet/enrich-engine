@@ -107,7 +107,7 @@ export function ResultsPreview({
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-                Max Pages (~10 results per page)
+                Max Pages per query variation (~10 results per page)
               </label>
               <Input
                 type="number"
@@ -118,6 +118,9 @@ export function ResultsPreview({
               />
             </div>
           </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            AI will generate 3-5 query variations for maximum coverage. Each variation gets up to {maxPages} pages of results, then all results are deduplicated.
+          </p>
           <div className="flex gap-3">
             <Button variant="outline" onClick={onBack}>
               Back

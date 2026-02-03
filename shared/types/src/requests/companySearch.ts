@@ -55,7 +55,7 @@ export const CreateCompanySearchJobRequestSchema = z.object({
   name: z.string().max(255).optional(),
   naturalLanguageQuery: z.string().min(5).max(1000),
   searchQuery: z.string().min(3).max(1000),
-  maxPages: z.coerce.number().int().positive().max(20).default(10),
+  maxPages: z.coerce.number().int().positive().max(50).default(10),
 });
 
 export type CreateCompanySearchJobRequest = z.infer<typeof CreateCompanySearchJobRequestSchema>;
@@ -86,7 +86,12 @@ export type GetCompanySearchJobRequest = z.infer<typeof GetCompanySearchJobReque
 
 export type CompanySearchJobDetailResponse = DBCompanySearchJob & {
   items?: DBCompanySearchItem[];
+  queryVariations?: Array<{ query: string; explanation: string }>;
 };
+
+export interface GenerateQueryVariationsResponse {
+  variations: Array<{ query: string; explanation: string }>;
+}
 
 export const DownloadCompanySearchRequestSchema = z.object({
   jobId: z.string().uuid(),
@@ -112,4 +117,6 @@ export interface CreatePeopleSearchFromCompaniesResponse {
   message: string;
   companyCount: number;
   totalItems: number;
+  skippedByDedup?: number;
+  originalCompanyCount?: number;
 }

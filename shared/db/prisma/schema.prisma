@@ -870,6 +870,7 @@ model CompanySearchJob {
   maxPages             Int       @default(10)
   rawResultCount       Int       @default(0)
   dedupedResultCount   Int       @default(0)
+  queryVariations      Json?     @default("[]")
   scrapeJobId          String?   // Optional link to people search ScrapeJob
   errorMessage         String?
   createdAt            DateTime  @default(now())

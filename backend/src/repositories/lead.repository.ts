@@ -309,6 +309,36 @@ export const getAllLinkedinUrlsInOrganization = async (
   );
 };
 
+// Get counts of existing leads per company+role combination (for dedup pre-filtering)
+export const getCompanyRoleCounts = async (
+  organizationId: string,
+  companyNames: string[],
+  roleNames: string[],
+): Promise<Map<string, number>> => {
+  if (companyNames.length === 0 || roleNames.length === 0) return new Map();
+
+  const results = await db
+    .selectFrom("lead")
+    .where("organizationId", "=", organizationId)
+    .where("company", "in", companyNames)
+    .where("role", "in", roleNames)
+    .where("linkedinUrl", "is not", null)
+    .where("linkedinUrl", "!=", "")
+    .select(["company", "role"])
+    .select(sql<number>`count(*)::int`.as("count"))
+    .groupBy(["company", "role"])
+    .execute();
+
+  const map = new Map<string, number>();
+  for (const row of results) {
+    if (row.company && row.role) {
+      map.set(`${row.company}|${row.role}`, row.count);
+    }
+  }
+
+  return map;
+};
+
 // Advanced filtering for list building
 export type FilterLeadsOptions = {
   page: number;

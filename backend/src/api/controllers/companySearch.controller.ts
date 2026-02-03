@@ -75,10 +75,25 @@ export const createCompanySearchJob: AuthRequestHandler<CreateCompanySearchJobRe
     return res.status(400).json({ error: "No active organization" });
   }
 
+  // Generate query variations for broader coverage
+  let queryVariations: Array<{ query: string; explanation: string }> = [];
+  try {
+    const apiKey = await getOpenRouterApiKey(organizationId);
+    const variationsResult = await companySearchService.generateSearchQueryVariations(
+      searchQuery,
+      naturalLanguageQuery,
+      apiKey
+    );
+    queryVariations = variationsResult.variations;
+  } catch (error) {
+    // Non-fatal: proceed with just the primary query
+    console.warn("Failed to generate query variations, proceeding with primary query only:", error);
+  }
+
   const result = await companySearchService.createCompanySearchJob(
     organizationId,
     req.user.id,
-    { name, naturalLanguageQuery, searchQuery, maxPages }
+    { name, naturalLanguageQuery, searchQuery, maxPages, queryVariations }
   );
 
   await addCompanySearchJob(result.job.id);

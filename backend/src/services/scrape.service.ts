@@ -566,6 +566,11 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
     // Key: company|role, Value: Set of used LinkedIn URLs (normalized)
     const usedUrlsByCompanyRole = new Map<string, Set<string>>();
 
+    // Load all known LinkedIn URLs across the entire organization for global dedup
+    // This prevents re-searching people found in prior jobs
+    const globalExcludeUrls = await leadRepository.getAllLinkedinUrlsInOrganization(job.organizationId);
+    logger.info({ jobId, globalExcludeUrlCount: globalExcludeUrls.size }, "Loaded global LinkedIn URL exclusion set");
+
     // Also track already-completed items' URLs from previous runs
     const { items: allItems } = await scrapeJobRepository.findByIdWithItems(jobId);
     for (const completedItem of allItems) {
@@ -579,6 +584,17 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
         usedUrlsByCompanyRole.get(companyRoleKey)!.add(normalizedUrl);
       }
     }
+
+    // Merge global exclude URLs into every company+role bucket
+    // Also seed a default set for new buckets that will be created during processing
+    for (const [key, urlSet] of usedUrlsByCompanyRole) {
+      for (const url of globalExcludeUrls) {
+        urlSet.add(url);
+      }
+    }
+
+    // Store global URLs so new buckets created during processItem also get them
+    const globalUrlSet = globalExcludeUrls;
 
     // Track if job was paused during processing
     let wasPaused = false;
@@ -601,7 +617,7 @@ export const processScrapeJob = async (jobId: string): Promise<void> => {
           }
         }
 
-        return processItem(item, job, domainMemo, usedUrlsByCompanyRole);
+        return processItem(item, job, domainMemo, usedUrlsByCompanyRole, globalUrlSet);
       },
 
       onItemComplete: async (_result, _item, index) => {
@@ -715,7 +731,8 @@ async function processItem(
   item: DBScrapeJobItem,
   job: DBScrapeJob,
   domainMemo: DomainMemo,
-  usedUrlsByCompanyRole: Map<string, Set<string>>
+  usedUrlsByCompanyRole: Map<string, Set<string>>,
+  globalExcludeUrls?: Set<string>
 ): Promise<ProcessItemResult> {
   const inputData = item.inputData as Record<string, string>;
 
@@ -755,7 +772,8 @@ async function processItem(
 
       // Get or create the set of used URLs for this company+role
       if (!usedUrlsByCompanyRole.has(companyRoleKey)) {
-        usedUrlsByCompanyRole.set(companyRoleKey, new Set());
+        // Seed new buckets with global exclude URLs to avoid re-finding people from prior jobs
+        usedUrlsByCompanyRole.set(companyRoleKey, new Set(globalExcludeUrls));
       }
       const usedUrls = usedUrlsByCompanyRole.get(companyRoleKey)!;
 
@@ -1061,6 +1079,32 @@ export const createOrUpdateResultList = async (jobId: string): Promise<void> => 
     if (newLeads.length > 0) {
       await listRepository.createLeads(newLeads);
       logger.info({ jobId, listId: list.id, newLeadsCreated: newLeads.length }, "Created new leads");
+
+      // Upsert into enriched_contact for long-term global dedup cache
+      try {
+        const enrichedContactRepo = await import("@/repositories/enrichedContact.repository");
+        const contactsToUpsert = newLeads
+          .filter((lead) => lead.linkedinUrl)
+          .map((lead) => ({
+            organizationId: lead.organizationId,
+            linkedinUrl: lead.linkedinUrl,
+            firstName: lead.firstName,
+            lastName: lead.lastName,
+            company: lead.company,
+            companyDomain: lead.companyDomain,
+            role: lead.role,
+          }));
+
+        if (contactsToUpsert.length > 0) {
+          const upsertResult = await enrichedContactRepo.bulkUpsert(contactsToUpsert);
+          logger.info(
+            { jobId, created: upsertResult.created, updated: upsertResult.updated },
+            "Upserted enriched contacts from scrape results"
+          );
+        }
+      } catch (enrichError) {
+        logger.warn({ error: enrichError, jobId }, "Failed to upsert enriched contacts, continuing");
+      }
     }
 
     // Recalculate lead count from actual leads in the database for accuracy

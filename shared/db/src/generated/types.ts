@@ -98,6 +98,7 @@ export type CompanySearchJob = {
     maxPages: Generated<number>;
     rawResultCount: Generated<number>;
     dedupedResultCount: Generated<number>;
+    queryVariations: Generated<unknown | null>;
     scrapeJobId: string | null;
     errorMessage: string | null;
     createdAt: Generated<Timestamp>;

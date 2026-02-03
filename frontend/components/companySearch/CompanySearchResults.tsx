@@ -204,7 +204,21 @@ export function CompanySearchResults({ job, items }: CompanySearchResultsProps) 
 
           {createPeopleSearch.isSuccess && (
             <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-              People search created! {createPeopleSearch.data.message}
+              <p>{createPeopleSearch.data.message}</p>
+              {createPeopleSearch.data.skippedByDedup ? (
+                <p className="mt-1 text-green-600">
+                  {createPeopleSearch.data.skippedByDedup} of {createPeopleSearch.data.originalCompanyCount} companies skipped (already have results for requested roles)
+                </p>
+              ) : null}
+              {createPeopleSearch.data.scrapeJobId && (
+                <a
+                  href="/dashboard/scrape"
+                  className="inline-flex items-center gap-1 mt-2 text-green-700 underline hover:text-green-900"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View scrape job
+                </a>
+              )}
             </div>
           )}
 

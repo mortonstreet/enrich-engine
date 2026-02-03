@@ -8,6 +8,7 @@ import logger from "@/lib/logger";
 import {
   CompanySearchJobStatus,
   GenerateSearchQueryResponse,
+  GenerateQueryVariationsResponse,
   PreviewCompanySearchResponse,
   CreateCompanySearchJobResponse,
   CompanySearchJobDetailResponse,
@@ -93,6 +94,82 @@ export async function generateSearchQuery(
 }
 
 // ============================================
+// Generate Query Variations
+// ============================================
+
+const QUERY_VARIATIONS_SYSTEM_PROMPT = `You are an expert at generating diverse Google search query variations for finding companies on LinkedIn.
+
+Given a primary search query, generate 3-5 distinct variations that target the same intent but use different terminology, angles, or keyword combinations.
+
+Rules:
+- Every variation MUST include site:linkedin.com/company
+- Use different synonyms, industry terms, and phrasings across variations
+- Each variation should be meaningfully different (not just word order changes)
+- Do NOT use boolean operators (AND, OR, NOT)
+- Return ONLY valid JSON array: [{"query": "...", "explanation": "..."}, ...]`;
+
+export async function generateSearchQueryVariations(
+  primaryQuery: string,
+  naturalLanguageQuery: string,
+  apiKey: string
+): Promise<GenerateQueryVariationsResponse> {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://enrichengine.io",
+      "X-Title": "EnrichEngine",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.0-flash-001",
+      messages: [
+        { role: "system", content: QUERY_VARIATIONS_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Primary query: "${primaryQuery}"\n\nOriginal request: "${naturalLanguageQuery}"\n\nGenerate 3-5 diverse search query variations that will find different sets of LinkedIn company results for this same intent.`,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error({ status: response.status, errorText }, "OpenRouter API error for query variations");
+    throw new Error(`Failed to generate query variations: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content?.trim() || "[]";
+
+  let parsed: Array<{ query: string; explanation: string }>;
+  try {
+    let jsonContent = content;
+    if (content.includes("```json")) {
+      jsonContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    } else if (content.includes("```")) {
+      jsonContent = content.replace(/```\n?/g, "");
+    }
+    parsed = JSON.parse(jsonContent.trim());
+    if (!Array.isArray(parsed)) {
+      throw new Error("Response is not an array");
+    }
+  } catch {
+    logger.warn({ content }, "Failed to parse query variations response");
+    parsed = [];
+  }
+
+  // Filter to only valid variations that include the site filter
+  const variations = parsed
+    .filter((v) => v.query && v.query.includes("site:linkedin.com/company"))
+    .slice(0, 5);
+
+  return { variations };
+}
+
+// ============================================
 // Preview Search
 // ============================================
 
@@ -126,9 +203,11 @@ export async function createCompanySearchJob(
     naturalLanguageQuery: string;
     searchQuery: string;
     maxPages?: number;
+    queryVariations?: Array<{ query: string; explanation: string }>;
   }
 ): Promise<CreateCompanySearchJobResponse> {
   const jobName = params.name || `Company Search - ${new Date().toLocaleDateString()}`;
+  const variations = params.queryVariations || [];
 
   const job = await companySearchJobRepo.create({
     organizationId,
@@ -139,15 +218,17 @@ export async function createCompanySearchJob(
     finalSearchQuery: params.searchQuery,
     maxPages: params.maxPages || 10,
     status: CompanySearchJobStatus.PENDING,
+    queryVariations: JSON.stringify(variations),
   });
 
   if (!job) {
     throw new Error("Failed to create company search job");
   }
 
+  const numQueries = variations.length + 1; // primary + variations
   return {
     job,
-    message: `Company search job created. Will scrape up to ${params.maxPages || 10} pages.`,
+    message: `Company search job created. Will scrape up to ${params.maxPages || 10} pages across ${numQueries} query variation(s).`,
   };
 }
 
@@ -171,82 +252,117 @@ export async function processCompanySearchJob(jobId: string): Promise<void> {
   }
 
   try {
+    // Parse query variations
+    let queryVariations: Array<{ query: string; explanation: string }> = [];
+    try {
+      const raw = job.queryVariations;
+      if (raw && typeof raw === "string") {
+        queryVariations = JSON.parse(raw);
+      } else if (Array.isArray(raw)) {
+        queryVariations = raw as Array<{ query: string; explanation: string }>;
+      }
+    } catch {
+      logger.warn({ jobId }, "Failed to parse queryVariations, using primary query only");
+    }
+
+    // Build list of all queries: primary first, then variations
+    const allQueries = [
+      { query: job.finalSearchQuery, label: "primary" },
+      ...queryVariations.map((v, i) => ({ query: v.query, label: `variation_${i + 1}` })),
+    ];
+
+    const maxPages = job.maxPages || 10;
+    const totalPagesEstimate = maxPages * allQueries.length;
+
     // Update status to scraping
     await companySearchJobRepo.update(jobId, {
       status: CompanySearchJobStatus.SCRAPING,
+      totalPages: totalPagesEstimate,
     });
 
     await sendProgressUpdate(job.organizationId, jobId, {
       status: CompanySearchJobStatus.SCRAPING,
       scrapedPages: 0,
-      totalPages: job.maxPages,
+      totalPages: totalPagesEstimate,
+      currentVariation: 1,
+      totalVariations: allQueries.length,
     });
 
-    const maxPages = job.maxPages || 10;
-    let scrapedPages = 0;
+    let totalScrapedPages = 0;
 
-    for (let page = 1; page <= maxPages; page++) {
-      logger.info({ jobId, page, maxPages }, "Scraping company search page");
+    for (let qIdx = 0; qIdx < allQueries.length; qIdx++) {
+      const { query, label } = allQueries[qIdx];
+      logger.info({ jobId, queryIndex: qIdx, label, query }, "Starting scrape for query variation");
 
-      const response = await serperPaginatedFetch(job.finalSearchQuery, page);
-      const organicResults = response.organic || [];
-      const companies = extractCompanyResults(organicResults);
+      for (let page = 1; page <= maxPages; page++) {
+        logger.info({ jobId, queryIndex: qIdx, page, maxPages, label }, "Scraping company search page");
 
-      if (organicResults.length === 0) {
-        logger.info({ jobId, page }, "No more results from Serper, stopping pagination");
-        break;
-      }
+        const response = await serperPaginatedFetch(query, page);
+        const organicResults = response.organic || [];
+        const companies = extractCompanyResults(organicResults);
 
-      if (companies.length === 0) {
-        logger.info({ jobId, page }, "No LinkedIn companies on this page, continuing to next page");
-        scrapedPages = page;
-        await companySearchJobRepo.update(jobId, {
-          scrapedPages: page,
-          totalPages: maxPages,
-        });
-        await sendProgressUpdate(job.organizationId, jobId, {
-          status: CompanySearchJobStatus.SCRAPING,
-          scrapedPages: page,
-          totalPages: maxPages,
-        });
-        if (organicResults.length < 10) {
-          logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
+        if (organicResults.length === 0) {
+          logger.info({ jobId, queryIndex: qIdx, page }, "No more results from Serper, stopping pagination for this variation");
           break;
         }
-        continue;
-      }
 
-      // Create items for this page
-      const items = companies.map((c) => ({
-        jobId,
-        companyName: c.companyName,
-        linkedinUrl: c.linkedinUrl || null,
-        companyDomain: c.linkedinUrl ? extractDomainFromLinkedInUrl(c.linkedinUrl) : null,
-        source: `serper_page_${page}`,
-        serperPosition: c.position,
-        rawSnippet: c.snippet || null,
-      }));
+        if (companies.length === 0) {
+          logger.info({ jobId, queryIndex: qIdx, page }, "No LinkedIn companies on this page, continuing");
+          totalScrapedPages++;
+          await companySearchJobRepo.update(jobId, {
+            scrapedPages: totalScrapedPages,
+            totalPages: totalPagesEstimate,
+          });
+          await sendProgressUpdate(job.organizationId, jobId, {
+            status: CompanySearchJobStatus.SCRAPING,
+            scrapedPages: totalScrapedPages,
+            totalPages: totalPagesEstimate,
+            currentVariation: qIdx + 1,
+            totalVariations: allQueries.length,
+          });
+          if (organicResults.length < 10) {
+            logger.info({ jobId, queryIndex: qIdx, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination for this variation");
+            break;
+          }
+          continue;
+        }
 
-      await companySearchJobRepo.createItems(items);
+        // Create items for this page, tagged with query variation source
+        const items = companies.map((c) => ({
+          jobId,
+          companyName: c.companyName,
+          linkedinUrl: c.linkedinUrl || null,
+          companyDomain: c.linkedinUrl ? extractDomainFromLinkedInUrl(c.linkedinUrl) : null,
+          source: `serper_q${qIdx}_page_${page}`,
+          serperPosition: c.position,
+          rawSnippet: c.snippet || null,
+        }));
 
-      scrapedPages = page;
-      await companySearchJobRepo.update(jobId, {
-        scrapedPages: page,
-        totalPages: maxPages,
-      });
+        await companySearchJobRepo.createItems(items);
 
-      await sendProgressUpdate(job.organizationId, jobId, {
-        status: CompanySearchJobStatus.SCRAPING,
-        scrapedPages: page,
-        totalPages: maxPages,
-      });
+        totalScrapedPages++;
+        await companySearchJobRepo.update(jobId, {
+          scrapedPages: totalScrapedPages,
+          totalPages: totalPagesEstimate,
+        });
 
-      // Stop if Serper returned fewer raw results than requested (end of results)
-      if (organicResults.length < 10) {
-        logger.info({ jobId, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination");
-        break;
+        await sendProgressUpdate(job.organizationId, jobId, {
+          status: CompanySearchJobStatus.SCRAPING,
+          scrapedPages: totalScrapedPages,
+          totalPages: totalPagesEstimate,
+          currentVariation: qIdx + 1,
+          totalVariations: allQueries.length,
+        });
+
+        // Stop if Serper returned fewer raw results than requested (end of results)
+        if (organicResults.length < 10) {
+          logger.info({ jobId, queryIndex: qIdx, page, rawResultCount: organicResults.length }, "Partial raw page, stopping pagination for this variation");
+          break;
+        }
       }
     }
+
+    const scrapedPages = totalScrapedPages;
 
     // Run deduplication
     await companySearchJobRepo.update(jobId, {
@@ -414,7 +530,21 @@ export async function getCompanySearchJob(
     throw new Error("Unauthorized");
   }
 
-  return { ...job, items };
+  // Parse queryVariations from JSON to typed array
+  let queryVariations: Array<{ query: string; explanation: string }> | undefined;
+  try {
+    const raw = job.queryVariations;
+    if (raw) {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        queryVariations = parsed;
+      }
+    }
+  } catch {
+    // ignore parse errors
+  }
+
+  return { ...job, items, queryVariations };
 }
 
 // ============================================
@@ -469,22 +599,51 @@ export async function createPeopleSearchFromCompanies(
     throw new Error("No companies found in search results");
   }
 
-  // Import scrape service and queue dynamically to avoid circular deps
+  // Import scrape service, queue, and lead repository dynamically to avoid circular deps
   const scrapeService = await import("@/services/scrape.service");
   const { addScrapeJob } = await import("@/queues/scrape.queue");
+  const leadRepo = await import("@/repositories/lead.repository");
 
-  // Build CSV rows from companies: each company x each role x count
-  const csvRows: Array<{ company: string; role?: string }> = [];
+  const originalCompanyCount = dedupedItems.length;
+
+  // Dedup pre-filter: check existing leads for company+role combinations
+  const companyNames = dedupedItems.map((item) => item.companyName);
+  const roleNames = roleConfigs.map((rc) => rc.roleName);
+  const existingCounts = await leadRepo.getCompanyRoleCounts(organizationId, companyNames, roleNames);
+
+  // Build one row per company, adjusting roleConfigs per company based on existing leads
+  const csvRows: Array<{ company: string }> = [];
+  const adjustedRoleConfigs: RoleConfig[] = [...roleConfigs];
+  let skippedByDedup = 0;
 
   for (const item of dedupedItems) {
+    // Check if this company is fully covered for all roles
+    let hasNeededRoles = false;
     for (const config of roleConfigs) {
-      for (let i = 0; i < config.count; i++) {
-        csvRows.push({
-          company: item.companyName,
-          ...(config.roleName ? { role: config.roleName } : {}),
-        });
+      const key = `${item.companyName}|${config.roleName}`;
+      const existingCount = existingCounts.get(key) || 0;
+      if (existingCount < config.count) {
+        hasNeededRoles = true;
+        break;
       }
     }
+
+    if (hasNeededRoles) {
+      csvRows.push({ company: item.companyName });
+    } else {
+      skippedByDedup++;
+    }
+  }
+
+  if (csvRows.length === 0) {
+    return {
+      scrapeJobId: "",
+      message: `All ${originalCompanyCount} companies already have results for the requested roles`,
+      companyCount: 0,
+      totalItems: 0,
+      skippedByDedup,
+      originalCompanyCount,
+    };
   }
 
   const jobName = name || `People Search - ${job.name}`;
@@ -493,7 +652,7 @@ export async function createPeopleSearchFromCompanies(
     organizationId,
     userId,
     jobName,
-    ScrapeInputType.COMPANY,
+    ScrapeInputType.ROLE,
     csvRows as any,
     roleConfigs
   );
@@ -508,9 +667,11 @@ export async function createPeopleSearchFromCompanies(
 
   return {
     scrapeJobId: result.job.id,
-    message: `People search created for ${dedupedItems.length} companies with ${roleConfigs.length} role(s)`,
-    companyCount: dedupedItems.length,
-    totalItems: csvRows.length,
+    message: `People search created for ${csvRows.length} companies with ${roleConfigs.length} role(s)${skippedByDedup > 0 ? ` (${skippedByDedup} skipped - already have results)` : ""}`,
+    companyCount: csvRows.length,
+    totalItems: result.job.totalRows,
+    skippedByDedup,
+    originalCompanyCount,
   };
 }
 
