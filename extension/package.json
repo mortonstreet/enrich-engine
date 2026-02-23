@@ -1,0 +1,33 @@
+{
+  "name": "extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build:dev": "vite build --mode development && node ./scripts/validate-manifest.mjs development",
+    "build": "vite build --mode production && node ./scripts/validate-manifest.mjs production",
+    "build:prod": "VITE_API_URL=https://api.omnidial.io VITE_APP_URL=https://app.omnidial.io vite build --mode production && node ./scripts/validate-manifest.mjs production",
+    "zip": "pnpm run build:prod && cd dist && rm -f ../omnidial-extension.zip && zip -r ../omnidial-extension.zip .",
+    "validate:manifest:dev": "node ./scripts/validate-manifest.mjs development",
+    "validate:manifest:prod": "node ./scripts/validate-manifest.mjs production",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shared/types": "workspace:*",
+    "lucide-react": "^0.554.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "three": "^0.182.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@types/three": "^0.182.0",
+    "@vitejs/plugin-react": "^4.5.1",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5"
+  }
+}
