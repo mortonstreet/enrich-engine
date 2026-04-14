@@ -680,44 +680,6 @@ export type Disposition = {
   createdAt: Generated<Timestamp>
   updatedAt: Timestamp
 }
-export type EnrichEngineConnection = {
-  id: string
-  organizationId: string
-  apiKeyEncrypted: string
-  isActive: Generated<boolean>
-  lastSyncAt: Timestamp | null
-  createdById: string
-  createdAt: Generated<Timestamp>
-  updatedAt: Generated<Timestamp>
-}
-export type EnrichmentCache = {
-  id: string
-  lookupKey: string
-  lookupType: string
-  provider: string
-  rawResponse: unknown
-  normalizedData: unknown
-  expiresAt: Timestamp
-  hitCount: Generated<number>
-  lastHitAt: Timestamp | null
-  createdAt: Generated<Timestamp>
-  updatedAt: Generated<Timestamp>
-}
-export type EnrichmentHistory = {
-  id: string
-  organizationId: string
-  leadId: string
-  vendorConnectionId: string | null
-  provider: string
-  requestType: string
-  fieldsRequested: Generated<string[]>
-  fieldsEnriched: Generated<string[]>
-  creditsCost: Generated<number>
-  success: Generated<boolean>
-  errorMessage: string | null
-  responseTimeMs: number | null
-  createdAt: Generated<Timestamp>
-}
 export type EmailDomainProfile = {
   id: string
   domain: string
@@ -762,6 +724,44 @@ export type EmailVerificationAttempt = {
   ipPool: string | null
   resultStatus: string | null
   costUnits: Generated<number>
+  createdAt: Generated<Timestamp>
+}
+export type EnrichEngineConnection = {
+  id: string
+  organizationId: string
+  apiKeyEncrypted: string
+  isActive: Generated<boolean>
+  lastSyncAt: Timestamp | null
+  createdById: string
+  createdAt: Generated<Timestamp>
+  updatedAt: Generated<Timestamp>
+}
+export type EnrichmentCache = {
+  id: string
+  lookupKey: string
+  lookupType: string
+  provider: string
+  rawResponse: unknown
+  normalizedData: unknown
+  expiresAt: Timestamp
+  hitCount: Generated<number>
+  lastHitAt: Timestamp | null
+  createdAt: Generated<Timestamp>
+  updatedAt: Generated<Timestamp>
+}
+export type EnrichmentHistory = {
+  id: string
+  organizationId: string
+  leadId: string
+  vendorConnectionId: string | null
+  provider: string
+  requestType: string
+  fieldsRequested: Generated<string[]>
+  fieldsEnriched: Generated<string[]>
+  creditsCost: Generated<number>
+  success: Generated<boolean>
+  errorMessage: string | null
+  responseTimeMs: number | null
   createdAt: Generated<Timestamp>
 }
 export type ErrorLog = {
@@ -1587,10 +1587,10 @@ export type DB = {
   custom_field_schema: CustomFieldSchema
   data_vendor_connection: DataVendorConnection
   disposition: Disposition
-  enrichengine_connection: EnrichEngineConnection
   email_domain_profile: EmailDomainProfile
   email_pattern_stats: EmailPatternStats
   email_verification_attempt: EmailVerificationAttempt
+  enrichengine_connection: EnrichEngineConnection
   enrichment_cache: EnrichmentCache
   enrichment_history: EnrichmentHistory
   error_log: ErrorLog
