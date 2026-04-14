@@ -12,19 +12,22 @@ interface SidebarWithTopbarLayoutProps {
   children: React.ReactNode;
   onLogout: () => void;
   onOpenCreateOrg: () => void;
+  canCreateOrg?: boolean;
 }
 
 // Map routes to page names
 const getPageName = (pathname: string | null): string => {
-  if (!pathname) return "Scrape";
+  if (!pathname) return "Dashboard";
 
   const routes: Record<string, string> = {
-    "/dashboard": "Scrape",
+    "/dashboard": "Dashboard",
+    "/dashboard/crm": "CRM",
+    "/dashboard/campaigns": "Campaigns",
+    "/dashboard/leads": "Leads",
     "/dashboard/lists": "Lists",
-    "/dashboard/enrich": "Enrich",
+    "/dashboard/dialer": "Dialer",
     "/dashboard/settings": "Settings",
     "/dashboard/admin": "Admin",
-    "/dashboard/theme-builder": "Theme Builder",
   };
 
   // Check for exact match first
@@ -37,10 +40,10 @@ const getPageName = (pathname: string | null): string => {
     }
   }
 
-  return "Scrape";
+  return "Dashboard";
 };
 
-export function SidebarWithTopbarLayout({ children, onLogout, onOpenCreateOrg }: SidebarWithTopbarLayoutProps) {
+export function SidebarWithTopbarLayout({ children, onLogout, onOpenCreateOrg, canCreateOrg }: SidebarWithTopbarLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -89,7 +92,7 @@ export function SidebarWithTopbarLayout({ children, onLogout, onOpenCreateOrg }:
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-h-0 min-w-0 pt-16 sm:pt-0 flex flex-col">
+      <main className="flex-1 min-h-0 min-w-0 pt-16 sm:pt-0 flex flex-col overflow-hidden">
         {/* Content Header with Toggle + Page Name + User Menu */}
         <div className="hidden sm:flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
@@ -154,16 +157,18 @@ export function SidebarWithTopbarLayout({ children, onLogout, onOpenCreateOrg }:
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      onOpenCreateOrg();
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create workspace</span>
-                  </button>
+                  {canCreateOrg && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        onOpenCreateOrg();
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Create workspace</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Sign Out */}
@@ -191,7 +196,7 @@ export function SidebarWithTopbarLayout({ children, onLogout, onOpenCreateOrg }:
 
       {/* Mobile Sidebar (uses built-in mobile nav) - absolute to not affect flex layout */}
       <div className="sm:hidden absolute">
-        <Sidebar onLogout={onLogout} onOpenCreateOrg={onOpenCreateOrg} />
+        <Sidebar />
       </div>
     </div>
   );

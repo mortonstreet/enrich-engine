@@ -1,34 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import Navigation from "@/components/landing/Navigation";
-import ExaFooter from "@/components/landing/ExaFooter";
-import AnimatedPixelBackground from "@/components/landing/AnimatedPixelBackground";
-import ScrollReveal from "@/components/landing/ScrollReveal";
-import { Button } from "@/components/ui/Button";
-import { Mail, MessageSquare, Phone, MapPin, ArrowRight } from "lucide-react";
+import { Mail, Phone, MessageSquare, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import DarkNavigation from "@/components/landing/DarkNavigation";
+import DarkFooter from "@/components/landing/DarkFooter";
+import DarkScrollReveal from "@/components/landing/DarkScrollReveal";
 
 const contactMethods = [
   {
     icon: Mail,
-    title: "Email us",
-    description: "We'll respond within 24 hours",
-    action: "hello@enrich.dev",
-    href: "mailto:hello@enrich.dev",
+    title: "Email",
+    description: "Send us an email anytime",
+    value: "hello@omnidial.io",
+    href: "mailto:hello@omnidial.io",
   },
   {
     icon: MessageSquare,
-    title: "Live chat",
-    description: "Available M-F, 9am-6pm PT",
-    action: "Start a conversation",
+    title: "Live Chat",
+    description: "Available 9am-6pm EST",
+    value: "Start a chat",
     href: "#",
   },
   {
     icon: Phone,
-    title: "Call us",
-    description: "For enterprise inquiries",
-    action: "+1 (415) 555-0123",
-    href: "tel:+14155550123",
+    title: "Phone",
+    description: "Mon-Fri, 9am-6pm EST",
+    value: "+1 (555) 123-4567",
+    href: "tel:+15551234567",
   },
 ];
 
@@ -40,175 +39,181 @@ export default function ContactPage() {
     message: "",
     type: "general",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log("Form submitted:", formData);
+    setIsSubmitting(true);
+
+    // Simulate form submission
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    setIsSubmitting(false);
+    setSubmitted(true);
   };
 
   return (
-    <div className="min-h-screen text-[#111827]">
-      <AnimatedPixelBackground />
-      <div className="relative z-10 bg-white">
-        <Navigation />
+    <div className="min-h-screen text-white bg-[#0a0a0a]">
+      <DarkNavigation />
+
+      <div className="relative z-10 bg-[#0a0a0a] pt-16">
         <main>
           {/* Hero */}
-          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
+          <section className="py-16 sm:py-20 md:py-24">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-              <ScrollReveal>
-                <h1
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-4 sm:mb-6"
-                  style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                >
+              <DarkScrollReveal>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight mb-4 heading-display">
                   Get in touch
                 </h1>
-                <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-                  Have questions about our API? Want to discuss enterprise pricing?
-                  We&apos;d love to hear from you.
+                <p className="text-white/50 text-lg max-w-2xl mx-auto">
+                  Have questions about OmniDial? We&apos;d love to hear from you.
                 </p>
-              </ScrollReveal>
+              </DarkScrollReveal>
             </div>
           </section>
 
-          {/* Contact Methods */}
-          <section className="py-8 sm:py-12 bg-gray-50">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          {/* Contact methods */}
+          <section className="pb-12 sm:pb-16">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
+              <div className="grid sm:grid-cols-3 gap-4 sm:gap-6">
                 {contactMethods.map((method, i) => (
-                  <ScrollReveal key={i} delay={i * 80}>
+                  <DarkScrollReveal key={method.title} delay={i * 100}>
                     <a
                       href={method.href}
-                      className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 hover:border-[#E63946]/30 hover:shadow-lg transition-all block group"
+                      className="block p-6 bg-[#111111] rounded-2xl border border-white/5 hover:border-white/10 transition-colors group"
                     >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-[#E63946]/10 flex items-center justify-center text-[#E63946] mb-3 sm:mb-4 group-hover:bg-[#E63946] group-hover:text-white transition-colors">
-                        <method.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-4 group-hover:bg-white group-hover:text-black transition-colors">
+                        <method.icon className="w-6 h-6" />
                       </div>
-                      <h3 className="font-semibold text-base sm:text-lg mb-1">{method.title}</h3>
-                      <p className="text-gray-500 text-xs sm:text-sm mb-2 sm:mb-3">{method.description}</p>
-                      <span className="text-[#E63946] font-medium text-xs sm:text-sm">{method.action}</span>
+                      <h3 className="font-semibold text-white mb-1">{method.title}</h3>
+                      <p className="text-white/40 text-sm mb-2">{method.description}</p>
+                      <p className="text-white/70 text-sm">{method.value}</p>
                     </a>
-                  </ScrollReveal>
+                  </DarkScrollReveal>
                 ))}
               </div>
             </div>
           </section>
 
-          {/* Contact Form */}
-          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6">
-              <ScrollReveal>
-                <div className="bg-gray-50 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-12">
-                  <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Send us a message</h2>
-                  <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* Contact form */}
+          <section className="py-12 sm:py-16 md:py-20 border-t border-white/5">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6">
+              <DarkScrollReveal>
+                <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-8">
+                  Send us a message
+                </h2>
+
+                {submitted ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6">
+                      <Send className="w-8 h-8 text-green-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">Message sent!</h3>
+                    <p className="text-white/50">
+                      We&apos;ll get back to you within 24 hours.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="name" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                          Your name
+                        <label className="block text-sm text-white/60 mb-2">
+                          Name
                         </label>
                         <input
                           type="text"
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
-                          placeholder="John Doe"
                           required
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, name: e.target.value })
+                          }
+                          className="w-full px-4 py-3 bg-[#111111] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-white/20"
+                          placeholder="John Doe"
                         />
                       </div>
                       <div>
-                        <label htmlFor="email" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                          Work email
+                        <label className="block text-sm text-white/60 mb-2">
+                          Email
                         </label>
                         <input
                           type="email"
-                          id="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
-                          placeholder="john@company.com"
                           required
+                          value={formData.email}
+                          onChange={(e) =>
+                            setFormData({ ...formData, email: e.target.value })
+                          }
+                          className="w-full px-4 py-3 bg-[#111111] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-white/20"
+                          placeholder="john@company.com"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label htmlFor="company" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      <label className="block text-sm text-white/60 mb-2">
                         Company
                       </label>
                       <input
                         type="text"
-                        id="company"
                         value={formData.company}
-                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] text-sm sm:text-base"
-                        placeholder="Acme Inc"
+                        onChange={(e) =>
+                          setFormData({ ...formData, company: e.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-[#111111] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-white/20"
+                        placeholder="Your company"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="type" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                        How can we help?
+                      <label className="block text-sm text-white/60 mb-2">
+                        What can we help with?
                       </label>
                       <select
-                        id="type"
                         value={formData.type}
-                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] bg-white text-sm sm:text-base"
+                        onChange={(e) =>
+                          setFormData({ ...formData, type: e.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-[#111111] border border-white/10 rounded-xl text-white focus:outline-none focus:border-white/20"
                       >
                         <option value="general">General inquiry</option>
-                        <option value="sales">Talk to sales</option>
-                        <option value="support">Technical support</option>
+                        <option value="sales">Sales</option>
+                        <option value="support">Support</option>
                         <option value="partnership">Partnership</option>
                       </select>
                     </div>
 
                     <div>
-                      <label htmlFor="message" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      <label className="block text-sm text-white/60 mb-2">
                         Message
                       </label>
                       <textarea
-                        id="message"
-                        value={formData.message}
-                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        rows={5}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E63946]/30 focus:border-[#E63946] resize-none text-sm sm:text-base"
-                        placeholder="Tell us more about your needs..."
                         required
+                        rows={5}
+                        value={formData.message}
+                        onChange={(e) =>
+                          setFormData({ ...formData, message: e.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-[#111111] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-white/20 resize-none"
+                        placeholder="Tell us about your needs..."
                       />
                     </div>
 
                     <Button
                       type="submit"
-                      className="w-full bg-[#111827] text-white hover:bg-black h-11 sm:h-12 text-sm sm:text-base font-medium"
+                      disabled={isSubmitting}
+                      className="w-full bg-white text-black hover:bg-white/90 rounded-xl h-12"
                     >
-                      Send message
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      {isSubmitting ? "Sending..." : "Send message"}
                     </Button>
                   </form>
-                </div>
-              </ScrollReveal>
-            </div>
-          </section>
-
-          {/* Office Location */}
-          <section className="py-12 sm:py-16 bg-gray-50">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-              <ScrollReveal>
-                <div className="flex items-center justify-center gap-2 text-gray-500 mb-2">
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-xs sm:text-sm">Headquarters</span>
-                </div>
-                <p className="text-base sm:text-lg text-gray-800">
-                  131 Continental Dr Suite 305<br />
-                  Newark, DE 19713
-                </p>
-              </ScrollReveal>
+                )}
+              </DarkScrollReveal>
             </div>
           </section>
         </main>
       </div>
-      <ExaFooter />
+
+      <DarkFooter />
     </div>
   );
 }

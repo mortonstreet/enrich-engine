@@ -1,82 +1,283 @@
-import { Router } from "express";
+import { Router, Response, NextFunction } from 'express'
+import { withBetterAuth } from '../middlewares/auth'
 import {
-  enrichPerson,
-  getEnrichmentHistory,
-  createBulkJob,
-  getBulkJobStatus,
-  downloadBulkJobCsv,
-} from "@/api/controllers/enrichment.controller";
-import { authenticatedRoute } from "./utils";
-import { withBetterAuth } from "../middlewares/auth";
-import { validateAndMerge } from "../middlewares/validationMiddleware";
+  expensiveOperationRateLimit,
+  generalApiRateLimit,
+} from '../middlewares/rateLimiterMiddleware'
+import { AuthRequest } from '@/types/handlers'
+import * as enrichmentService from '@/services/enrichment.service'
 import {
-  EnrichPersonRequest,
-  EnrichPersonRequestSchema,
-  GetEnrichmentHistoryRequest,
-  GetEnrichmentHistoryRequestSchema,
-  BulkEnrichRequest,
+  ConnectVendorRequestSchema,
+  UpdateVendorConnectionRequestSchema,
+  ListVendorConnectionsRequestSchema,
+  EnrichLeadRequestSchema,
   BulkEnrichRequestSchema,
-  GetBulkJobRequest,
-  GetBulkJobRequestSchema,
-} from "@shared/types/src";
-import multer from "multer";
+  GetEnrichmentHistoryRequestSchema,
+  EmailEnrichListRequestSchema,
+} from '@shared/types/src'
 
-const router = Router();
+const router = Router()
 
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === "text/csv" || file.originalname.endsWith(".csv")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only CSV files are allowed"));
+// Read endpoints use general rate limit; expensive mutations get their own below
+router.use(generalApiRateLimit)
+
+// Helper to get organizationId from session (better-auth nests session inside session)
+const getOrgId = (authReq: AuthRequest<unknown>): string | null =>
+  (authReq.session as any)?.session?.activeOrganizationId ?? null
+
+// === Vendor Connections ===
+
+router.get(
+  '/vendors',
+  withBetterAuth,
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const { organizationId, isActive } =
+        ListVendorConnectionsRequestSchema.parse({
+          ...req.query,
+          organizationId: getOrgId(authReq),
+        })
+
+      const connections = await enrichmentService.listVendorConnections(
+        organizationId,
+        { isActive },
+      )
+
+      res.json({ data: connections })
+    } catch (error) {
+      next(error)
     }
   },
-});
+)
 
-// Single enrichment
 router.post(
-  "/enrich",
+  '/vendors',
   withBetterAuth,
-  validateAndMerge(EnrichPersonRequestSchema),
-  authenticatedRoute<EnrichPersonRequest>(enrichPerson),
-);
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const data = ConnectVendorRequestSchema.parse({
+        ...req.body,
+        organizationId: getOrgId(authReq),
+      })
 
-// Get enrichment history
-router.get(
-  "/history",
+      const connection = await enrichmentService.connectVendor(
+        data.organizationId,
+        authReq.user.id,
+        {
+          provider: data.provider,
+          apiKey: data.apiKey,
+          priority: data.priority,
+          creditsLimit: data.creditsLimit,
+          enabledDataTypes: data.enabledDataTypes,
+        },
+      )
+
+      res.status(201).json(connection)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+router.patch(
+  '/vendors/:id',
   withBetterAuth,
-  validateAndMerge(GetEnrichmentHistoryRequestSchema),
-  authenticatedRoute<GetEnrichmentHistoryRequest>(getEnrichmentHistory),
-);
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const data = UpdateVendorConnectionRequestSchema.parse({
+        id: req.params.id,
+        ...req.body,
+      })
 
-// Bulk enrichment - upload CSV
+      const connection = await enrichmentService.updateVendorConnection(
+        data.id,
+        {
+          apiKey: data.apiKey,
+          isActive: data.isActive,
+          priority: data.priority,
+          creditsLimit: data.creditsLimit,
+          enabledDataTypes: data.enabledDataTypes,
+        },
+      )
+
+      res.json(connection)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+router.delete(
+  '/vendors/:id',
+  withBetterAuth,
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      await enrichmentService.disconnectVendor(req.params.id)
+      res.status(204).send()
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
 router.post(
-  "/bulk",
+  '/vendors/:id/test',
   withBetterAuth,
-  upload.single("file"),
-  validateAndMerge(BulkEnrichRequestSchema),
-  authenticatedRoute<BulkEnrichRequest>(createBulkJob),
-);
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const result = await enrichmentService.testVendorConnection(req.params.id)
+      res.json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
 
-// Get bulk job status
+// === Lead Enrichment ===
+
+router.post(
+  '/leads/:leadId/enrich',
+  expensiveOperationRateLimit,
+  withBetterAuth,
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const data = EnrichLeadRequestSchema.parse({
+        leadId: req.params.leadId,
+        ...req.body,
+        organizationId: getOrgId(authReq),
+      })
+
+      const result = await enrichmentService.enrichLead(
+        data.organizationId,
+        data.leadId,
+        {
+          providers: data.providers,
+          forceRefresh: data.forceRefresh,
+        },
+      )
+
+      res.json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+router.post(
+  '/bulk-enrich',
+  expensiveOperationRateLimit,
+  withBetterAuth,
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const data = BulkEnrichRequestSchema.parse({
+        ...req.body,
+        organizationId: getOrgId(authReq),
+      })
+
+      const result = await enrichmentService.bulkEnrich(
+        data.organizationId,
+        data.leadIds,
+        {
+          providers: data.providers,
+          forceRefresh: data.forceRefresh,
+        },
+      )
+
+      res.json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+router.post(
+  '/email-enrich-list/:listId',
+  expensiveOperationRateLimit,
+  withBetterAuth,
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const data = EmailEnrichListRequestSchema.parse({
+        listId: req.params.listId,
+        ...req.body,
+        organizationId: getOrgId(authReq),
+      })
+
+      const result = await enrichmentService.emailEnrichList(
+        data.organizationId,
+        data.listId,
+        {
+          useProspeo: data.useProspeo,
+          forceRefresh: data.forceRefresh,
+          verifyGeneratedEmails: data.verifyGeneratedEmails,
+        },
+      )
+
+      res.json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+// === Contact Info ===
+
 router.get(
-  "/bulk/:jobId",
+  '/leads/:leadId/contacts',
   withBetterAuth,
-  validateAndMerge(GetBulkJobRequestSchema),
-  authenticatedRoute<GetBulkJobRequest>(getBulkJobStatus),
-);
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const contacts = await enrichmentService.getLeadContactInfo(
+        req.params.leadId,
+      )
+      res.json({ leadId: req.params.leadId, contacts })
+    } catch (error) {
+      next(error)
+    }
+  },
+)
 
-// Download bulk job results as CSV
+// === Enrichment History ===
+
 router.get(
-  "/bulk/:jobId/download",
+  '/history',
   withBetterAuth,
-  validateAndMerge(GetBulkJobRequestSchema),
-  authenticatedRoute<GetBulkJobRequest>(downloadBulkJobCsv),
-);
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest<unknown>
+      const {
+        organizationId,
+        leadId,
+        provider,
+        startDate,
+        endDate,
+        page,
+        limit,
+      } = GetEnrichmentHistoryRequestSchema.parse({
+        ...req.query,
+        organizationId: getOrgId(authReq),
+      })
 
-export default router;
+      const result = await enrichmentService.getEnrichmentHistory(
+        organizationId,
+        {
+          leadId,
+          provider,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+        },
+        { page, limit },
+      )
+
+      res.json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+export default router

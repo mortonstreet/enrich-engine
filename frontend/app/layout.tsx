@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import { Toaster } from "sonner";
@@ -8,36 +8,46 @@ import { GoogleAnalytics } from '@next/third-parties/google';
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
 const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
 });
 
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
+
 export const metadata: Metadata = {
-  title: "Enrich Engine",
-  description: "Intelligent email enrichment platform",
-  metadataBase: new URL("https://enrichengine.io"),
+  title: "OmniDial | Sales Dialer Built for Closers",
+  description: "A powerful, browser-based VoIP sales dialer. Click-to-dial, power dialer, call recording, CRM pipeline, and analytics. Built for SDRs and sales teams who close.",
+  keywords: ["sales dialer", "VoIP", "power dialer", "call recording", "SDR tools", "sales software", "CRM"],
+  authors: [{ name: "OmniDial" }],
   openGraph: {
-    title: "Enrich Engine",
-    description: "Intelligent email enrichment platform",
-    siteName: "Enrich Engine",
+    title: "OmniDial | Sales Dialer Built for Closers",
+    description: "A powerful, browser-based VoIP sales dialer. Click-to-dial, power dialer, call recording, CRM pipeline, and analytics.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Enrich Engine",
-    description: "Intelligent email enrichment platform",
+    title: "OmniDial | Sales Dialer Built for Closers",
+    description: "A powerful, browser-based VoIP sales dialer. Click-to-dial, power dialer, call recording, CRM pipeline, and analytics.",
   },
 };
 
@@ -47,21 +57,34 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const cssVariables = generateCSSVariables(themeConfig);
+  const analyticsEnabled =
+    process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_ENABLED === "true";
+  const speedInsightsEnabled =
+    process.env.NEXT_PUBLIC_VERCEL_SPEED_INSIGHTS_ENABLED === "true";
 
   return (
-    <html lang="en" style={cssVariables}>
+    <html lang="en" style={cssVariables} className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} antialiased`}
+        className={`${plusJakarta.variable} ${jetbrainsMono.variable} ${sourceSerif.variable} antialiased grain`}
       >
         <Providers>{children}</Providers>
-        <Analytics />
-        <SpeedInsights />
-        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID as string} />
+        {analyticsEnabled && <Analytics />}
+        {speedInsightsEnabled && <SpeedInsights />}
+        {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID !== 'NEXT_PUBLIC_GOOGLE_ANALYTICS_ID' && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID} />
+        )}
         <Toaster
-          theme="light"        
-          position="bottom-right"
-          richColors
-          toastOptions={{ style: { borderRadius: 12 } }}
+          theme="dark"
+          position="top-center"
+          toastOptions={{
+            style: {
+              borderRadius: 0,
+              background: '#111111',
+              border: '1px solid #262626',
+              color: '#fafafa',
+              fontFamily: 'var(--font-plus-jakarta)',
+            },
+          }}
         />
       </body>
     </html>

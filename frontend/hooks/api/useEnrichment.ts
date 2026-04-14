@@ -1,119 +1,282 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { get, post } from '@/lib/api';
-import { QUERY_KEYS, ENDPOINTS, env } from '@/lib/config';
-import {
-  EnrichPersonResponse,
-  EnrichmentHistoryResponse,
-  BulkEnrichResponse,
-  BulkJobStatusResponse,
-  WaitlistResponse,
-} from '@shared/types/src';
+"use client";
 
-/**
- * Mutation hook for single person enrichment
- */
-export function useEnrichPerson() {
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { get, post, patch, del } from "@/lib/api";
+import { QUERY_KEYS, ENDPOINTS } from "@/lib/config";
+import { useActiveOrganization } from "@/lib/auth-client";
+import type {
+  VendorConnectionListResponse,
+  VendorConnectionResponse,
+  EnrichLeadResponse,
+  BulkEnrichResponse,
+  EmailEnrichListResponse,
+  LeadContactInfoResponse,
+  EnrichmentHistoryResponse,
+} from "@shared/types/src";
+
+// Local type for test connection response
+interface TestVendorConnectionResponse {
+  success: boolean;
+  creditsRemaining?: number;
+  message?: string;
+  error?: string;
+}
+
+// List vendor connections
+export function useEnrichmentVendors(enabled = true) {
+  const activeOrganization = useActiveOrganization();
+  const orgId = activeOrganization?.data?.id;
+
+  return useQuery({
+    queryKey: QUERY_KEYS.enrichmentVendors(orgId),
+    queryFn: async () => {
+      return await get<VendorConnectionListResponse>(ENDPOINTS.ENRICHMENT.VENDORS);
+    },
+    enabled: enabled && !!orgId,
+  });
+}
+
+// Connect vendor
+export function useConnectVendor() {
   const queryClient = useQueryClient();
 
-  return useMutation<EnrichPersonResponse, Error, { linkedinUrl: string; enrichMobile?: boolean }>({
-    mutationFn: async ({ linkedinUrl, enrichMobile = true }) => {
-      return await post<EnrichPersonResponse>(ENDPOINTS.ENRICHMENT.ENRICH, {
-        linkedinUrl,
-        enrichMobile,
-      });
+  return useMutation({
+    mutationFn: async (params: {
+      provider:
+        | "apollo"
+        | "zoominfo"
+        | "clearbit"
+        | "lusha"
+        | "enrichengine"
+        | "prospeo"
+        | "forager"
+        | "leadmagic"
+        | "firecrawl"
+        | "crawl4ai";
+      apiKey: string;
+      priority?: number;
+      creditsLimit?: number;
+      enabledDataTypes?: string[];
+    }) => {
+      return await post<VendorConnectionResponse>(ENDPOINTS.ENRICHMENT.VENDORS, params);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichmentHistory() });
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "vendors"] });
     },
   });
 }
 
-/**
- * Query hook for enrichment history with pagination
- */
-export function useEnrichmentHistory(options?: { page?: number; limit?: number; status?: string }) {
-  const page = options?.page ?? 1;
-  const limit = options?.limit ?? 20;
+// Update vendor connection
+export function useUpdateVendorConnection() {
+  const queryClient = useQueryClient();
 
-  return useQuery<EnrichmentHistoryResponse>({
-    queryKey: [...QUERY_KEYS.enrichmentHistory(), page, limit, options?.status],
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      apiKey?: string;
+      isActive?: boolean;
+      priority?: number;
+      creditsLimit?: number;
+      enabledDataTypes?: string[];
+    }) => {
+      return await patch<VendorConnectionResponse>(ENDPOINTS.ENRICHMENT.VENDOR(id), data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "vendors"] });
+    },
+  });
+}
+
+// Disconnect vendor
+export function useDisconnectVendor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (vendorId: string) => {
+      await del(ENDPOINTS.ENRICHMENT.VENDOR(vendorId));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "vendors"] });
+    },
+  });
+}
+
+// Test vendor connection
+export function useTestVendorConnection() {
+  return useMutation({
+    mutationFn: async (vendorId: string) => {
+      return await post<TestVendorConnectionResponse>(ENDPOINTS.ENRICHMENT.VENDOR_TEST(vendorId));
+    },
+  });
+}
+
+// Enrich single lead
+export function useEnrichLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      leadId,
+      providers,
+      forceRefresh,
+    }: {
+      leadId: string;
+      providers?: string[];
+      forceRefresh?: boolean;
+    }) => {
+      return await post<EnrichLeadResponse>(ENDPOINTS.ENRICHMENT.LEAD_ENRICH(leadId), {
+        providers,
+        forceRefresh,
+      });
+    },
+    onSuccess: (_, { leadId }) => {
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leadContactInfo(leadId) });
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "history"] });
+    },
+  });
+}
+
+// Bulk enrich leads
+export function useBulkEnrich() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      leadIds: string[];
+      providers?: string[];
+      forceRefresh?: boolean;
+    }) => {
+      return await post<BulkEnrichResponse>(ENDPOINTS.ENRICHMENT.BULK_ENRICH, params);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "history"] });
+    },
+  });
+}
+
+// Enrich missing emails for all leads in a list
+export function useEmailEnrichList() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      listId,
+      useProspeo,
+      forceRefresh,
+    }: {
+      listId: string;
+      useProspeo?: boolean;
+      forceRefresh?: boolean;
+    }) => {
+      return await post<EmailEnrichListResponse>(
+        ENDPOINTS.ENRICHMENT.EMAIL_ENRICH_LIST(listId),
+        {
+          useProspeo,
+          forceRefresh,
+        }
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.list(variables.listId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.listLeads(variables.listId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leads() });
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "history"] });
+    },
+  });
+}
+
+// Get lead contact info
+export function useLeadContactInfo(leadId: string, enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.leadContactInfo(leadId),
+    queryFn: async () => {
+      return await get<LeadContactInfoResponse>(ENDPOINTS.ENRICHMENT.LEAD_CONTACTS(leadId));
+    },
+    enabled: enabled && !!leadId,
+  });
+}
+
+interface EnrichmentHistoryFilters {
+  leadId?: string;
+  provider?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+// Get enrichment history
+export function useEnrichmentHistory(filters?: EnrichmentHistoryFilters, enabled = true) {
+  const activeOrganization = useActiveOrganization();
+  const orgId = activeOrganization?.data?.id;
+
+  return useQuery({
+    queryKey: QUERY_KEYS.enrichmentHistory(orgId, filters as Record<string, unknown>),
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('page', page.toString());
-      params.set('limit', limit.toString());
-      if (options?.status) {
-        params.set('status', options.status);
-      }
+      if (filters?.leadId) params.set("leadId", filters.leadId);
+      if (filters?.provider) params.set("provider", filters.provider);
+      if (filters?.startDate) params.set("startDate", filters.startDate);
+      if (filters?.endDate) params.set("endDate", filters.endDate);
+      if (filters?.page) params.set("page", filters.page.toString());
+      if (filters?.limit) params.set("limit", filters.limit.toString());
 
       const url = `${ENDPOINTS.ENRICHMENT.HISTORY}?${params.toString()}`;
       return await get<EnrichmentHistoryResponse>(url);
     },
+    enabled: enabled && !!orgId,
   });
 }
 
-/**
- * Mutation hook for creating bulk enrichment job
- */
-export function useCreateBulkJob() {
+// Enrich all leads in a list (paginated bulk enrich)
+export function useEnrichList() {
   const queryClient = useQueryClient();
+  const activeOrganization = useActiveOrganization();
+  const orgId = activeOrganization?.data?.id;
 
-  return useMutation<BulkEnrichResponse, Error, { file: File; enrichMobile?: boolean }>({
-    mutationFn: async ({ file, enrichMobile = true }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('enrichMobile', enrichMobile.toString());
+  return useMutation({
+    mutationFn: async ({ listId }: { listId: string }) => {
+      let page = 1;
+      let totalEnriched = 0;
+      let totalFailed = 0;
+      let totalCredits = 0;
 
-      const response = await fetch(`${env.API_URL}${ENDPOINTS.ENRICHMENT.BULK}`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
+      while (true) {
+        const params = new URLSearchParams({
+          organizationId: orgId!,
+          page: page.toString(),
+          limit: "100",
+        });
+        const leadsPage = await get<{
+          data: { id: string }[];
+          pagination: { hasNextPage: boolean };
+        }>(`${ENDPOINTS.LISTS.LEADS(listId)}?${params}`);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create bulk job');
+        const leadIds = leadsPage.data.map((l) => l.id);
+        if (leadIds.length === 0) break;
+
+        const result = await post<BulkEnrichResponse>(
+          ENDPOINTS.ENRICHMENT.BULK_ENRICH,
+          { leadIds }
+        );
+        totalEnriched += result.totalEnriched;
+        totalFailed += result.totalFailed;
+        totalCredits += result.totalCreditsUsed;
+
+        if (!leadsPage.pagination.hasNextPage) break;
+        page++;
       }
 
-      return response.json();
+      return { totalEnriched, totalFailed, totalCredits };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.enrichmentHistory() });
-    },
-  });
-}
-
-/**
- * Query hook for bulk job status with optional polling
- */
-export function useBulkJobStatus(jobId?: string, options?: { polling?: boolean }) {
-  return useQuery<BulkJobStatusResponse>({
-    queryKey: QUERY_KEYS.bulkJobStatus(jobId),
-    queryFn: async () => {
-      if (!jobId) throw new Error('Job ID is required');
-      return await get<BulkJobStatusResponse>(ENDPOINTS.ENRICHMENT.BULK_STATUS(jobId));
-    },
-    enabled: !!jobId,
-    refetchInterval: options?.polling ? 3000 : false,
-  });
-}
-
-/**
- * Helper function to download bulk job results as CSV
- */
-export function downloadBulkJobCsv(jobId: string) {
-  window.open(`${env.API_URL}${ENDPOINTS.ENRICHMENT.BULK_DOWNLOAD(jobId)}`, '_blank');
-}
-
-/**
- * Mutation hook for waitlist signup
- */
-export function useWaitlistSignup() {
-  return useMutation<WaitlistResponse, Error, { email: string; source?: string }>({
-    mutationFn: async ({ email, source }) => {
-      return await post<WaitlistResponse>(ENDPOINTS.WAITLIST.ADD, {
-        email,
-        source,
-      });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["enrichment", "history"] });
     },
   });
 }

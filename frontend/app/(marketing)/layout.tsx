@@ -1,9 +1,9 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Enrich Engine | Lead Enrichment for Sales Teams",
+  title: "OmniDial | Sales Dialer Built for Closers",
   description:
-    "Find LinkedIn profiles from names or companies. Enrich with verified emails and phone numbers. Build lead lists for outbound sales.",
+    "Browser-based VoIP sales dialer. Power dial, click-to-call, call recording, voicemail drop, and built-in CRM. Built for SDRs who close.",
 };
 
 export default function MarketingLayout({

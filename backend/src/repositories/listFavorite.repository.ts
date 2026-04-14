@@ -1,102 +1,159 @@
-import { db } from "@/lib/db";
-import { withIdAndTimestamps } from "./utils";
-import { DBListFavorite } from "@shared/db/src/types";
+import { db } from '@/lib/db'
+import { withId } from './utils'
 
-export type CreateFavoriteData = {
-  userId: string;
-  listId?: string | null;
-  folderId?: string | null;
-};
+export interface AddFavoriteInput {
+  userId: string
+  listId?: string
+  folderId?: string
+}
 
-export const create = async (data: CreateFavoriteData): Promise<DBListFavorite | undefined> => {
+export const addFavorite = async (data: AddFavoriteInput) => {
   return db
-    .insertInto("list_favorite")
-    .values({
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
-    })
+    .insertInto('list_favorite')
+    .values(
+      withId({
+        userId: data.userId,
+        listId: data.listId ?? null,
+        folderId: data.folderId ?? null,
+        createdAt: new Date(),
+      }),
+    )
     .returningAll()
-    .executeTakeFirst();
-};
+    .executeTakeFirstOrThrow()
+}
 
-export const findById = async (id: string): Promise<DBListFavorite | undefined> => {
-  return db
-    .selectFrom("list_favorite")
-    .where("id", "=", id)
-    .selectAll()
-    .executeTakeFirst();
-};
-
-export const findByUserId = async (userId: string): Promise<DBListFavorite[]> => {
-  return db
-    .selectFrom("list_favorite")
-    .where("userId", "=", userId)
-    .orderBy("createdAt", "desc")
-    .selectAll()
-    .execute();
-};
-
-export const findByUserAndList = async (
+export const removeFavorite = async (
   userId: string,
-  listId: string,
-): Promise<DBListFavorite | undefined> => {
-  return db
-    .selectFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("listId", "=", listId)
-    .selectAll()
-    .executeTakeFirst();
-};
+  itemId: string,
+  type: 'list' | 'folder',
+) => {
+  let query = db.deleteFrom('list_favorite').where('userId', '=', userId)
 
-export const findByUserAndFolder = async (
+  if (type === 'list') {
+    query = query.where('listId', '=', itemId)
+  } else {
+    query = query.where('folderId', '=', itemId)
+  }
+
+  const result = await query.executeTakeFirst()
+  return Number(result.numDeletedRows) > 0
+}
+
+export const isFavorited = async (
   userId: string,
-  folderId: string,
-): Promise<DBListFavorite | undefined> => {
-  return db
-    .selectFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("folderId", "=", folderId)
-    .selectAll()
-    .executeTakeFirst();
-};
+  itemId: string,
+  type: 'list' | 'folder',
+) => {
+  let query = db.selectFrom('list_favorite').where('userId', '=', userId)
 
-export const deleteById = async (id: string) => {
-  return db.deleteFrom("list_favorite").where("id", "=", id).executeTakeFirst();
-};
+  if (type === 'list') {
+    query = query.where('listId', '=', itemId)
+  } else {
+    query = query.where('folderId', '=', itemId)
+  }
 
-export const deleteByUserAndList = async (userId: string, listId: string) => {
-  return db
-    .deleteFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("listId", "=", listId)
-    .executeTakeFirst();
-};
+  const result = await query.select('id').executeTakeFirst()
+  return !!result
+}
 
-export const deleteByUserAndFolder = async (userId: string, folderId: string) => {
-  return db
-    .deleteFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("folderId", "=", folderId)
-    .executeTakeFirst();
-};
+export const findUserFavorites = async (
+  userId: string,
+  organizationId: string,
+) => {
+  // Get favorited lists
+  const favoritedLists = await db
+    .selectFrom('list_favorite')
+    .innerJoin('lead_list', 'lead_list.id', 'list_favorite.listId')
+    .leftJoin('lead_list_folder', 'lead_list_folder.id', 'lead_list.folderId')
+    .where('list_favorite.userId', '=', userId)
+    .where('lead_list.organizationId', '=', organizationId)
+    .where('list_favorite.listId', 'is not', null)
+    .select([
+      'list_favorite.id as favoriteId',
+      'list_favorite.createdAt as favoritedAt',
+      'lead_list.id',
+      'lead_list.organizationId',
+      'lead_list.folderId',
+      'lead_list.name',
+      'lead_list.description',
+      'lead_list.leadCount',
+      'lead_list.importStatus',
+      'lead_list.createdById',
+      'lead_list.createdAt',
+      'lead_list.updatedAt',
+      'lead_list_folder.name as folderName',
+    ])
+    .orderBy('list_favorite.createdAt', 'desc')
+    .execute()
 
-export const getListFavoriteIds = async (userId: string): Promise<string[]> => {
-  const favorites = await db
-    .selectFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("listId", "is not", null)
-    .select("listId")
-    .execute();
-  return favorites.map((f) => f.listId!);
-};
+  // Get favorited folders
+  const favoritedFolders = await db
+    .selectFrom('list_favorite')
+    .innerJoin(
+      'lead_list_folder',
+      'lead_list_folder.id',
+      'list_favorite.folderId',
+    )
+    .where('list_favorite.userId', '=', userId)
+    .where('lead_list_folder.organizationId', '=', organizationId)
+    .where('list_favorite.folderId', 'is not', null)
+    .select([
+      'list_favorite.id as favoriteId',
+      'list_favorite.createdAt as favoritedAt',
+      'lead_list_folder.id',
+      'lead_list_folder.organizationId',
+      'lead_list_folder.parentId',
+      'lead_list_folder.name',
+      'lead_list_folder.color',
+      'lead_list_folder.sortOrder',
+      'lead_list_folder.createdAt',
+      'lead_list_folder.updatedAt',
+    ])
+    .orderBy('list_favorite.createdAt', 'desc')
+    .execute()
 
-export const getFolderFavoriteIds = async (userId: string): Promise<string[]> => {
-  const favorites = await db
-    .selectFrom("list_favorite")
-    .where("userId", "=", userId)
-    .where("folderId", "is not", null)
-    .select("folderId")
-    .execute();
-  return favorites.map((f) => f.folderId!);
-};
+  return {
+    lists: favoritedLists.map((l) => ({
+      ...l,
+      type: 'list' as const,
+    })),
+    folders: favoritedFolders.map((f) => ({
+      ...f,
+      type: 'folder' as const,
+    })),
+  }
+}
+
+export const getFavoriteIds = async (
+  userId: string,
+  organizationId: string,
+) => {
+  const listFavorites = await db
+    .selectFrom('list_favorite')
+    .innerJoin('lead_list', 'lead_list.id', 'list_favorite.listId')
+    .where('list_favorite.userId', '=', userId)
+    .where('lead_list.organizationId', '=', organizationId)
+    .where('list_favorite.listId', 'is not', null)
+    .select('list_favorite.listId')
+    .execute()
+
+  const folderFavorites = await db
+    .selectFrom('list_favorite')
+    .innerJoin(
+      'lead_list_folder',
+      'lead_list_folder.id',
+      'list_favorite.folderId',
+    )
+    .where('list_favorite.userId', '=', userId)
+    .where('lead_list_folder.organizationId', '=', organizationId)
+    .where('list_favorite.folderId', 'is not', null)
+    .select('list_favorite.folderId')
+    .execute()
+
+  return {
+    listIds: listFavorites.map((f) => f.listId).filter(Boolean) as string[],
+    folderIds: folderFavorites
+      .map((f) => f.folderId)
+      .filter(Boolean) as string[],
+  }
+}

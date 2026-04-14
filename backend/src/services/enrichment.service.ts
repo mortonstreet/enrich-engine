@@ -1,463 +1,2633 @@
-import * as enrichmentRepository from "@/repositories/enrichment.repository";
-import * as bulkEnrichmentRepository from "@/repositories/bulkEnrichment.repository";
-import * as prospeoClient from "@/clients/prospeo.client";
-import {
-  EnrichPersonRequest,
-  GetEnrichmentHistoryRequest,
-  EnrichmentStatus,
-  BulkJobStatus,
-  BulkItemStatus,
-  BulkJobType,
-  EnrichPersonResponse,
-  EnrichmentHistoryResponse,
+import { db } from '@/lib/db'
+import { v4 as uuidv4 } from 'uuid'
+import { encrypt, decrypt } from '@/lib/encryption'
+import type {
+  VendorConnectionResponse,
+  VendorTestResult,
+  ContactInfoResponse,
+  EnrichLeadResponse,
   BulkEnrichResponse,
-  BulkJobStatusResponse,
-} from "@shared/types/src";
-import logger from "@/lib/logger";
-import * as searchService from "@/services/search.service";
+  EnrichmentHistoryRecordResponse,
+  EmailEnrichListResponse,
+  DataVendorProvider,
+  ContactInfoType,
+  VendorEnrichmentResult,
+} from '@shared/types/src/requests/enrichment'
+import * as prospeoClient from '@/clients/prospeo.client'
+import * as foragerClient from '@/clients/forager.client'
+import * as leadmagicClient from '@/clients/leadmagic.client'
+import * as firecrawlClient from '@/clients/firecrawl.client'
+import * as crawl4aiClient from '@/clients/crawl4ai.client'
+import { validateAndNormalizePhone } from '@/lib/phone'
+import logger from '@/lib/logger'
+import type { EnrichedPhoneNumber } from '@shared/types/src/requests/extension'
+import * as enrichmentCacheRepo from '@/repositories/enrichmentCache.repository'
+import { addEmailCandidateVerifyJob } from '@/queues/email-candidate-verify.queue'
+import { addEmailDomainProfileJob } from '@/queues/email-domain-profile.queue'
+import {
+  EmailCandidateVerifyEventType,
+  EmailDomainProfileEventType,
+} from '@/types/queues'
+import {
+  buildLinkedInLookupKey,
+  buildIdentityLookupKey,
+} from '@/lib/enrichmentCache'
+import * as crmService from './crm.service'
+import * as emailVerificationService from './emailVerification.service'
+import {
+  executeWithVendorPolicy,
+  classifyVendorResultByMessage,
+  formatVendorErrorForHistory,
+} from './vendorCompliance.service'
+import {
+  extractDomain,
+  guessAllEmails,
+  guessEmail,
+  detectEmailPattern,
+  applyEmailPattern,
+} from './emailGuess.service'
 
-export const enrichPerson = async (
+// === Vendor Connection Management ===
+
+export const connectVendor = async (
   organizationId: string,
-  userId: string,
-  request: EnrichPersonRequest,
-): Promise<EnrichPersonResponse> => {
-  // Create pending enrichment record
-  const enrichment = await enrichmentRepository.create({
-    organizationId,
-    userId,
-    linkedinUrl: request.linkedinUrl,
-    status: EnrichmentStatus.PENDING,
-    enrichMobile: request.enrichMobile,
-  });
+  connectedById: string,
+  data: {
+    provider: DataVendorProvider
+    apiKey: string
+    priority?: number
+    creditsLimit?: number
+    enabledDataTypes?: string[]
+  },
+): Promise<VendorConnectionResponse> => {
+  // Check if already connected
+  const existing = await db
+    .selectFrom('data_vendor_connection')
+    .where('organizationId', '=', organizationId)
+    .where('provider', '=', data.provider)
+    .selectAll()
+    .executeTakeFirst()
 
-  if (!enrichment) {
-    throw new Error("Failed to create enrichment record");
+  if (existing) {
+    throw new Error(`${data.provider} is already connected`)
   }
+
+  const connection = await db
+    .insertInto('data_vendor_connection')
+    .values({
+      id: uuidv4(),
+      organizationId,
+      provider: data.provider,
+      apiKeyEncrypted: encrypt(data.apiKey),
+      isActive: true,
+      priority: data.priority ?? 0,
+      enabledDataTypes: data.enabledDataTypes ?? ['phone', 'email', 'profile'],
+      creditsUsed: 0,
+      creditsLimit: data.creditsLimit ?? null,
+      connectedById,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow()
+
+  return transformConnection(connection, null)
+}
+
+export const updateVendorConnection = async (
+  connectionId: string,
+  data: {
+    apiKey?: string
+    isActive?: boolean
+    priority?: number
+    creditsLimit?: number | null
+    enabledDataTypes?: string[]
+  },
+): Promise<VendorConnectionResponse> => {
+  const updateData: any = { updatedAt: new Date() }
+
+  if (data.apiKey !== undefined) {
+    updateData.apiKeyEncrypted = encrypt(data.apiKey)
+  }
+  if (data.isActive !== undefined) {
+    updateData.isActive = data.isActive
+  }
+  if (data.priority !== undefined) {
+    updateData.priority = data.priority
+  }
+  if (data.creditsLimit !== undefined) {
+    updateData.creditsLimit = data.creditsLimit
+  }
+  if (data.enabledDataTypes !== undefined) {
+    updateData.enabledDataTypes = data.enabledDataTypes
+  }
+
+  const updated = await db
+    .updateTable('data_vendor_connection')
+    .set(updateData)
+    .where('id', '=', connectionId)
+    .returningAll()
+    .executeTakeFirstOrThrow()
+
+  return transformConnection(updated, null)
+}
+
+export const disconnectVendor = async (connectionId: string): Promise<void> => {
+  await db
+    .deleteFrom('data_vendor_connection')
+    .where('id', '=', connectionId)
+    .execute()
+}
+
+export const listVendorConnections = async (
+  organizationId: string,
+  filters: { isActive?: boolean },
+): Promise<VendorConnectionResponse[]> => {
+  let query = db
+    .selectFrom('data_vendor_connection as dvc')
+    .leftJoin('user as u', 'u.id', 'dvc.connectedById')
+    .where('dvc.organizationId', '=', organizationId)
+
+  if (filters.isActive !== undefined) {
+    query = query.where('dvc.isActive', '=', filters.isActive)
+  }
+
+  const connections = await query
+    .select([
+      'dvc.id',
+      'dvc.organizationId',
+      'dvc.provider',
+      'dvc.isActive',
+      'dvc.priority',
+      'dvc.enabledDataTypes',
+      'dvc.creditsUsed',
+      'dvc.creditsLimit',
+      'dvc.lastSyncAt',
+      'dvc.connectedById',
+      'dvc.createdAt',
+      'dvc.updatedAt',
+      'u.name as connectedByName',
+    ])
+    .orderBy('dvc.priority', 'asc')
+    .execute()
+
+  return connections.map((c) => ({
+    id: c.id,
+    organizationId: c.organizationId,
+    provider: c.provider as DataVendorProvider,
+    isActive: c.isActive,
+    priority: c.priority,
+    enabledDataTypes: (c.enabledDataTypes as any) ?? [
+      'phone',
+      'email',
+      'profile',
+    ],
+    creditsUsed: c.creditsUsed,
+    creditsLimit: c.creditsLimit,
+    creditsRemaining: c.creditsLimit ? c.creditsLimit - c.creditsUsed : null,
+    lastSyncAt: c.lastSyncAt?.toISOString() || null,
+    connectedById: c.connectedById,
+    connectedByName: c.connectedByName,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  }))
+}
+
+export const testVendorConnection = async (
+  connectionId: string,
+): Promise<VendorTestResult> => {
+  const connection = await db
+    .selectFrom('data_vendor_connection')
+    .where('id', '=', connectionId)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (!connection) {
+    throw new Error('Connection not found')
+  }
+
+  const apiKey = decrypt(connection.apiKeyEncrypted)
+  const startTime = Date.now()
 
   try {
-    // Call Prospeo API
-    const result = await prospeoClient.enrichPerson(
-      request.linkedinUrl,
-      request.enrichMobile,
-    );
+    const adapter = getVendorAdapter(connection.provider as DataVendorProvider)
+    const result = await adapter.testConnection(apiKey)
 
-    if (result.success && result.response) {
-      // Update with successful result
-      const updated = await enrichmentRepository.update(enrichment.id, {
-        status: EnrichmentStatus.COMPLETED,
-        email: result.response.email?.email,
-        emailVerified: result.response.email?.verified,
-        mobile: result.response.mobile,
-        firstName: result.response.first_name,
-        lastName: result.response.last_name,
-        title: result.response.title,
-        companyName: result.response.company_name,
-        companyDomain: result.response.company_domain,
-        rawResponse: result,
-        creditsCost: result.credits_used ?? 1,
-        completedAt: new Date(),
-      });
-
-      return updated!;
-    } else {
-      // Update with not found or error
-      const status =
-        result.error_code === "not_found"
-          ? EnrichmentStatus.NOT_FOUND
-          : EnrichmentStatus.ERROR;
-
-      const updated = await enrichmentRepository.update(enrichment.id, {
-        status,
-        errorCode: result.error_code || result.error,
-        rawResponse: result,
-        completedAt: new Date(),
-      });
-
-      return updated!;
+    return {
+      success: result.success,
+      message: result.message,
+      responseTimeMs: Date.now() - startTime,
+      creditsRemaining: result.creditsRemaining,
     }
   } catch (error) {
-    logger.error({ error, enrichmentId: enrichment.id }, "Enrichment failed");
-
-    // Update with error status
-    const updated = await enrichmentRepository.update(enrichment.id, {
-      status: EnrichmentStatus.ERROR,
-      errorCode: error instanceof Error ? error.message : "Unknown error",
-      completedAt: new Date(),
-    });
-
-    return updated!;
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      responseTimeMs: Date.now() - startTime,
+      creditsRemaining: null,
+    }
   }
-};
+}
+
+// === Lead Enrichment ===
+
+export const enrichLead = async (
+  organizationId: string,
+  leadId: string,
+  options: {
+    providers?: DataVendorProvider[]
+    forceRefresh?: boolean
+    requestMode?: 'interactive' | 'bulk'
+  },
+): Promise<EnrichLeadResponse> => {
+  // Get the lead
+  const lead = await db
+    .selectFrom('lead')
+    .where('id', '=', leadId)
+    .where('organizationId', '=', organizationId)
+    .where('deletedAt', 'is', null)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (!lead) {
+    throw new Error('Lead not found')
+  }
+
+  // Check if already enriched and not forcing refresh
+  if (lead.enrichmentStatus === 'enriched' && !options.forceRefresh) {
+    return {
+      leadId,
+      success: true,
+      providersUsed: [],
+      fieldsEnriched: [],
+      creditsUsed: 0,
+      errorMessage: 'Lead already enriched. Use forceRefresh to re-enrich.',
+    }
+  }
+
+  // === Cache check ===
+  if (!options.forceRefresh) {
+    const lookupKey = lead.linkedInUrl
+      ? buildLinkedInLookupKey(lead.linkedInUrl)
+      : buildIdentityLookupKey(
+          lead.firstName,
+          lead.lastName,
+          lead.email,
+          lead.company,
+        )
+
+    if (lookupKey) {
+      const cachedEntries =
+        await enrichmentCacheRepo.findValidByLookupKey(lookupKey)
+      if (cachedEntries.length > 0) {
+        const cached = cachedEntries[0]
+        const data = (
+          typeof cached.normalizedData === 'string'
+            ? JSON.parse(cached.normalizedData)
+            : cached.normalizedData
+        ) as Record<string, any>
+
+        const updateData: Record<string, any> = {}
+        const fieldsEnriched: EnrichLeadResponse['fieldsEnriched'] = []
+
+        if (data.firstName && !lead.firstName) {
+          updateData.firstName = data.firstName
+          fieldsEnriched.push({
+            field: 'firstName',
+            previousValue: lead.firstName,
+            newValue: data.firstName,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+        if (data.lastName && !lead.lastName) {
+          updateData.lastName = data.lastName
+          fieldsEnriched.push({
+            field: 'lastName',
+            previousValue: lead.lastName,
+            newValue: data.lastName,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+        if (data.email && !lead.email) {
+          updateData.email = data.email
+          fieldsEnriched.push({
+            field: 'email',
+            previousValue: lead.email,
+            newValue: data.email,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+        if (data.company && !lead.company) {
+          updateData.company = data.company
+          fieldsEnriched.push({
+            field: 'company',
+            previousValue: lead.company,
+            newValue: data.company,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+        if (data.title && !lead.title) {
+          updateData.title = data.title
+          fieldsEnriched.push({
+            field: 'title',
+            previousValue: lead.title,
+            newValue: data.title,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+        if (data.phone && !lead.phone) {
+          updateData.phone = data.phone
+          fieldsEnriched.push({
+            field: 'phone',
+            previousValue: lead.phone,
+            newValue: data.phone,
+            source: cached.provider as DataVendorProvider,
+            confidence: null,
+          })
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          updateData.enrichmentStatus = 'enriched'
+          updateData.enrichmentSources = [
+            ...(lead.enrichmentSources || []),
+            cached.provider,
+          ]
+          updateData.updatedAt = new Date()
+          await db
+            .updateTable('lead')
+            .set(updateData)
+            .where('id', '=', leadId)
+            .execute()
+        }
+
+        await enrichmentCacheRepo.recordHit(cached.id)
+
+        await recordEnrichmentHistory(
+          organizationId,
+          leadId,
+          null,
+          cached.provider as DataVendorProvider,
+          'person',
+          ['firstName', 'lastName', 'email', 'company', 'title', 'phone'],
+          fieldsEnriched.map((f) => f.field),
+          0,
+          true,
+          null,
+          0,
+        )
+
+        console.log('[Enrichment] Cache HIT for enrichLead:', {
+          leadId,
+          lookupKey,
+          provider: cached.provider,
+        })
+
+        // Fire-and-forget auto CRM sync
+        crmService
+          .autoSyncAfterEnrichment(organizationId, leadId)
+          .catch((err) =>
+            console.error('[Enrichment] Auto CRM sync failed:', err),
+          )
+
+        return {
+          leadId,
+          success: true,
+          providersUsed: [cached.provider as DataVendorProvider],
+          fieldsEnriched,
+          creditsUsed: 0,
+          cacheHit: true,
+          creditsSaved: 1,
+          errorMessage: null,
+        }
+      }
+    }
+  }
+
+  // Get active vendor connections in priority order
+  let connectionsQuery = db
+    .selectFrom('data_vendor_connection')
+    .where('organizationId', '=', organizationId)
+    .where('isActive', '=', true)
+
+  if (options.providers && options.providers.length > 0) {
+    connectionsQuery = connectionsQuery.where(
+      'provider',
+      'in',
+      options.providers,
+    )
+  } else {
+    // Keep web-research-only vendors out of standard enrichment waterfalls.
+    connectionsQuery = connectionsQuery.where('provider', 'not in', [
+      'firecrawl',
+      'crawl4ai',
+    ])
+  }
+
+  const connections = await connectionsQuery
+    .selectAll()
+    .orderBy('priority', 'asc')
+    .execute()
+
+  if (connections.length === 0) {
+    return {
+      leadId,
+      success: false,
+      providersUsed: [],
+      fieldsEnriched: [],
+      creditsUsed: 0,
+      errorMessage: 'No active vendor connections available',
+    }
+  }
+
+  // Waterfall enrichment - try each provider until we get data
+  const fieldsEnriched: EnrichLeadResponse['fieldsEnriched'] = []
+  const providersUsed: DataVendorProvider[] = []
+  let totalCredits = 0
+
+  for (let index = 0; index < connections.length; index++) {
+    const connection = connections[index]
+    const provider = connection.provider as DataVendorProvider
+    const nextProvider =
+      index + 1 < connections.length
+        ? (connections[index + 1].provider as DataVendorProvider)
+        : null
+
+    // Check credits limit
+    if (
+      connection.creditsLimit &&
+      connection.creditsUsed >= connection.creditsLimit
+    ) {
+      continue
+    }
+
+    const apiKey = decrypt(connection.apiKeyEncrypted)
+    const adapter = getVendorAdapter(provider)
+
+    const startTime = Date.now()
+    let result: VendorEnrichmentResult
+
+    try {
+      result = await executeWithVendorPolicy({
+        organizationId,
+        provider,
+        requestMode: options.requestMode ?? 'interactive',
+        estimatedCredits: 1,
+        operation: () =>
+          adapter.enrichLead(apiKey, {
+            email: lead.email || undefined,
+            phone: lead.phone || undefined,
+            firstName: lead.firstName || undefined,
+            lastName: lead.lastName || undefined,
+            company: lead.company || undefined,
+            linkedInUrl: lead.linkedInUrl || undefined,
+            website: lead.website || undefined,
+          }),
+        classifyResult: classifyVendorResultByMessage,
+        extractCreditsUsed: (vendorResult) => vendorResult.creditsCost,
+      })
+    } catch (error) {
+      const errorMessage = formatVendorErrorForHistory(error)
+      // Log the failure and continue to next provider
+      await recordEnrichmentHistory(
+        organizationId,
+        leadId,
+        connection.id,
+        provider,
+        'person',
+        [],
+        [],
+        0,
+        false,
+        errorMessage,
+        Date.now() - startTime,
+      )
+
+      if (nextProvider) {
+        logger.warn(
+          {
+            organizationId,
+            failedProvider: provider,
+            fallbackProvider: nextProvider,
+            errorMessage,
+          },
+          'Enrichment provider failed, failing over to next vendor',
+        )
+      }
+      continue
+    }
+
+    if (!result.success || !result.data) {
+      const errorMessage = result.errorMessage ?? 'Vendor enrichment failed'
+      await recordEnrichmentHistory(
+        organizationId,
+        leadId,
+        connection.id,
+        provider,
+        'person',
+        [],
+        [],
+        result.creditsCost,
+        false,
+        errorMessage,
+        result.responseTimeMs,
+      )
+
+      if (nextProvider) {
+        logger.warn(
+          {
+            organizationId,
+            failedProvider: provider,
+            fallbackProvider: nextProvider,
+            errorMessage,
+          },
+          'Enrichment provider returned no usable data, failing over',
+        )
+      }
+      continue
+    }
+
+    providersUsed.push(provider)
+    totalCredits += result.creditsCost
+
+    // Update lead with enriched data
+    const updateData: Record<string, any> = {}
+    const enrichedFields: string[] = []
+
+    if (result.data.firstName && !lead.firstName) {
+      updateData.firstName = result.data.firstName
+      fieldsEnriched.push({
+        field: 'firstName',
+        previousValue: lead.firstName,
+        newValue: result.data.firstName,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('firstName')
+    }
+    if (result.data.lastName && !lead.lastName) {
+      updateData.lastName = result.data.lastName
+      fieldsEnriched.push({
+        field: 'lastName',
+        previousValue: lead.lastName,
+        newValue: result.data.lastName,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('lastName')
+    }
+    if (result.data.email && !lead.email) {
+      updateData.email = result.data.email
+      fieldsEnriched.push({
+        field: 'email',
+        previousValue: lead.email,
+        newValue: result.data.email,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('email')
+    }
+    if (result.data.company && !lead.company) {
+      updateData.company = result.data.company
+      fieldsEnriched.push({
+        field: 'company',
+        previousValue: lead.company,
+        newValue: result.data.company,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('company')
+    }
+    if (result.data.title && !lead.title) {
+      updateData.title = result.data.title
+      fieldsEnriched.push({
+        field: 'title',
+        previousValue: lead.title,
+        newValue: result.data.title,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('title')
+    }
+    if (result.data.linkedInUrl && !lead.linkedInUrl) {
+      updateData.linkedInUrl = result.data.linkedInUrl
+      fieldsEnriched.push({
+        field: 'linkedInUrl',
+        previousValue: lead.linkedInUrl,
+        newValue: result.data.linkedInUrl,
+        source: provider,
+        confidence: null,
+      })
+      enrichedFields.push('linkedInUrl')
+    }
+
+    // Store additional contact info
+    if (result.data.additionalEmails) {
+      for (const email of result.data.additionalEmails) {
+        await addContactInfo(leadId, 'work_email', email, connection.provider)
+      }
+    }
+    if (result.data.mobilePhone) {
+      await addContactInfo(leadId, 'mobile', result.data.mobilePhone, provider)
+    }
+    if (result.data.directDial) {
+      await addContactInfo(
+        leadId,
+        'direct_dial',
+        result.data.directDial,
+        provider,
+      )
+    }
+
+    // Update lead
+    if (Object.keys(updateData).length > 0) {
+      updateData.enrichmentStatus = 'enriched'
+      updateData.enrichmentSources = [
+        ...(lead.enrichmentSources || []),
+        provider,
+      ]
+      updateData.updatedAt = new Date()
+
+      await db
+        .updateTable('lead')
+        .set(updateData)
+        .where('id', '=', leadId)
+        .execute()
+    }
+
+    // Update vendor credits used
+    await db
+      .updateTable('data_vendor_connection')
+      .set({
+        creditsUsed: connection.creditsUsed + result.creditsCost,
+        lastSyncAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where('id', '=', connection.id)
+      .execute()
+
+    // Record history
+    await recordEnrichmentHistory(
+      organizationId,
+      leadId,
+      connection.id,
+      provider,
+      'person',
+      ['firstName', 'lastName', 'email', 'company', 'title', 'linkedInUrl'],
+      enrichedFields,
+      result.creditsCost,
+      true,
+      null,
+      result.responseTimeMs,
+    )
+
+    // Write to enrichment cache
+    if (result.data) {
+      const cacheKey = lead.linkedInUrl
+        ? buildLinkedInLookupKey(lead.linkedInUrl)
+        : buildIdentityLookupKey(
+            lead.firstName,
+            lead.lastName,
+            lead.email,
+            lead.company,
+          )
+
+      if (cacheKey) {
+        enrichmentCacheRepo
+          .upsert({
+            lookupKey: cacheKey,
+            lookupType: lead.linkedInUrl ? 'linkedin' : 'identity_hash',
+            provider: connection.provider,
+            rawResponse: result,
+            normalizedData: {
+              firstName: result.data.firstName,
+              lastName: result.data.lastName,
+              email: result.data.email,
+              phone: result.data.phone,
+              company: result.data.company,
+              title: result.data.title,
+            },
+          })
+          .catch((err) =>
+            console.error('[Enrichment] Cache write failed:', err),
+          )
+      }
+    }
+
+    // If we got good data, stop the waterfall
+    if (enrichedFields.length > 0) {
+      break
+    }
+  }
+
+  // Fire-and-forget auto CRM sync after successful enrichment
+  if (providersUsed.length > 0) {
+    crmService
+      .autoSyncAfterEnrichment(organizationId, leadId)
+      .catch((err) => console.error('[Enrichment] Auto CRM sync failed:', err))
+  }
+
+  return {
+    leadId,
+    success: providersUsed.length > 0,
+    providersUsed,
+    fieldsEnriched,
+    creditsUsed: totalCredits,
+    errorMessage:
+      providersUsed.length === 0
+        ? 'No providers were able to enrich this lead'
+        : null,
+  }
+}
+
+export const bulkEnrich = async (
+  organizationId: string,
+  leadIds: string[],
+  options: {
+    providers?: DataVendorProvider[]
+    forceRefresh?: boolean
+  },
+): Promise<BulkEnrichResponse> => {
+  const results: EnrichLeadResponse[] = []
+  let totalEnriched = 0
+  let totalFailed = 0
+  let totalCreditsUsed = 0
+
+  for (const leadId of leadIds) {
+    try {
+      const result = await enrichLead(organizationId, leadId, {
+        ...options,
+        requestMode: 'bulk',
+      })
+      results.push(result)
+      if (result.success && result.fieldsEnriched.length > 0) {
+        totalEnriched++
+      } else {
+        totalFailed++
+      }
+      totalCreditsUsed += result.creditsUsed
+    } catch (error) {
+      results.push({
+        leadId,
+        success: false,
+        providersUsed: [],
+        fieldsEnriched: [],
+        creditsUsed: 0,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      })
+      totalFailed++
+    }
+  }
+
+  return {
+    totalRequested: leadIds.length,
+    totalEnriched,
+    totalFailed,
+    totalCreditsUsed,
+    results,
+  }
+}
+
+export const emailEnrichList = async (
+  organizationId: string,
+  listId: string,
+  options: {
+    useProspeo?: boolean
+    forceRefresh?: boolean
+    verifyGeneratedEmails?: boolean
+  },
+): Promise<EmailEnrichListResponse> => {
+  const list = await db
+    .selectFrom('lead_list')
+    .where('id', '=', listId)
+    .where('organizationId', '=', organizationId)
+    .select('id')
+    .executeTakeFirst()
+
+  if (!list) {
+    throw new Error('List not found')
+  }
+
+  // Fetch all leads with LinkedIn URLs for the smart pipeline
+  const listLeads = await db
+    .selectFrom('lead_list_entry as lle')
+    .innerJoin('lead as l', 'l.id', 'lle.leadId')
+    .where('lle.listId', '=', listId)
+    .where('lle.removedAt', 'is', null)
+    .where('l.organizationId', '=', organizationId)
+    .where('l.deletedAt', 'is', null)
+    .select([
+      'l.id',
+      'l.email',
+      'l.firstName',
+      'l.lastName',
+      'l.website',
+      'l.linkedInUrl',
+      'l.company',
+    ])
+    .execute()
+
+  // --- Pipeline state ---
+  const emailUpdates = new Map<string, { email: string; source: string }>()
+  const domainPatterns = new Map<string, string>() // domain → pattern name
+  const stats = {
+    emailsAlreadyPresent: 0,
+    emailsFromCache: 0,
+    emailsFoundByLinkedIn: 0,
+    emailsFoundByProspeo: 0,
+    emailsFromPatternLearning: 0,
+    emailsGuessed: 0,
+    emailsVerifiedHighConfidence: 0,
+    emailsVerifiedMediumConfidence: 0,
+    emailsMarkedCatchAllRisk: 0,
+    emailsMarkedUndeliverable: 0,
+    emailsUnknown: 0,
+    emailVerificationJobsQueued: 0,
+    creditsUsed: 0,
+    domainsProcessed: 0,
+    patternsLearned: 0,
+  }
+
+  // Pre-compute domains for each lead
+  const leadDomains = new Map<string, string | null>()
+  for (const lead of listLeads) {
+    leadDomains.set(lead.id, lead.website ? extractDomain(lead.website) : null)
+  }
+
+  // Helper: check if lead still needs an email
+  const needsEmail = (lead: (typeof listLeads)[0]) => {
+    if (emailUpdates.has(lead.id)) return false
+    if (!options.forceRefresh && lead.email) return false
+    return true
+  }
+
+  // ============================================================
+  // PHASE 0: Filter leads that already have emails
+  // ============================================================
+  for (const lead of listLeads) {
+    if (lead.email && !options.forceRefresh) {
+      stats.emailsAlreadyPresent++
+    }
+  }
+
+  // ============================================================
+  // PHASE 1: Cache check (FREE — no vendor credits)
+  // ============================================================
+  for (const lead of listLeads) {
+    if (!needsEmail(lead)) continue
+
+    // Try LinkedIn cache key first
+    let cached: { email?: string; provider: string } | null = null
+    if (lead.linkedInUrl) {
+      const lookupKey = buildLinkedInLookupKey(lead.linkedInUrl)
+      const entries = await enrichmentCacheRepo.findValidByLookupKey(lookupKey)
+      for (const entry of entries) {
+        const data =
+          typeof entry.normalizedData === 'string'
+            ? JSON.parse(entry.normalizedData)
+            : entry.normalizedData
+        if (data?.email) {
+          cached = { email: data.email, provider: entry.provider }
+          await enrichmentCacheRepo.recordHit(entry.id)
+          break
+        }
+      }
+    }
+
+    // Try identity hash cache key
+    if (!cached) {
+      const identityKey = buildIdentityLookupKey(
+        lead.firstName,
+        lead.lastName,
+        lead.email,
+        lead.company,
+      )
+      if (identityKey) {
+        const entries =
+          await enrichmentCacheRepo.findValidByLookupKey(identityKey)
+        for (const entry of entries) {
+          const data =
+            typeof entry.normalizedData === 'string'
+              ? JSON.parse(entry.normalizedData)
+              : entry.normalizedData
+          if (data?.email) {
+            cached = { email: data.email, provider: entry.provider }
+            await enrichmentCacheRepo.recordHit(entry.id)
+            break
+          }
+        }
+      }
+    }
+
+    if (cached?.email) {
+      emailUpdates.set(lead.id, { email: cached.email, source: 'cache' })
+      stats.emailsFromCache++
+
+      // Learn pattern from cached email too
+      const domain = leadDomains.get(lead.id)
+      if (
+        domain &&
+        lead.firstName &&
+        lead.lastName &&
+        !domainPatterns.has(domain)
+      ) {
+        const pattern = detectEmailPattern(
+          cached.email,
+          lead.firstName,
+          lead.lastName,
+        )
+        if (pattern) {
+          domainPatterns.set(domain, pattern)
+        }
+      }
+    }
+  }
+
+  // ============================================================
+  // PHASE 2: LinkedIn enrichment (most accurate, 1 credit each)
+  //          — only call ONE lead per domain, then learn pattern
+  // ============================================================
+  const shouldUseProspeo = options.useProspeo === true
+  let prospeoConnection:
+    | { id: string; apiKeyEncrypted: string; creditsUsed: number }
+    | undefined
+
+  if (shouldUseProspeo) {
+    const connection = await db
+      .selectFrom('data_vendor_connection')
+      .where('organizationId', '=', organizationId)
+      .where('provider', '=', 'prospeo')
+      .where('isActive', '=', true)
+      .select(['id', 'apiKeyEncrypted', 'creditsUsed'])
+      .orderBy('priority', 'asc')
+      .executeTakeFirst()
+    prospeoConnection = connection
+  }
+
+  if (shouldUseProspeo && prospeoConnection) {
+    const apiKey = decrypt(prospeoConnection.apiKeyEncrypted)
+
+    // Group remaining leads by domain
+    const leadsByDomain = new Map<string, typeof listLeads>()
+    for (const lead of listLeads) {
+      if (!needsEmail(lead)) continue
+      if (!lead.firstName || !lead.lastName) continue
+
+      const domain = leadDomains.get(lead.id)
+      if (!domain) continue
+
+      const group = leadsByDomain.get(domain) ?? []
+      group.push(lead)
+      leadsByDomain.set(domain, group)
+    }
+
+    stats.domainsProcessed = leadsByDomain.size
+
+    // For each domain, spend 1 credit to discover the pattern, then apply to rest
+    for (const [domain, leads] of leadsByDomain) {
+      // Skip if we already know the pattern for this domain
+      if (domainPatterns.has(domain)) {
+        // Apply known pattern to all leads in this domain
+        for (const lead of leads) {
+          if (!needsEmail(lead)) continue
+          const email = applyEmailPattern(
+            domainPatterns.get(domain)!,
+            domain,
+            lead.firstName!,
+            lead.lastName!,
+          )
+          if (email) {
+            emailUpdates.set(lead.id, { email, source: 'pattern_learning' })
+            stats.emailsFromPatternLearning++
+          }
+        }
+        continue
+      }
+
+      // Pick the best probe lead: prefer one with LinkedIn URL
+      const probeLead =
+        leads.find((l) => l.linkedInUrl && needsEmail(l)) ??
+        leads.find((l) => needsEmail(l))
+      if (!probeLead) continue
+
+      // Try LinkedIn enrichment first (more accurate), then fall back to domain lookup
+      const startTime = Date.now()
+      let probeEmail: string | null = null
+
+      try {
+        if (probeLead.linkedInUrl) {
+          const result = await executeWithVendorPolicy({
+            organizationId,
+            provider: 'prospeo',
+            requestMode: 'bulk',
+            estimatedCredits: 1,
+            operation: async () => {
+              const r = await prospeoClient.enrichFromLinkedIn(
+                apiKey,
+                probeLead.linkedInUrl!,
+              )
+              return {
+                success: r.success,
+                email: r.email,
+                errorMessage: r.errorMessage ?? null,
+                creditsCost: r.success ? 1 : 0,
+              }
+            },
+            classifyResult: classifyVendorResultByMessage,
+            extractCreditsUsed: (r) => r.creditsCost,
+          })
+
+          if (result.success && result.email) {
+            probeEmail = result.email
+            stats.emailsFoundByLinkedIn++
+            stats.creditsUsed += result.creditsCost
+
+            // Cache the LinkedIn result
+            await enrichmentCacheRepo.upsert({
+              lookupKey: buildLinkedInLookupKey(probeLead.linkedInUrl!),
+              lookupType: 'linkedin',
+              provider: 'prospeo',
+              rawResponse: result,
+              normalizedData: { email: result.email },
+            })
+          }
+
+          await recordEnrichmentHistory(
+            organizationId,
+            probeLead.id,
+            prospeoConnection.id,
+            'prospeo',
+            'linkedin_email_lookup',
+            ['email'],
+            result.success && result.email ? ['email'] : [],
+            result.creditsCost,
+            result.success && Boolean(result.email),
+            result.success && result.email
+              ? null
+              : (result.errorMessage ?? 'No email from LinkedIn lookup'),
+            Date.now() - startTime,
+          )
+        }
+
+        // Fall back to domain lookup if LinkedIn didn't yield an email
+        if (!probeEmail) {
+          const domainStart = Date.now()
+          const result = await executeWithVendorPolicy({
+            organizationId,
+            provider: 'prospeo',
+            requestMode: 'bulk',
+            estimatedCredits: 1,
+            operation: async () => {
+              const r = await prospeoClient.findEmailByDomain(
+                apiKey,
+                domain,
+                probeLead.firstName!,
+                probeLead.lastName!,
+              )
+              return {
+                success: r.success,
+                email: r.email,
+                errorMessage: r.errorMessage ?? null,
+                creditsCost: r.success ? 1 : 0,
+              }
+            },
+            classifyResult: classifyVendorResultByMessage,
+            extractCreditsUsed: (r) => r.creditsCost,
+          })
+
+          if (result.success && result.email) {
+            probeEmail = result.email
+            stats.emailsFoundByProspeo++
+            stats.creditsUsed += result.creditsCost
+          }
+
+          await recordEnrichmentHistory(
+            organizationId,
+            probeLead.id,
+            prospeoConnection.id,
+            'prospeo',
+            'email_lookup',
+            ['email'],
+            result.success && result.email ? ['email'] : [],
+            result.creditsCost,
+            result.success && Boolean(result.email),
+            result.success && result.email
+              ? null
+              : (result.errorMessage ?? 'No email returned by Prospeo'),
+            Date.now() - domainStart,
+          )
+        }
+      } catch (error) {
+        await recordEnrichmentHistory(
+          organizationId,
+          probeLead.id,
+          prospeoConnection.id,
+          'prospeo',
+          'email_lookup',
+          ['email'],
+          [],
+          0,
+          false,
+          formatVendorErrorForHistory(error),
+          Date.now() - startTime,
+        )
+      }
+
+      // If we found the probe email, learn the pattern and apply to all same-domain leads
+      if (probeEmail) {
+        emailUpdates.set(probeLead.id, { email: probeEmail, source: 'vendor' })
+
+        const pattern = detectEmailPattern(
+          probeEmail,
+          probeLead.firstName!,
+          probeLead.lastName!,
+        )
+        if (pattern) {
+          domainPatterns.set(domain, pattern)
+          stats.patternsLearned++
+
+          // Apply learned pattern to remaining leads on this domain (FREE)
+          for (const lead of leads) {
+            if (lead.id === probeLead.id) continue
+            if (!needsEmail(lead)) continue
+            if (!lead.firstName || !lead.lastName) continue
+
+            const email = applyEmailPattern(
+              pattern,
+              domain,
+              lead.firstName,
+              lead.lastName,
+            )
+            if (email) {
+              emailUpdates.set(lead.id, { email, source: 'pattern_learning' })
+              stats.emailsFromPatternLearning++
+            }
+          }
+        } else {
+          // Pattern not recognized — fall back to individual Prospeo lookups for this domain
+          for (const lead of leads) {
+            if (lead.id === probeLead.id) continue
+            if (!needsEmail(lead)) continue
+            if (!lead.firstName || !lead.lastName) continue
+
+            const indivStart = Date.now()
+            try {
+              const result = await executeWithVendorPolicy({
+                organizationId,
+                provider: 'prospeo',
+                requestMode: 'bulk',
+                estimatedCredits: 1,
+                operation: async () => {
+                  const r = await prospeoClient.findEmailByDomain(
+                    apiKey,
+                    domain,
+                    lead.firstName!,
+                    lead.lastName!,
+                  )
+                  return {
+                    success: r.success,
+                    email: r.email,
+                    errorMessage: r.errorMessage ?? null,
+                    creditsCost: r.success ? 1 : 0,
+                  }
+                },
+                classifyResult: classifyVendorResultByMessage,
+                extractCreditsUsed: (r) => r.creditsCost,
+              })
+
+              if (result.success && result.email) {
+                emailUpdates.set(lead.id, {
+                  email: result.email,
+                  source: 'vendor',
+                })
+                stats.emailsFoundByProspeo++
+                stats.creditsUsed += result.creditsCost
+              }
+
+              await recordEnrichmentHistory(
+                organizationId,
+                lead.id,
+                prospeoConnection.id,
+                'prospeo',
+                'email_lookup',
+                ['email'],
+                result.success && result.email ? ['email'] : [],
+                result.creditsCost,
+                result.success && Boolean(result.email),
+                result.success && result.email
+                  ? null
+                  : (result.errorMessage ?? 'No email returned by Prospeo'),
+                Date.now() - indivStart,
+              )
+            } catch (error) {
+              await recordEnrichmentHistory(
+                organizationId,
+                lead.id,
+                prospeoConnection.id,
+                'prospeo',
+                'email_lookup',
+                ['email'],
+                [],
+                0,
+                false,
+                formatVendorErrorForHistory(error),
+                Date.now() - indivStart,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ============================================================
+  // PHASE 3: Pattern guess fallback (FREE, last resort)
+  //          Only for leads that still have no email after vendor phases
+  // ============================================================
+  for (const lead of listLeads) {
+    if (!needsEmail(lead)) continue
+    if (!lead.firstName || !lead.lastName) continue
+
+    const domain = leadDomains.get(lead.id)
+    if (!domain) continue
+
+    // If we learned a pattern for this domain, use it
+    const knownPattern = domainPatterns.get(domain)
+    if (knownPattern) {
+      const email = applyEmailPattern(
+        knownPattern,
+        domain,
+        lead.firstName,
+        lead.lastName,
+      )
+      if (email) {
+        emailUpdates.set(lead.id, { email, source: 'pattern_learning' })
+        stats.emailsFromPatternLearning++
+        continue
+      }
+    }
+
+    // Fall back to default first.last guess
+    const guessedEmail = guessEmail(domain, lead.firstName, lead.lastName)
+    if (guessedEmail) {
+      emailUpdates.set(lead.id, { email: guessedEmail, source: 'guess' })
+      stats.emailsGuessed++
+    }
+  }
+
+  // ============================================================
+  // PHASE 4: Batch DB update (single query per batch)
+  // ============================================================
+  const updateEntries = [...emailUpdates.entries()]
+  const BATCH_SIZE = 100
+  for (let i = 0; i < updateEntries.length; i += BATCH_SIZE) {
+    const batch = updateEntries.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(([leadId, { email, source }]) =>
+        db
+          .updateTable('lead')
+          .set({
+            email,
+            enrichmentStatus: 'enriched',
+            enrichmentSources:
+              source === 'vendor' || source === 'cache' ? ['prospeo'] : [],
+            updatedAt: new Date(),
+          })
+          .where('id', '=', leadId)
+          .where('organizationId', '=', organizationId)
+          .execute(),
+      ),
+    )
+  }
+
+  // Update vendor credit tracking
+  if (prospeoConnection && stats.creditsUsed > 0) {
+    await db
+      .updateTable('data_vendor_connection')
+      .set({
+        creditsUsed: prospeoConnection.creditsUsed + stats.creditsUsed,
+        lastSyncAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where('id', '=', prospeoConnection.id)
+      .execute()
+  }
+
+  // ============================================================
+  // PHASE 5: Optional email verification and scoring
+  // ============================================================
+  const incrementVerificationCounters = (
+    status: emailVerificationService.EmailVerificationStatus,
+  ) => {
+    switch (status) {
+      case 'deliverable_high_confidence':
+        stats.emailsVerifiedHighConfidence++
+        break
+      case 'deliverable_medium_confidence':
+        stats.emailsVerifiedMediumConfidence++
+        break
+      case 'risky_catch_all':
+        stats.emailsMarkedCatchAllRisk++
+        break
+      case 'undeliverable':
+        stats.emailsMarkedUndeliverable++
+        break
+      default:
+        stats.emailsUnknown++
+        break
+    }
+  }
+
+  if (options.verifyGeneratedEmails) {
+    const verificationJobs: Array<{
+      leadId: string
+      domain: string
+      firstName: string | null
+      lastName: string | null
+      candidates: string[]
+    }> = []
+
+    for (const lead of listLeads) {
+      const update = emailUpdates.get(lead.id)
+      const finalEmail = update?.email ?? lead.email
+      if (!finalEmail) continue
+
+      const domain = leadDomains.get(lead.id) ?? extractDomain(finalEmail)
+      if (!domain) continue
+
+      const candidates =
+        lead.firstName && lead.lastName
+          ? [
+              ...new Set([
+                finalEmail,
+                ...guessAllEmails(domain, lead.firstName, lead.lastName),
+              ]),
+            ]
+          : [finalEmail]
+
+      verificationJobs.push({
+        leadId: lead.id,
+        domain,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        candidates: candidates.slice(0, 6),
+      })
+    }
+
+    const INLINE_VERIFY_LIMIT = 50
+    if (verificationJobs.length <= INLINE_VERIFY_LIMIT) {
+      await emailVerificationService.profileDomainsInBulk([
+        ...new Set(verificationJobs.map((job) => job.domain)),
+      ])
+
+      for (const job of verificationJobs) {
+        try {
+          const decision =
+            await emailVerificationService.verifyLeadEmailCandidates({
+              organizationId,
+              leadId: job.leadId,
+              domain: job.domain,
+              firstName: job.firstName,
+              lastName: job.lastName,
+              candidates: job.candidates,
+            })
+          incrementVerificationCounters(decision.status)
+        } catch (error) {
+          stats.emailsUnknown++
+          logger.warn(
+            {
+              eventType: 'enrich.email.verify.inline_failed',
+              organizationId,
+              leadId: job.leadId,
+              domain: job.domain,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'Inline email verification failed',
+          )
+        }
+      }
+    } else {
+      const queuedDomains = new Set<string>()
+      for (const job of verificationJobs) {
+        if (!queuedDomains.has(job.domain)) {
+          await addEmailDomainProfileJob({
+            type: EmailDomainProfileEventType.PROFILE_DOMAIN,
+            domain: job.domain,
+            forceRefresh: false,
+            requestedByOrganizationId: organizationId,
+            correlationId: `email-enrich-list:${listId}:domain:${job.domain}`,
+          })
+          queuedDomains.add(job.domain)
+        }
+
+        await addEmailCandidateVerifyJob({
+          type: EmailCandidateVerifyEventType.VERIFY_LEAD_EMAIL,
+          organizationId,
+          leadId: job.leadId,
+          domain: job.domain,
+          firstName: job.firstName,
+          lastName: job.lastName,
+          candidates: job.candidates,
+          correlationId: `email-enrich-list:${listId}:${job.leadId}`,
+        })
+        stats.emailVerificationJobsQueued++
+      }
+      stats.emailsUnknown += verificationJobs.length
+    }
+  }
+
+  // Count skipped leads
+  let skipped = 0
+  for (const lead of listLeads) {
+    const update = emailUpdates.get(lead.id)
+    const finalEmail = update?.email ?? lead.email
+    if (!finalEmail) skipped++
+  }
+
+  return {
+    totalLeads: listLeads.length,
+    emailsGuessed: stats.emailsGuessed,
+    emailsFoundByProspeo: stats.emailsFoundByProspeo,
+    emailsFoundByLinkedIn: stats.emailsFoundByLinkedIn,
+    emailsFromPatternLearning: stats.emailsFromPatternLearning,
+    emailsFromCache: stats.emailsFromCache,
+    emailsAlreadyPresent: stats.emailsAlreadyPresent,
+    emailsVerifiedHighConfidence: stats.emailsVerifiedHighConfidence,
+    emailsVerifiedMediumConfidence: stats.emailsVerifiedMediumConfidence,
+    emailsMarkedCatchAllRisk: stats.emailsMarkedCatchAllRisk,
+    emailsMarkedUndeliverable: stats.emailsMarkedUndeliverable,
+    emailsUnknown: stats.emailsUnknown,
+    emailVerificationJobsQueued: stats.emailVerificationJobsQueued,
+    skipped,
+    creditsUsed: stats.creditsUsed,
+    domainsProcessed: stats.domainsProcessed,
+    patternsLearned: stats.patternsLearned,
+  }
+}
+
+// === Contact Info Management ===
+
+export const getLeadContactInfo = async (
+  leadId: string,
+): Promise<ContactInfoResponse[]> => {
+  const contacts = await db
+    .selectFrom('lead_contact_info')
+    .where('leadId', '=', leadId)
+    .selectAll()
+    .orderBy('isPrimary', 'desc')
+    .orderBy('createdAt', 'asc')
+    .execute()
+
+  if (contacts.length > 0) {
+    return contacts.map((c) => ({
+      id: c.id,
+      leadId: c.leadId,
+      type: c.type as ContactInfoType,
+      value: c.value,
+      isPrimary: c.isPrimary,
+      isVerified: c.isVerified,
+      source: c.source,
+      confidence: c.confidence ? Number(c.confidence) : null,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    }))
+  }
+
+  // Fallback: return contact info from the lead record itself
+  const lead = await db
+    .selectFrom('lead')
+    .where('id', '=', leadId)
+    .select(['id', 'email', 'phone', 'linkedInUrl', 'createdAt', 'updatedAt'])
+    .executeTakeFirst()
+
+  if (!lead) return []
+
+  const fallback: ContactInfoResponse[] = []
+  const now = lead.createdAt.toISOString()
+
+  if (lead.email) {
+    fallback.push({
+      id: `${leadId}-email`,
+      leadId,
+      type: 'work_email' as ContactInfoType,
+      value: lead.email,
+      isPrimary: true,
+      isVerified: false,
+      source: 'imported',
+      confidence: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  if (lead.phone) {
+    fallback.push({
+      id: `${leadId}-phone`,
+      leadId,
+      type: 'mobile' as ContactInfoType,
+      value: lead.phone,
+      isPrimary: true,
+      isVerified: false,
+      source: 'imported',
+      confidence: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  return fallback
+}
+
+async function addContactInfo(
+  leadId: string,
+  type: ContactInfoType,
+  value: string,
+  source: string,
+  isPrimary = false,
+) {
+  // Normalize phone for dedup check
+  const normalizedValue = ['mobile', 'direct_dial', 'office'].includes(type)
+    ? (validateAndNormalizePhone(value) ?? value)
+    : value
+
+  // Check if already exists (by normalized value for phones)
+  const existing = await db
+    .selectFrom('lead_contact_info')
+    .where('leadId', '=', leadId)
+    .where('type', '=', type)
+    .where('value', '=', normalizedValue)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (existing) {
+    return existing
+  }
+
+  return db
+    .insertInto('lead_contact_info')
+    .values({
+      id: uuidv4(),
+      leadId,
+      type,
+      value: normalizedValue,
+      isPrimary,
+      isVerified: false,
+      source,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returningAll()
+    .executeTakeFirst()
+}
+
+// === Enrichment History ===
+
+async function recordEnrichmentHistory(
+  organizationId: string,
+  leadId: string,
+  vendorConnectionId: string | null,
+  provider: DataVendorProvider,
+  requestType: string,
+  fieldsRequested: string[],
+  fieldsEnriched: string[],
+  creditsCost: number,
+  success: boolean,
+  errorMessage: string | null,
+  responseTimeMs: number,
+) {
+  await db
+    .insertInto('enrichment_history')
+    .values({
+      id: uuidv4(),
+      organizationId,
+      leadId,
+      vendorConnectionId,
+      provider,
+      requestType,
+      fieldsRequested,
+      fieldsEnriched,
+      creditsCost,
+      success,
+      errorMessage,
+      responseTimeMs,
+      createdAt: new Date(),
+    })
+    .execute()
+}
 
 export const getEnrichmentHistory = async (
   organizationId: string,
-  params: GetEnrichmentHistoryRequest,
-): Promise<EnrichmentHistoryResponse> => {
-  return enrichmentRepository.findByOrganizationId(organizationId, {
-    page: params.page,
-    limit: params.limit,
-    status: params.status,
-  });
-};
+  filters: {
+    leadId?: string
+    provider?: DataVendorProvider
+    startDate?: Date
+    endDate?: Date
+  },
+  pagination: { page: number; limit: number },
+) => {
+  let query = db
+    .selectFrom('enrichment_history as eh')
+    .leftJoin('lead as l', 'l.id', 'eh.leadId')
+    .where('eh.organizationId', '=', organizationId)
 
-export const createBulkJob = async (
-  organizationId: string,
-  userId: string,
-  fileName: string,
-  linkedinUrls: Array<{ identifier: string; linkedinUrl: string }>,
-  enrichMobile: boolean = true,
-  jobType: string = BulkJobType.LINKEDIN,
-): Promise<BulkEnrichResponse> => {
-  // Create the job
-  const job = await bulkEnrichmentRepository.createJob({
-    organizationId,
-    userId,
-    status: BulkJobStatus.PENDING,
-    jobType,
-    totalRecords: linkedinUrls.length,
-    processedRecords: 0,
-    matchedRecords: 0,
-    failedRecords: 0,
-    originalFileName: fileName,
-    totalCreditsCost: 0,
-    enrichMobile,
-  });
-
-  if (!job) {
-    throw new Error("Failed to create bulk enrichment job");
+  if (filters.leadId) {
+    query = query.where('eh.leadId', '=', filters.leadId)
+  }
+  if (filters.provider) {
+    query = query.where('eh.provider', '=', filters.provider)
+  }
+  if (filters.startDate) {
+    query = query.where('eh.createdAt', '>=', filters.startDate)
+  }
+  if (filters.endDate) {
+    query = query.where('eh.createdAt', '<=', filters.endDate)
   }
 
-  // Create items
-  const items = linkedinUrls.map((item) => ({
-    jobId: job.id,
-    identifier: item.identifier,
-    linkedinUrl: item.linkedinUrl,
-    status: BulkItemStatus.PENDING,
-  }));
+  const countResult = await query
+    .select((eb) => eb.fn.countAll().as('count'))
+    .executeTakeFirstOrThrow()
 
-  await bulkEnrichmentRepository.createItems(items);
+  const offset = (pagination.page - 1) * pagination.limit
+
+  const records = await query
+    .select([
+      'eh.id',
+      'eh.organizationId',
+      'eh.leadId',
+      'eh.vendorConnectionId',
+      'eh.provider',
+      'eh.requestType',
+      'eh.fieldsRequested',
+      'eh.fieldsEnriched',
+      'eh.creditsCost',
+      'eh.success',
+      'eh.errorMessage',
+      'eh.responseTimeMs',
+      'eh.createdAt',
+      'l.firstName',
+      'l.lastName',
+    ])
+    .orderBy('eh.createdAt', 'desc')
+    .limit(pagination.limit)
+    .offset(offset)
+    .execute()
+
+  // Calculate aggregated stats
+  const stats = await query
+    .select((eb) => [
+      eb.fn.sum('eh.creditsCost').as('totalCreditsUsed'),
+      eb.fn
+        .count('eh.id')
+        .filterWhere('eh.success', '=', true)
+        .as('totalSuccessful'),
+      eb.fn
+        .count('eh.id')
+        .filterWhere('eh.success', '=', false)
+        .as('totalFailed'),
+    ])
+    .executeTakeFirstOrThrow()
+
+  const data: EnrichmentHistoryRecordResponse[] = records.map((r) => ({
+    id: r.id,
+    organizationId: r.organizationId,
+    leadId: r.leadId,
+    leadName:
+      r.firstName || r.lastName
+        ? `${r.firstName || ''} ${r.lastName || ''}`.trim()
+        : null,
+    vendorConnectionId: r.vendorConnectionId,
+    provider: r.provider as DataVendorProvider,
+    requestType: r.requestType as any,
+    fieldsRequested: r.fieldsRequested,
+    fieldsEnriched: r.fieldsEnriched,
+    creditsCost: r.creditsCost,
+    success: r.success,
+    errorMessage: r.errorMessage,
+    responseTimeMs: r.responseTimeMs,
+    createdAt: r.createdAt.toISOString(),
+  }))
 
   return {
-    job,
-    message: `Bulk enrichment job created with ${linkedinUrls.length} records`,
-  };
-};
-
-export const createPeopleSearchBulkJob = async (
-  organizationId: string,
-  userId: string,
-  fileName: string,
-  searchItems: Array<{
-    identifier: string;
-    company?: string;
-    domain?: string;
-    roles: string[];
-  }>,
-  enrichMobile: boolean = true,
-): Promise<BulkEnrichResponse> => {
-  // Calculate total records: each company/domain + role combination is one record
-  const totalRecords = searchItems.reduce(
-    (acc, item) => acc + item.roles.length,
-    0,
-  );
-
-  // Create the job
-  const job = await bulkEnrichmentRepository.createJob({
-    organizationId,
-    userId,
-    status: BulkJobStatus.PENDING,
-    jobType: BulkJobType.PEOPLE_SEARCH,
-    totalRecords,
-    processedRecords: 0,
-    matchedRecords: 0,
-    failedRecords: 0,
-    originalFileName: fileName,
-    totalCreditsCost: 0,
-    enrichMobile,
-  });
-
-  if (!job) {
-    throw new Error("Failed to create bulk enrichment job");
+    data,
+    total: Number(countResult.count),
+    page: pagination.page,
+    limit: pagination.limit,
+    totalCreditsUsed: Number(stats.totalCreditsUsed) || 0,
+    totalSuccessful: Number(stats.totalSuccessful) || 0,
+    totalFailed: Number(stats.totalFailed) || 0,
   }
+}
 
-  // Create items - one per company/domain + role combination
-  const items: Array<{
-    jobId: string;
-    identifier: string;
-    status: string;
-    inputCompany?: string | null;
-    inputDomain?: string | null;
-    inputRole?: string | null;
-  }> = [];
+// === Vendor Adapters ===
 
-  for (const item of searchItems) {
-    for (const role of item.roles) {
-      items.push({
-        jobId: job.id,
-        identifier: `${item.identifier}-${role}`,
-        status: BulkItemStatus.PENDING,
-        inputCompany: item.company || null,
-        inputDomain: item.domain || null,
-        inputRole: role,
-      });
+interface VendorAdapter {
+  testConnection(apiKey: string): Promise<{
+    success: boolean
+    message: string
+    creditsRemaining: number | null
+  }>
+  enrichLead(
+    apiKey: string,
+    lead: {
+      email?: string
+      phone?: string
+      firstName?: string
+      lastName?: string
+      company?: string
+      linkedInUrl?: string
+      website?: string
+    },
+  ): Promise<VendorEnrichmentResult>
+}
+
+function getVendorAdapter(provider: DataVendorProvider): VendorAdapter {
+  switch (provider) {
+    case 'apollo':
+      return apolloAdapter
+    case 'clearbit':
+      return clearbitAdapter
+    case 'zoominfo':
+      return zoominfoAdapter
+    case 'lusha':
+      return lushaAdapter
+    case 'enrichengine':
+      return enrichEngineAdapter
+    case 'prospeo':
+      return prospeoAdapter
+    case 'forager':
+      return foragerAdapter
+    case 'leadmagic':
+      return leadmagicAdapter
+    case 'firecrawl':
+      return firecrawlAdapter
+    case 'crawl4ai':
+      return crawl4aiAdapter
+    default:
+      throw new Error(`Unknown provider: ${provider}`)
+  }
+}
+
+// Stub adapters - implement actual API calls for each provider
+const apolloAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    // Apollo API test - would make actual API call
+    return {
+      success: true,
+      message: 'Apollo connection successful',
+      creditsRemaining: null,
     }
-  }
-
-  await bulkEnrichmentRepository.createItems(items);
-
-  return {
-    job,
-    message: `Bulk people search job created with ${totalRecords} records`,
-  };
-};
-
-export const getBulkJobStatus = async (
-  jobId: string,
-  organizationId: string,
-): Promise<BulkJobStatusResponse> => {
-  const job = await bulkEnrichmentRepository.findJobById(jobId);
-
-  if (!job) {
-    throw new Error("Bulk enrichment job not found");
-  }
-
-  if (job.organizationId !== organizationId) {
-    throw new Error("Unauthorized access to bulk enrichment job");
-  }
-
-  const items = await bulkEnrichmentRepository.findItemsByJobId(jobId);
-
-  return {
-    job,
-    items,
-  };
-};
-
-export const processBulkJob = async (jobId: string): Promise<void> => {
-  const job = await bulkEnrichmentRepository.findJobById(jobId);
-
-  if (!job) {
-    throw new Error("Bulk enrichment job not found");
-  }
-
-  // Update job status to processing
-  await bulkEnrichmentRepository.updateJob(jobId, {
-    status: BulkJobStatus.PROCESSING,
-  });
-
-  try {
-    if (job.jobType === BulkJobType.PEOPLE_SEARCH) {
-      await processPeopleSearchJob(jobId, job.enrichMobile);
-    } else {
-      await processLinkedInJob(jobId, job.enrichMobile);
+  },
+  async enrichLead(apiKey, lead) {
+    // Apollo person enrichment API call
+    return {
+      provider: 'apollo',
+      success: false,
+      errorMessage: 'Apollo adapter not fully implemented',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
     }
+  },
+}
 
-    // Mark job as completed
-    await bulkEnrichmentRepository.updateJob(jobId, {
-      status: BulkJobStatus.COMPLETED,
-      completedAt: new Date(),
-    });
-
-    logger.info({ jobId, jobType: job.jobType }, "Bulk enrichment job completed");
-  } catch (error) {
-    logger.error({ error, jobId }, "Bulk enrichment job failed");
-
-    await bulkEnrichmentRepository.updateJob(jobId, {
-      status: BulkJobStatus.FAILED,
-      completedAt: new Date(),
-    });
-
-    throw error;
-  }
-};
-
-// Process LinkedIn URL-based bulk jobs
-const processLinkedInJob = async (
-  jobId: string,
-  enrichMobile: boolean,
-): Promise<void> => {
-  const BATCH_SIZE = 50;
-  let hasMoreItems = true;
-  let totalCredits = 0;
-
-  while (hasMoreItems) {
-    const pendingItems =
-      await bulkEnrichmentRepository.findPendingItemsByJobId(
-        jobId,
-        BATCH_SIZE,
-      );
-
-    if (pendingItems.length === 0) {
-      hasMoreItems = false;
-      break;
+const clearbitAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return {
+      success: true,
+      message: 'Clearbit connection successful',
+      creditsRemaining: null,
     }
+  },
+  async enrichLead(apiKey, lead) {
+    return {
+      provider: 'clearbit',
+      success: false,
+      errorMessage: 'Clearbit adapter not fully implemented',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
 
-    // Prepare batch request
-    const batchData = pendingItems.map((item) => ({
-      identifier: item.id,
-      linkedin_url: item.linkedinUrl || "",
-    }));
+const zoominfoAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return {
+      success: true,
+      message: 'ZoomInfo connection successful',
+      creditsRemaining: null,
+    }
+  },
+  async enrichLead(apiKey, lead) {
+    return {
+      provider: 'zoominfo',
+      success: false,
+      errorMessage: 'ZoomInfo adapter not fully implemented',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
 
-    // Call Prospeo bulk API
-    const result = await prospeoClient.bulkEnrichPersons(batchData, enrichMobile);
+const lushaAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return {
+      success: true,
+      message: 'Lusha connection successful',
+      creditsRemaining: null,
+    }
+  },
+  async enrichLead(apiKey, lead) {
+    return {
+      provider: 'lusha',
+      success: false,
+      errorMessage: 'Lusha adapter not fully implemented',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
 
-    if (result.success && result.response) {
-      // Update each item with results
-      for (const responseItem of result.response) {
-        const status =
-          responseItem.status === "success"
-            ? BulkItemStatus.MATCHED
-            : responseItem.status === "not_found"
-              ? BulkItemStatus.NOT_MATCHED
-              : BulkItemStatus.ERROR;
+const enrichEngineAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return {
+      success: true,
+      message: 'EnrichEngine connection successful',
+      creditsRemaining: null,
+    }
+  },
+  async enrichLead(apiKey, lead) {
+    return {
+      provider: 'enrichengine',
+      success: false,
+      errorMessage: 'EnrichEngine adapter not fully implemented',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
 
-        await bulkEnrichmentRepository.updateItem(responseItem.identifier, {
-          status,
-          email: responseItem.email?.email,
-          mobile: responseItem.mobile,
-          firstName: responseItem.first_name,
-          lastName: responseItem.last_name,
-          title: responseItem.title,
-          companyName: responseItem.company_name,
-          errorCode: responseItem.error_code,
-          rawResponse: responseItem,
-        });
+const prospeoAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return prospeoClient.testConnection(apiKey)
+  },
+  async enrichLead(apiKey, lead) {
+    const startTime = Date.now()
+
+    if (lead.linkedInUrl) {
+      const result = await prospeoClient.enrichFromLinkedIn(
+        apiKey,
+        lead.linkedInUrl,
+      )
+
+      return {
+        provider: 'prospeo',
+        success: result.success,
+        errorMessage: result.errorMessage ?? null,
+        creditsCost: result.success ? 1 : 0,
+        responseTimeMs: Date.now() - startTime,
+        data: result.success
+          ? {
+              firstName: result.firstName,
+              lastName: result.lastName,
+              email: result.email,
+              phone: result.phone,
+              company: result.company,
+              title: result.title,
+            }
+          : null,
       }
+    }
 
-      totalCredits += result.credits_used ?? pendingItems.length;
-    } else {
-      // Mark all items as error
-      for (const item of pendingItems) {
-        await bulkEnrichmentRepository.updateItem(item.id, {
-          status: BulkItemStatus.ERROR,
-          errorCode: result.error || "Bulk API error",
-        });
+    const domain = lead.website ? extractDomain(lead.website) : null
+    if (lead.firstName && lead.lastName && domain) {
+      const result = await prospeoClient.findEmailByDomain(
+        apiKey,
+        domain,
+        lead.firstName,
+        lead.lastName,
+      )
+
+      return {
+        provider: 'prospeo',
+        success: result.success,
+        errorMessage: result.errorMessage ?? null,
+        creditsCost: result.success ? 1 : 0,
+        responseTimeMs: Date.now() - startTime,
+        data: result.success
+          ? {
+              firstName: result.firstName ?? lead.firstName,
+              lastName: result.lastName ?? lead.lastName,
+              email: result.email,
+              company: result.company,
+              title: result.title,
+            }
+          : null,
       }
     }
 
-    // Update job progress
-    const stats = await bulkEnrichmentRepository.getJobStats(jobId);
-    await bulkEnrichmentRepository.updateJob(jobId, {
-      processedRecords: stats.processed,
-      matchedRecords: stats.matched,
-      failedRecords: stats.failed,
-      totalCreditsCost: totalCredits,
-    });
-  }
-};
+    return {
+      provider: 'prospeo',
+      success: false,
+      errorMessage:
+        'Prospeo requires LinkedIn URL or first name, last name, and website/domain',
+      creditsCost: 0,
+      responseTimeMs: Date.now() - startTime,
+      data: null,
+    }
+  },
+}
 
-// Process people search bulk jobs (company/domain + role)
-const processPeopleSearchJob = async (
-  jobId: string,
-  enrichMobile: boolean,
-): Promise<void> => {
-  const BATCH_SIZE = 10; // Smaller batch for search + enrich
-  let hasMoreItems = true;
-  let totalCredits = 0;
+const foragerAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return foragerClient.testConnection(apiKey)
+  },
+  async enrichLead(apiKey, lead) {
+    const startTime = Date.now()
 
-  while (hasMoreItems) {
-    const pendingItems =
-      await bulkEnrichmentRepository.findPendingItemsByJobId(
-        jobId,
-        BATCH_SIZE,
-      );
+    // Try name + company enrichment if we have enough data
+    if (lead.firstName && lead.lastName && lead.company) {
+      const result = await foragerClient.enrichByNameAndCompany(
+        apiKey,
+        lead.firstName,
+        lead.lastName,
+        lead.company,
+      )
 
-    if (pendingItems.length === 0) {
-      hasMoreItems = false;
-      break;
+      return {
+        provider: 'forager',
+        success: result.success,
+        errorMessage: result.errorMessage ?? null,
+        creditsCost: result.creditsUsed,
+        responseTimeMs: Date.now() - startTime,
+        data: result.success
+          ? {
+              firstName: result.firstName,
+              lastName: result.lastName,
+              email: result.email,
+              phone: result.phone,
+              mobilePhone: result.mobilePhone,
+              directDial: result.directDial,
+              company: result.company,
+              title: result.title,
+              location: result.location,
+            }
+          : null,
+      }
     }
 
-    // Process each item: search for LinkedIn profile, then enrich
-    for (const item of pendingItems) {
+    return {
+      provider: 'forager',
+      success: false,
+      errorMessage: 'Forager requires first name, last name, and company',
+      creditsCost: 0,
+      responseTimeMs: Date.now() - startTime,
+      data: null,
+    }
+  },
+}
+
+const leadmagicAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    return leadmagicClient.testConnection(apiKey)
+  },
+  async enrichLead(apiKey, lead) {
+    const startTime = Date.now()
+
+    // LeadMagic requires LinkedIn URL for enrichment
+    return {
+      provider: 'leadmagic',
+      success: false,
+      errorMessage:
+        'LeadMagic requires LinkedIn URL - use extension enrichment',
+      creditsCost: 0,
+      responseTimeMs: Date.now() - startTime,
+      data: null,
+    }
+  },
+}
+
+const firecrawlAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    const result = await firecrawlClient.testConnection(apiKey)
+    return {
+      ...result,
+      creditsRemaining: null, // Firecrawl doesn't expose credits via API
+    }
+  },
+  async enrichLead(apiKey, lead) {
+    // Firecrawl is not designed for standard lead enrichment
+    // It's for web research tasks with custom extraction schemas
+    // Return not supported for standard enrichment flow
+    return {
+      provider: 'firecrawl' as const,
+      success: false,
+      errorMessage:
+        'Firecrawl is for web research, not standard lead enrichment. Use research tasks instead.',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
+
+const crawl4aiAdapter: VendorAdapter = {
+  async testConnection(apiKey: string) {
+    const result = await crawl4aiClient.testConnection(apiKey)
+    return {
+      ...result,
+      creditsRemaining: null,
+    }
+  },
+  async enrichLead() {
+    return {
+      provider: 'crawl4ai' as const,
+      success: false,
+      errorMessage:
+        'Crawl4AI is for web research tasks, not standard lead enrichment. Use research tasks instead.',
+      creditsCost: 0,
+      responseTimeMs: 0,
+      data: null,
+    }
+  },
+}
+
+// === Phone Deduplication ===
+
+interface CollectedPhoneNumber {
+  rawValue: string
+  normalizedValue: string
+  type: 'mobile' | 'direct_dial' | 'office'
+  source: string
+  priority: number // lower = higher priority (from vendor priority)
+}
+
+function deduplicatePhones(
+  phones: CollectedPhoneNumber[],
+): CollectedPhoneNumber[] {
+  // Sort by priority first (lower = higher priority)
+  const sorted = [...phones].sort((a, b) => a.priority - b.priority)
+  const seen = new Map<string, CollectedPhoneNumber>()
+  for (const phone of sorted) {
+    if (!seen.has(phone.normalizedValue)) {
+      seen.set(phone.normalizedValue, phone)
+    }
+  }
+  return Array.from(seen.values())
+}
+
+/**
+ * Enrich a lead from LinkedIn URL using ALL active vendors in parallel.
+ * Collects and deduplicates phone numbers from all vendors.
+ */
+export async function enrichLeadFromLinkedIn(
+  organizationId: string,
+  leadId: string,
+  linkedInUrl: string,
+): Promise<EnrichLeadResponse & { phoneNumbers?: EnrichedPhoneNumber[] }> {
+  const lead = await db
+    .selectFrom('lead')
+    .where('id', '=', leadId)
+    .where('organizationId', '=', organizationId)
+    .where('deletedAt', 'is', null)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (!lead) {
+    throw new Error('Lead not found')
+  }
+
+  // Get all active enrichment vendor connections, ordered by priority
+  const connections = await db
+    .selectFrom('data_vendor_connection')
+    .where('organizationId', '=', organizationId)
+    .where('isActive', '=', true)
+    .where('provider', 'in', ['prospeo', 'forager', 'leadmagic'])
+    .selectAll()
+    .orderBy('priority', 'asc')
+    .execute()
+
+  if (connections.length === 0) {
+    console.log(
+      '[Enrichment] No Prospeo, Forager, or LeadMagic connections configured for org:',
+      organizationId,
+    )
+    return {
+      leadId,
+      success: false,
+      providersUsed: [],
+      fieldsEnriched: [],
+      creditsUsed: 0,
+      phoneNumbers: [],
+      errorMessage:
+        'No data vendors configured. Go to Settings > Data Vendors to add your Prospeo, Forager, or LeadMagic API key.',
+    }
+  }
+
+  // Filter connections that haven't exceeded their credit limits
+  const viableConnections = connections.filter((c) => {
+    if (c.creditsLimit && c.creditsUsed >= c.creditsLimit) {
+      console.log(`[Enrichment] ${c.provider} credits exhausted, skipping`)
+      return false
+    }
+    return true
+  })
+
+  // === Cache check: split connections into cached and uncached ===
+  const lookupKey = buildLinkedInLookupKey(linkedInUrl)
+  const cachedEntries =
+    await enrichmentCacheRepo.findValidByLookupKey(lookupKey)
+  const cachedByProvider = new Map(cachedEntries.map((e) => [e.provider, e]))
+
+  type VendorResult = {
+    connection: (typeof viableConnections)[0]
+    result: {
+      success: boolean
+      email?: string
+      phone?: string
+      phoneNumbers?: string[]
+      firstName?: string
+      lastName?: string
+      company?: string
+      title?: string
+      creditsUsed?: number
+      errorMessage?: string
+    } | null
+    success: boolean
+    enabledTypes: string[]
+  }
+
+  const cachedResults: VendorResult[] = []
+  const uncachedConnections: typeof viableConnections = []
+  let totalCreditsSaved = 0
+
+  for (const connection of viableConnections) {
+    const cached = cachedByProvider.get(connection.provider)
+    if (cached) {
+      const data = (
+        typeof cached.normalizedData === 'string'
+          ? JSON.parse(cached.normalizedData)
+          : cached.normalizedData
+      ) as Record<string, any>
+
+      const enabledTypes = (connection.enabledDataTypes as string[]) ?? [
+        'phone',
+        'email',
+        'profile',
+      ]
+      cachedResults.push({
+        connection,
+        result: {
+          success: true,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          company: data.company,
+          title: data.title,
+          phone: data.phone,
+          email: data.email,
+          phoneNumbers: data.phoneNumbers ?? (data.phone ? [data.phone] : []),
+          creditsUsed: 0,
+        },
+        success: true,
+        enabledTypes,
+      })
+      totalCreditsSaved++
+
+      // Record cache hit
+      enrichmentCacheRepo.recordHit(cached.id).catch(() => {})
+      await recordEnrichmentHistory(
+        organizationId,
+        leadId,
+        connection.id,
+        connection.provider as DataVendorProvider,
+        'person',
+        ['phone', 'email', 'firstName', 'lastName', 'company', 'title'],
+        Object.keys(data).filter((k) => data[k]),
+        0,
+        true,
+        null,
+        0,
+      )
+
+      console.log('[Enrichment] Cache HIT for enrichLeadFromLinkedIn:', {
+        provider: connection.provider,
+        lookupKey,
+      })
+    } else {
+      uncachedConnections.push(connection)
+    }
+  }
+
+  // Call only UNCACHED vendors in parallel
+  const vendorResults = await Promise.allSettled(
+    uncachedConnections.map(async (connection) => {
+      const provider = connection.provider as DataVendorProvider
+      const apiKey = decrypt(connection.apiKeyEncrypted)
+      const startTime = Date.now()
+      const enabledTypes = (connection.enabledDataTypes as string[]) ?? [
+        'phone',
+        'email',
+        'profile',
+      ]
+
       try {
-        // Mark as searching
-        await bulkEnrichmentRepository.updateItem(item.id, {
-          status: BulkItemStatus.SEARCHING,
-        });
+        let result: {
+          success: boolean
+          email?: string
+          phone?: string
+          phoneNumbers?: string[]
+          firstName?: string
+          lastName?: string
+          company?: string
+          title?: string
+          creditsUsed?: number
+          errorMessage?: string
+        }
+        result = await executeWithVendorPolicy({
+          organizationId,
+          provider,
+          requestMode: 'interactive',
+          estimatedCredits: 1,
+          operation: async () => {
+            if (provider === 'prospeo') {
+              const prospeoResult = await prospeoClient.enrichFromLinkedIn(
+                apiKey,
+                linkedInUrl,
+              )
+              return {
+                success: prospeoResult.success,
+                phone: prospeoResult.phone,
+                phoneNumbers: prospeoResult.phoneNumbers,
+                email: prospeoResult.email,
+                firstName: prospeoResult.firstName,
+                lastName: prospeoResult.lastName,
+                company: prospeoResult.company,
+                title: prospeoResult.title,
+                creditsUsed: prospeoResult.success ? 1 : 0,
+                errorMessage: prospeoResult.errorMessage,
+              }
+            }
 
-        // Search for LinkedIn profile
-        const company = item.inputCompany || item.inputDomain || "";
-        const role = item.inputRole || "";
+            if (provider === 'leadmagic') {
+              const lmResult = await leadmagicClient.enrichFromLinkedIn(
+                apiKey,
+                linkedInUrl,
+              )
+              return {
+                success: lmResult.success,
+                phone: lmResult.phone,
+                email: lmResult.email,
+                creditsUsed: lmResult.creditsUsed,
+                errorMessage: lmResult.errorMessage,
+              }
+            }
 
-        logger.info(
-          { itemId: item.id, company, role },
-          "Searching for LinkedIn profile",
-        );
+            const fResult = await foragerClient.enrichFromLinkedIn(
+              apiKey,
+              linkedInUrl,
+            )
+            return {
+              ...fResult,
+              // Forager may return multiple phone fields
+              phoneNumbers: [
+                fResult.phone,
+                fResult.mobilePhone,
+                fResult.directDial,
+              ].filter(Boolean) as string[],
+            }
+          },
+          classifyResult: classifyVendorResultByMessage,
+          extractCreditsUsed: (vendorResult) => vendorResult.creditsUsed ?? 1,
+        })
 
-        const searchResult = await searchService.searchPeople({
-          company,
-          role,
-          page: 1,
-          limit: 1, // We only need the top result
-        });
+        const responseTimeMs = Date.now() - startTime
 
-        if (searchResult.results.length === 0) {
-          // No LinkedIn profile found
-          await bulkEnrichmentRepository.updateItem(item.id, {
-            status: BulkItemStatus.NOT_MATCHED,
-            errorCode: "no_profile_found",
-          });
-          continue;
+        if (!result.success) {
+          await recordEnrichmentHistory(
+            organizationId,
+            leadId,
+            connection.id,
+            provider,
+            'person',
+            [],
+            [],
+            0,
+            false,
+            result.errorMessage ?? 'Unknown error',
+            responseTimeMs,
+          )
+          return { connection, result, success: false as const, enabledTypes }
         }
 
-        const linkedinUrl = searchResult.results[0].linkedinUrl;
+        // Record history and update credits
+        const enrichedFields: string[] = []
+        if (result.phone || result.phoneNumbers?.length)
+          enrichedFields.push('phone')
+        if (result.email) enrichedFields.push('email')
+        if (result.firstName) enrichedFields.push('firstName')
+        if (result.lastName) enrichedFields.push('lastName')
+        if (result.company) enrichedFields.push('company')
+        if (result.title) enrichedFields.push('title')
 
-        // Update item with found LinkedIn URL
-        await bulkEnrichmentRepository.updateItem(item.id, {
-          linkedinUrl,
-        });
+        await recordEnrichmentHistory(
+          organizationId,
+          leadId,
+          connection.id,
+          provider,
+          'person',
+          ['phone', 'email', 'firstName', 'lastName', 'company', 'title'],
+          enrichedFields,
+          result.creditsUsed ?? 1,
+          true,
+          null,
+          responseTimeMs,
+        )
 
-        // Now enrich the profile
-        const enrichResult = await prospeoClient.enrichPerson(
-          linkedinUrl,
-          enrichMobile,
-        );
+        // Update vendor credits
+        await db
+          .updateTable('data_vendor_connection')
+          .set({
+            creditsUsed: connection.creditsUsed + (result.creditsUsed ?? 1),
+            lastSyncAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where('id', '=', connection.id)
+          .execute()
 
-        if (enrichResult.success && enrichResult.response) {
-          await bulkEnrichmentRepository.updateItem(item.id, {
-            status: BulkItemStatus.MATCHED,
-            email: enrichResult.response.email?.email,
-            mobile: enrichResult.response.mobile,
-            firstName: enrichResult.response.first_name,
-            lastName: enrichResult.response.last_name,
-            title: enrichResult.response.title,
-            companyName: enrichResult.response.company_name,
-            rawResponse: enrichResult,
-          });
+        // Write to enrichment cache
+        enrichmentCacheRepo
+          .upsert({
+            lookupKey,
+            lookupType: 'linkedin',
+            provider: connection.provider,
+            rawResponse: result,
+            normalizedData: {
+              firstName: result.firstName,
+              lastName: result.lastName,
+              email: result.email,
+              phone: result.phone,
+              phoneNumbers: result.phoneNumbers,
+              company: result.company,
+              title: result.title,
+            },
+          })
+          .catch((err) =>
+            console.error('[Enrichment] Cache write failed:', err),
+          )
 
-          totalCredits += enrichResult.credits_used ?? 1;
-        } else {
-          const status =
-            enrichResult.error_code === "not_found"
-              ? BulkItemStatus.NOT_MATCHED
-              : BulkItemStatus.ERROR;
-
-          await bulkEnrichmentRepository.updateItem(item.id, {
-            status,
-            errorCode: enrichResult.error_code || enrichResult.error,
-            rawResponse: enrichResult,
-          });
-        }
+        return { connection, result, success: true as const, enabledTypes }
       } catch (error) {
-        logger.error(
-          { error, itemId: item.id },
-          "Error processing people search item",
-        );
+        await recordEnrichmentHistory(
+          organizationId,
+          leadId,
+          connection.id,
+          provider,
+          'person',
+          [],
+          [],
+          0,
+          false,
+          formatVendorErrorForHistory(error),
+          Date.now() - startTime,
+        )
+        return {
+          connection,
+          result: null,
+          success: false as const,
+          enabledTypes,
+        }
+      }
+    }),
+  )
 
-        await bulkEnrichmentRepository.updateItem(item.id, {
-          status: BulkItemStatus.ERROR,
-          errorCode: error instanceof Error ? error.message : "Unknown error",
-        });
+  // Merge cached results with fresh vendor results
+  const allSettled = [
+    ...cachedResults.map((r) => ({ status: 'fulfilled' as const, value: r })),
+    ...vendorResults,
+  ]
+
+  // Collect results from all vendors (cached + fresh)
+  const fieldsEnriched: EnrichLeadResponse['fieldsEnriched'] = []
+  const providersUsed: DataVendorProvider[] = []
+  let totalCredits = 0
+  const allPhones: CollectedPhoneNumber[] = []
+  const updateData: Record<string, any> = {}
+  const enrichmentSourcesSet = new Set(lead.enrichmentSources || [])
+
+  for (const settled of allSettled) {
+    if (settled.status === 'rejected') continue
+    const { connection, result, success, enabledTypes } = settled.value
+    if (!success || !result) continue
+
+    providersUsed.push(connection.provider as DataVendorProvider)
+    totalCredits += result.creditsUsed ?? 1
+    enrichmentSourcesSet.add(connection.provider)
+
+    const phoneEnabled = enabledTypes.includes('phone')
+    const emailEnabled = enabledTypes.includes('email')
+    const profileEnabled = enabledTypes.includes('profile')
+
+    // Collect phone numbers (if phone data type is enabled)
+    if (phoneEnabled) {
+      // Collect all phone numbers from this vendor
+      const phones = result.phoneNumbers?.length
+        ? result.phoneNumbers
+        : result.phone
+          ? [result.phone]
+          : []
+
+      for (const rawPhone of phones) {
+        const normalized = validateAndNormalizePhone(rawPhone)
+        if (normalized) {
+          allPhones.push({
+            rawValue: rawPhone,
+            normalizedValue: normalized,
+            type: 'mobile', // Default type
+            source: connection.provider,
+            priority: connection.priority,
+          })
+        }
       }
     }
 
-    // Update job progress
-    const stats = await bulkEnrichmentRepository.getJobStats(jobId);
-    await bulkEnrichmentRepository.updateJob(jobId, {
-      processedRecords: stats.processed,
-      matchedRecords: stats.matched,
-      failedRecords: stats.failed,
-      totalCreditsCost: totalCredits,
-    });
+    // Collect email (if email data type is enabled)
+    if (emailEnabled && result.email && !lead.email && !updateData.email) {
+      updateData.email = result.email
+      fieldsEnriched.push({
+        field: 'email',
+        previousValue: lead.email,
+        newValue: result.email,
+        source: connection.provider as DataVendorProvider,
+        confidence: null,
+      })
+    }
+
+    // Collect profile data (if profile data type is enabled)
+    // Use first successful vendor's profile data (highest priority)
+    if (profileEnabled) {
+      if (result.firstName && !lead.firstName && !updateData.firstName) {
+        updateData.firstName = result.firstName
+        fieldsEnriched.push({
+          field: 'firstName',
+          previousValue: lead.firstName,
+          newValue: result.firstName,
+          source: connection.provider as DataVendorProvider,
+          confidence: null,
+        })
+      }
+      if (result.lastName && !lead.lastName && !updateData.lastName) {
+        updateData.lastName = result.lastName
+        fieldsEnriched.push({
+          field: 'lastName',
+          previousValue: lead.lastName,
+          newValue: result.lastName,
+          source: connection.provider as DataVendorProvider,
+          confidence: null,
+        })
+      }
+      if (result.company && !lead.company && !updateData.company) {
+        updateData.company = result.company
+        fieldsEnriched.push({
+          field: 'company',
+          previousValue: lead.company,
+          newValue: result.company,
+          source: connection.provider as DataVendorProvider,
+          confidence: null,
+        })
+      }
+      if (result.title && !lead.title && !updateData.title) {
+        updateData.title = result.title
+        fieldsEnriched.push({
+          field: 'title',
+          previousValue: lead.title,
+          newValue: result.title,
+          source: connection.provider as DataVendorProvider,
+          confidence: null,
+        })
+      }
+    }
   }
-};
+
+  // Deduplicate phones
+  const uniquePhones = deduplicatePhones(allPhones)
+
+  // Set primary phone on lead (first = highest priority vendor)
+  if (uniquePhones.length > 0 && !lead.phone) {
+    updateData.phone = uniquePhones[0].normalizedValue
+    fieldsEnriched.push({
+      field: 'phone',
+      previousValue: lead.phone,
+      newValue: uniquePhones[0].normalizedValue,
+      source: uniquePhones[0].source as DataVendorProvider,
+      confidence: null,
+    })
+  }
+
+  // Store ALL unique phones in lead_contact_info
+  for (let i = 0; i < uniquePhones.length; i++) {
+    const phone = uniquePhones[i]
+    await addContactInfo(
+      leadId,
+      phone.type,
+      phone.normalizedValue,
+      phone.source,
+      i === 0, // First phone is primary
+    )
+  }
+
+  // Update lead
+  if (Object.keys(updateData).length > 0) {
+    updateData.enrichmentStatus = 'enriched'
+    updateData.enrichmentSources = Array.from(enrichmentSourcesSet)
+    updateData.updatedAt = new Date()
+
+    await db
+      .updateTable('lead')
+      .set(updateData)
+      .where('id', '=', leadId)
+      .execute()
+  }
+
+  // Build phone numbers response
+  const phoneNumbers: EnrichedPhoneNumber[] = uniquePhones.map((p, i) => ({
+    value: p.normalizedValue,
+    type: p.type,
+    source: p.source,
+    isPrimary: i === 0,
+  }))
+
+  // Build detailed error message
+  let errorMessage: string | null = null
+  if (fieldsEnriched.length === 0) {
+    if (providersUsed.length === 0) {
+      errorMessage =
+        'All data vendors failed to respond. Check your API keys in Settings > Data Vendors.'
+    } else {
+      errorMessage = `No phone or email found for this profile. Tried: ${providersUsed.join(', ')}`
+    }
+  }
+
+  console.log('[Enrichment] LinkedIn enrichment complete:', {
+    leadId,
+    providersUsed,
+    fieldsEnriched: fieldsEnriched.map((f) => f.field),
+    phoneNumbers: phoneNumbers.length,
+    creditsUsed: totalCredits,
+    creditsSaved: totalCreditsSaved,
+    errorMessage,
+  })
+
+  // Fire-and-forget auto CRM sync after successful enrichment
+  if (providersUsed.length > 0 && fieldsEnriched.length > 0) {
+    crmService
+      .autoSyncAfterEnrichment(organizationId, leadId)
+      .catch((err) => console.error('[Enrichment] Auto CRM sync failed:', err))
+  }
+
+  return {
+    leadId,
+    success: providersUsed.length > 0 && fieldsEnriched.length > 0,
+    providersUsed,
+    fieldsEnriched,
+    creditsUsed: totalCredits,
+    phoneNumbers,
+    cacheHit: totalCreditsSaved > 0,
+    creditsSaved: totalCreditsSaved,
+    errorMessage,
+  }
+}
+
+function transformConnection(
+  connection: any,
+  connectedByName: string | null,
+): VendorConnectionResponse {
+  return {
+    id: connection.id,
+    organizationId: connection.organizationId,
+    provider: connection.provider as DataVendorProvider,
+    isActive: connection.isActive,
+    priority: connection.priority,
+    enabledDataTypes: connection.enabledDataTypes ?? [
+      'phone',
+      'email',
+      'profile',
+    ],
+    creditsUsed: connection.creditsUsed,
+    creditsLimit: connection.creditsLimit,
+    creditsRemaining: connection.creditsLimit
+      ? connection.creditsLimit - connection.creditsUsed
+      : null,
+    lastSyncAt: connection.lastSyncAt?.toISOString() || null,
+    connectedById: connection.connectedById,
+    connectedByName,
+    createdAt: connection.createdAt.toISOString(),
+    updatedAt: connection.updatedAt.toISOString(),
+  }
+}

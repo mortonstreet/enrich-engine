@@ -1,212 +1,290 @@
-import { config } from "@/config";
-import logger from "@/lib/logger";
+/**
+ * Prospeo API Client
+ * https://prospeo.io/api-documentation
+ *
+ * Prospeo is a B2B data provider that specializes in finding contact information
+ * (email and phone) from LinkedIn profiles.
+ */
 
-const PROSPEO_BASE_URL = "https://api.prospeo.io";
+const PROSPEO_BASE_URL = 'https://api.prospeo.io'
 
-export interface ProspeoEnrichPersonRequest {
-  linkedin_url: string;
-  enrich_mobile?: boolean;
-}
-
-export interface ProspeoEnrichPersonResponse {
-  success: boolean;
-  message?: string;
-  response?: {
+interface ProspeoLinkedInResponse {
+  response: {
     email?: {
-      email: string;
-      verified: boolean;
-    };
-    mobile?: string;
-    first_name?: string;
-    last_name?: string;
-    title?: string;
-    company_name?: string;
-    company_domain?: string;
-  };
-  error?: string;
-  error_code?: string;
-  credits_used?: number;
+      email: string
+      mx_records: boolean
+      smtp_check: boolean
+      accept_all: boolean
+      disposable: boolean
+      free: boolean
+    }
+    phone_numbers?: string[]
+    first_name?: string
+    last_name?: string
+    company?: string
+    job_title?: string
+    location?: string
+  }
+  credits_remaining: number
+  status: string
+  message?: string
 }
 
-export interface ProspeooBulkEnrichRequest {
-  data: Array<{
-    identifier: string;
-    linkedin_url: string;
-  }>;
-  enrich_mobile?: boolean;
+interface ProspeoEmailFinderResponse {
+  response: {
+    email?:
+      | string
+      | {
+          email?: string
+          mx_records?: boolean
+          smtp_check?: boolean
+          accept_all?: boolean
+          disposable?: boolean
+          free?: boolean
+        }
+    first_name?: string
+    last_name?: string
+    company?: string
+    job_title?: string
+    location?: string
+  }
+  credits_remaining: number
+  status: string
+  message?: string
 }
 
-export interface ProspeooBulkEnrichResponse {
-  success: boolean;
-  message?: string;
-  response?: Array<{
-    identifier: string;
-    email?: {
-      email: string;
-      verified: boolean;
-    };
-    mobile?: string;
-    first_name?: string;
-    last_name?: string;
-    title?: string;
-    company_name?: string;
-    status: "success" | "not_found" | "error";
-    error_code?: string;
-  }>;
-  error?: string;
-  credits_used?: number;
+export interface ProspeoEnrichResult {
+  success: boolean
+  email?: string
+  phone?: string
+  phoneNumbers?: string[]
+  firstName?: string
+  lastName?: string
+  company?: string
+  title?: string
+  location?: string
+  creditsRemaining: number
+  errorMessage?: string
 }
 
-async function prospeoFetch<T>(
-  endpoint: string,
-  body: Record<string, unknown>,
-): Promise<T> {
-  const response = await fetch(`${PROSPEO_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-KEY": config.prospeo.apiKey,
-    },
-    body: JSON.stringify(body),
-  });
+async function parseProspeoErrorResponse(response: Response): Promise<{
+  creditsRemaining: number
+  errorMessage: string
+}> {
+  const errorText = await response.text()
+  console.error('[Prospeo] API error response:', errorText)
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    logger.error({ status: response.status, errorText }, "Prospeo API error");
-    throw new Error(`Prospeo API error: ${response.status} - ${errorText}`);
+  if (response.status === 401) {
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message === 'INVALID_API_KEY') {
+        return {
+          creditsRemaining: 0,
+          errorMessage:
+            'Invalid Prospeo API key. Please check your API key in Settings > Data Vendors and ensure it is correct.',
+        }
+      }
+    } catch {
+      // Not JSON, fall back to default auth message.
+    }
+
+    return {
+      creditsRemaining: 0,
+      errorMessage:
+        'Prospeo authentication failed. Please verify your API key is correct and active.',
+    }
   }
 
-  return response.json() as Promise<T>;
+  return {
+    creditsRemaining: 0,
+    errorMessage: `Prospeo API error: ${response.status} - ${errorText}`,
+  }
 }
 
-export async function enrichPerson(
-  linkedinUrl: string,
-  enrichMobile: boolean = true,
-): Promise<ProspeoEnrichPersonResponse> {
-  logger.info({ linkedinUrl, enrichMobile }, "Enriching person via Prospeo");
+/**
+ * Enrich a lead using their LinkedIn URL
+ */
+export async function enrichFromLinkedIn(
+  apiKey: string,
+  linkedInUrl: string,
+): Promise<ProspeoEnrichResult> {
+  console.log(
+    '[Prospeo] Calling linkedin-email-finder API with URL:',
+    linkedInUrl,
+  )
+  console.log('[Prospeo] API key present:', !!apiKey, 'length:', apiKey?.length)
 
-  const response = await prospeoFetch<ProspeoEnrichPersonResponse>(
-    "/linkedin-email-finder",
-    {
-      url: linkedinUrl,
-      enrich_mobile: enrichMobile,
-    },
-  );
-
-  logger.info(
-    { linkedinUrl, success: response.success },
-    "Prospeo enrichment complete",
-  );
-
-  return response;
-}
-
-export async function bulkEnrichPersons(
-  data: ProspeooBulkEnrichRequest["data"],
-  enrichMobile: boolean = true,
-): Promise<ProspeooBulkEnrichResponse> {
-  logger.info(
-    { count: data.length, enrichMobile },
-    "Bulk enriching persons via Prospeo",
-  );
-
-  const response = await prospeoFetch<ProspeooBulkEnrichResponse>(
-    "/bulk-linkedin-email-finder",
-    {
-      data,
-      enrich_mobile: enrichMobile,
-    },
-  );
-
-  logger.info(
-    { count: data.length, success: response.success },
-    "Prospeo bulk enrichment complete",
-  );
-
-  return response;
-}
-
-// ============================================
-// Functions with custom API key (for org-specific keys)
-// ============================================
-
-async function prospeoFetchWithKey<T>(
-  endpoint: string,
-  body: Record<string, unknown>,
-  apiKey: string
-): Promise<T> {
-  const response = await fetch(`${PROSPEO_BASE_URL}${endpoint}`, {
-    method: "POST",
+  const response = await fetch(`${PROSPEO_BASE_URL}/linkedin-email-finder`, {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "X-KEY": apiKey,
+      'Content-Type': 'application/json',
+      'X-KEY': apiKey,
     },
-    body: JSON.stringify(body),
-  });
+    body: JSON.stringify({
+      url: linkedInUrl,
+    }),
+  })
+
+  console.log('[Prospeo] API response status:', response.status)
 
   if (!response.ok) {
-    const errorText = await response.text();
-    logger.error({ status: response.status, errorText }, "Prospeo API error");
-    throw new Error(`Prospeo API error: ${response.status} - ${errorText}`);
+    const error = await parseProspeoErrorResponse(response)
+    return {
+      success: false,
+      creditsRemaining: error.creditsRemaining,
+      errorMessage: error.errorMessage,
+    }
   }
 
-  return response.json() as Promise<T>;
+  const data: ProspeoLinkedInResponse = await response.json()
+
+  if (data.status !== 'success') {
+    return {
+      success: false,
+      creditsRemaining: data.credits_remaining ?? 0,
+      errorMessage: data.message ?? 'Unknown Prospeo error',
+    }
+  }
+
+  return {
+    success: true,
+    email: data.response.email?.email,
+    phone: data.response.phone_numbers?.[0],
+    phoneNumbers: data.response.phone_numbers ?? [],
+    firstName: data.response.first_name,
+    lastName: data.response.last_name,
+    company: data.response.company,
+    title: data.response.job_title,
+    location: data.response.location,
+    creditsRemaining: data.credits_remaining,
+  }
 }
 
-export interface ProspeoEmailFinderResponse {
-  success: boolean;
-  message?: string;
-  response?: {
-    email?: {
-      email: string;
-      verified: boolean;
-    };
-    first_name?: string;
-    last_name?: string;
-    title?: string;
-    company_name?: string;
-    company_domain?: string;
-  };
-  error?: string;
-  error_code?: string;
+/**
+ * Find a lead email using domain + first/last name.
+ */
+export async function findEmailByDomain(
+  apiKey: string,
+  domain: string,
+  firstName: string,
+  lastName: string,
+): Promise<ProspeoEnrichResult> {
+  console.log('[Prospeo] Calling email-finder API:', {
+    domain,
+    firstName,
+    lastName,
+  })
+
+  const response = await fetch(`${PROSPEO_BASE_URL}/email-finder`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-KEY': apiKey,
+    },
+    body: JSON.stringify({
+      domain,
+      first_name: firstName,
+      last_name: lastName,
+    }),
+  })
+
+  console.log('[Prospeo] email-finder response status:', response.status)
+
+  if (!response.ok) {
+    const error = await parseProspeoErrorResponse(response)
+    return {
+      success: false,
+      creditsRemaining: error.creditsRemaining,
+      errorMessage: error.errorMessage,
+    }
+  }
+
+  const data: ProspeoEmailFinderResponse = await response.json()
+
+  if (data.status !== 'success') {
+    return {
+      success: false,
+      creditsRemaining: data.credits_remaining ?? 0,
+      errorMessage: data.message ?? 'Unknown Prospeo error',
+    }
+  }
+
+  const resolvedEmail =
+    typeof data.response.email === 'string'
+      ? data.response.email
+      : data.response.email?.email
+
+  if (!resolvedEmail) {
+    return {
+      success: false,
+      creditsRemaining: data.credits_remaining ?? 0,
+      errorMessage: data.message ?? 'Prospeo returned no email for this lead',
+    }
+  }
+
+  return {
+    success: true,
+    email: resolvedEmail,
+    firstName: data.response.first_name,
+    lastName: data.response.last_name,
+    company: data.response.company,
+    title: data.response.job_title,
+    location: data.response.location,
+    creditsRemaining: data.credits_remaining,
+  }
 }
 
-export interface ProspeoMobileFinderResponse {
-  success: boolean;
-  message?: string;
-  response?: {
-    phone_numbers?: string[];
-    first_name?: string;
-    last_name?: string;
-    title?: string;
-    company_name?: string;
-  };
-  error?: string;
-  error_code?: string;
-}
+/**
+ * Test the API connection by making a minimal API call
+ */
+export async function testConnection(apiKey: string): Promise<{
+  success: boolean
+  message: string
+  creditsRemaining: number | null
+}> {
+  try {
+    // Prospeo doesn't have a dedicated health/credits endpoint,
+    // so we make a real API call with a known LinkedIn URL to test
+    // This will use 1 credit but confirms the key works
+    const response = await fetch(`${PROSPEO_BASE_URL}/linkedin-email-finder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-KEY': apiKey,
+      },
+      body: JSON.stringify({
+        url: 'https://www.linkedin.com/in/williamhgates/', // Bill Gates - a known public profile
+      }),
+    })
 
-export async function findEmailWithKey(
-  linkedinUrl: string,
-  apiKey: string
-): Promise<ProspeoEmailFinderResponse> {
-  logger.info({ linkedinUrl }, "Finding email via Prospeo");
+    const data = await response.json()
 
-  return prospeoFetchWithKey<ProspeoEmailFinderResponse>(
-    "/linkedin-email-finder",
-    { url: linkedinUrl },
-    apiKey
-  );
-}
+    if (!response.ok || data.error) {
+      // Check for specific error types
+      if (data.message === 'INVALID_API_KEY') {
+        return {
+          success: false,
+          message: 'Invalid API key. Please check your Prospeo API key.',
+          creditsRemaining: null,
+        }
+      }
+      return {
+        success: false,
+        message: data.message || `Connection failed: ${response.status}`,
+        creditsRemaining: null,
+      }
+    }
 
-export async function findMobileWithKey(
-  linkedinUrl: string,
-  apiKey: string
-): Promise<ProspeoMobileFinderResponse> {
-  logger.info({ linkedinUrl }, "Finding mobile via Prospeo");
-
-  return prospeoFetchWithKey<ProspeoMobileFinderResponse>(
-    "/mobile-finder",
-    { url: linkedinUrl },
-    apiKey
-  );
+    return {
+      success: true,
+      message: 'Prospeo connection successful',
+      creditsRemaining: data.credits_remaining ?? null,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Connection failed',
+      creditsRemaining: null,
+    }
+  }
 }

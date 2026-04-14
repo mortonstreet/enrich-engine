@@ -1,268 +1,174 @@
 "use client";
 
 import Link from "next/link";
-import Navigation from "@/components/landing/Navigation";
-import ExaFooter from "@/components/landing/ExaFooter";
-import ScrollReveal from "@/components/landing/ScrollReveal";
-import EnrichCoreLogo from "@/components/landing/EnrichCoreLogo";
-import { Button } from "@/components/ui/Button";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import DarkNavigation from "@/components/landing/DarkNavigation";
+import DarkFooter from "@/components/landing/DarkFooter";
+import DarkScrollReveal from "@/components/landing/DarkScrollReveal";
+import { OmniDialLogoStatic } from "@/components/landing/OmniDialLogo";
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen text-[#111827]">
-      <div className="relative z-10 bg-white pt-16">
-        <Navigation />
+    <div className="min-h-screen text-white bg-[#0a0a0a]">
+      <DarkNavigation />
+
+      <div className="relative z-10 bg-[#0a0a0a] pt-16">
         <main>
           {/* Hero */}
-          <section className="py-12 sm:py-16 md:py-24 lg:py-32 bg-white">
+          <section className="py-16 sm:py-20 md:py-24 lg:py-32">
             <div className="max-w-4xl mx-auto px-4 sm:px-6">
-              <ScrollReveal>
-                <h1
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal tracking-tight mb-8 sm:mb-10 md:mb-12 text-center"
-                  style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                >
-                  Most B2B data is incomplete, outdated, or wrong
+              <DarkScrollReveal>
+                <div className="flex justify-center mb-8">
+                  <OmniDialLogoStatic size={64} color="#fafafa" />
+                </div>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight text-center mb-6 heading-display">
+                  Sales teams deserve better tools
                 </h1>
-              </ScrollReveal>
-
-              <div className="space-y-4 sm:space-y-6 text-base sm:text-lg text-gray-600 leading-relaxed">
-                <ScrollReveal delay={50}>
-                  <p>
-                    Every sales team deserves accurate contact data. You should be able to enrich
-                    any lead with verified emails and phone numbers, no matter the volume or budget.
-                  </p>
-                </ScrollReveal>
-
-                <ScrollReveal delay={100}>
-                  <p>
-                    You should be able to make requests like{" "}
-                    <em className="text-gray-800">&quot;find the verified email for this LinkedIn profile&quot;</em>{" "}
-                    or{" "}
-                    <em className="text-gray-800">&quot;enrich these 10,000 leads with direct phone numbers&quot;</em>.{" "}
-                    You can&apos;t do this reliably because traditional data providers use stale databases
-                    optimized for enterprise contracts.
-                  </p>
-                </ScrollReveal>
-
-                <ScrollReveal delay={150}>
-                  <p>
-                    Enrich Engine is the first enrichment API built from the ground up for accuracy and
-                    affordability. We&apos;re a technical team building novel approaches to contact verification.
-                    And we charge usage-based pricing—no minimums, no annual contracts.
-                  </p>
-                </ScrollReveal>
-
-                <ScrollReveal delay={200}>
-                  <p>
-                    Our ultimate goal is perfect B2B data: to give every company access to the same
-                    data quality that was previously reserved for enterprises.
-                  </p>
-                </ScrollReveal>
-              </div>
-            </div>
-          </section>
-
-          {/* How We're Doing It */}
-          <section className="py-12 sm:py-16 md:py-20 lg:py-28 bg-white border-t border-gray-100">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
-              <ScrollReveal>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-8">
-                  HOW WE&apos;RE DOING IT
+                <p className="text-white/50 text-lg sm:text-xl text-center max-w-2xl mx-auto leading-relaxed">
+                  We&apos;re building the dialer we always wanted. Fast, reliable, affordable.
+                  No bloat. No enterprise pricing games.
                 </p>
-              </ScrollReveal>
+              </DarkScrollReveal>
+            </div>
+          </section>
 
-              {/* Multi-source Verification */}
-              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start mb-16 md:mb-24">
-                <div>
-                  <ScrollReveal>
-                    <h2
-                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
-                      style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                    >
-                      Multi-source verification
+          {/* Mission */}
+          <section className="py-16 sm:py-20 md:py-24 border-t border-white/5">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
+              <div className="grid md:grid-cols-2 gap-12 lg:gap-20">
+                <DarkScrollReveal>
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-semibold mb-6">
+                      The problem with dialers
                     </h2>
-                  </ScrollReveal>
-                  <ScrollReveal delay={50}>
-                    <p className="text-gray-600 leading-relaxed mb-4">
-                      We don&apos;t rely on a single data source. Every email and phone number goes through
-                      multiple verification layers: SMTP validation, catch-all detection, deliverability
-                      scoring, and cross-referencing with public records.
-                    </p>
-                  </ScrollReveal>
-                  <ScrollReveal delay={100}>
-                    <p className="text-gray-600 leading-relaxed">
-                      This multi-layered approach is why we achieve 95% email accuracy—significantly
-                      higher than providers relying on outdated databases alone.
-                    </p>
-                  </ScrollReveal>
-                </div>
-                <ScrollReveal delay={100}>
-                  <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                          <span className="text-green-600 text-lg">✓</span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">SMTP Validation</div>
-                          <div className="text-gray-500 text-xs">Real-time mailbox verification</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                          <span className="text-green-600 text-lg">✓</span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">Catch-all Detection</div>
-                          <div className="text-gray-500 text-xs">Identify risky domains</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                          <span className="text-green-600 text-lg">✓</span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">Deliverability Scoring</div>
-                          <div className="text-gray-500 text-xs">Confidence-based results</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                          <span className="text-green-600 text-lg">✓</span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">Cross-reference Validation</div>
-                          <div className="text-gray-500 text-xs">Multiple data sources checked</div>
-                        </div>
-                      </div>
+                    <div className="space-y-4 text-white/60 leading-relaxed">
+                      <p>
+                        Most sales dialers are either expensive enterprise software
+                        that charges $100+ per seat, or cheap tools that break when
+                        you need them most.
+                      </p>
+                      <p>
+                        Features are locked behind premium tiers. Per-minute charges
+                        add up. You need three different tools to make a call, log it,
+                        and update your CRM.
+                      </p>
+                      <p>
+                        We think sales teams deserve better.
+                      </p>
                     </div>
                   </div>
-                </ScrollReveal>
-              </div>
+                </DarkScrollReveal>
 
-              {/* AI-powered Email Finding */}
-              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start mb-16 md:mb-24">
-                <div>
-                  <ScrollReveal>
-                    <h2
-                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
-                      style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                    >
-                      AI-powered email finding
+                <DarkScrollReveal delay={100}>
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-semibold mb-6">
+                      Our approach
                     </h2>
-                  </ScrollReveal>
-                  <ScrollReveal delay={50}>
-                    <p className="text-gray-600 leading-relaxed mb-4">
-                      When a verified email doesn&apos;t exist in our database, we don&apos;t give up. Our
-                      system analyzes company email patterns, generates likely formats, and verifies
-                      them in real-time.
-                    </p>
-                  </ScrollReveal>
-                  <ScrollReveal delay={100}>
-                    <p className="text-gray-600 leading-relaxed">
-                      This intelligent approach means we find emails that other providers miss—without
-                      sacrificing accuracy. Every result is verified before it reaches you.
-                    </p>
-                  </ScrollReveal>
-                </div>
-                <ScrollReveal delay={100}>
-                  <div className="bg-[#1a1a2e] rounded-2xl p-6 font-mono text-sm">
-                    <div className="text-gray-400 mb-4"># Pattern analysis</div>
-                    <div className="space-y-2">
-                      <div><span className="text-blue-400">patterns</span> = [</div>
-                      <div className="pl-4 text-green-400">&quot;first.last@company.com&quot;,</div>
-                      <div className="pl-4 text-green-400">&quot;flast@company.com&quot;,</div>
-                      <div className="pl-4 text-green-400">&quot;first@company.com&quot;,</div>
-                      <div>]</div>
-                      <div className="mt-4"><span className="text-purple-400">for</span> pattern <span className="text-purple-400">in</span> patterns:</div>
-                      <div className="pl-4"><span className="text-yellow-400">verify</span>(pattern)</div>
-                      <div className="mt-4 text-gray-400"># Result: sarah.chen@scale.ai ✓</div>
+                    <div className="space-y-4 text-white/60 leading-relaxed">
+                      <p>
+                        OmniDial is built for one thing: helping you connect with
+                        more prospects. Power dialer, call recording, voicemail drop,
+                        and a built-in CRM - all for $20/month.
+                      </p>
+                      <p>
+                        No hidden fees. No per-minute charges. No feature gating.
+                        Everything you need to dial smarter, included.
+                      </p>
+                      <p>
+                        We&apos;re a small team of builders who&apos;ve spent years in sales.
+                        We know what works and what doesn&apos;t.
+                      </p>
                     </div>
                   </div>
-                </ScrollReveal>
-              </div>
-
-              {/* Infrastructure at Scale */}
-              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
-                <div>
-                  <ScrollReveal>
-                    <h2
-                      className="text-2xl sm:text-3xl md:text-4xl font-normal tracking-tight mb-4 sm:mb-6"
-                      style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                    >
-                      Infrastructure at scale
-                    </h2>
-                  </ScrollReveal>
-                  <ScrollReveal delay={50}>
-                    <p className="text-gray-600 leading-relaxed mb-4">
-                      Processing millions of enrichment requests requires serious infrastructure.
-                      We&apos;ve built distributed systems that handle bulk requests efficiently while
-                      maintaining real-time response times for individual lookups.
-                    </p>
-                  </ScrollReveal>
-                  <ScrollReveal delay={100}>
-                    <p className="text-gray-600 leading-relaxed">
-                      This engineering investment is why we can offer 10x lower pricing than legacy
-                      providers. Efficiency at scale means savings passed directly to you.
-                    </p>
-                  </ScrollReveal>
-                </div>
-                <ScrollReveal delay={100}>
-                  <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <div className="text-3xl font-bold text-[#E63946]">10M+</div>
-                        <div className="text-gray-500 text-sm">Verified contacts</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-[#E63946]">&lt;200ms</div>
-                        <div className="text-gray-500 text-sm">Avg response time</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-[#E63946]">95%</div>
-                        <div className="text-gray-500 text-sm">Email accuracy</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-[#E63946]">99.9%</div>
-                        <div className="text-gray-500 text-sm">API uptime</div>
-                      </div>
-                    </div>
-                  </div>
-                </ScrollReveal>
+                </DarkScrollReveal>
               </div>
             </div>
           </section>
 
-          {/* Bottom CTA */}
-          <section className="py-16 sm:py-20 md:py-24 lg:py-32 bg-white">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-              <ScrollReveal>
-                <div className="flex justify-center mb-6 sm:mb-8">
-                  <EnrichCoreLogo />
-                </div>
-              </ScrollReveal>
-              <ScrollReveal delay={100}>
-                <h2
-                  className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-normal tracking-tight mb-6 sm:mb-8"
-                  style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}
-                >
-                  Enrichment built for your pipeline
+          {/* Values */}
+          <section className="py-16 sm:py-20 md:py-24 border-t border-white/5">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6">
+              <DarkScrollReveal>
+                <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-12">
+                  What we believe
                 </h2>
-              </ScrollReveal>
-              <ScrollReveal delay={150}>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              </DarkScrollReveal>
+
+              <div className="grid sm:grid-cols-2 gap-8 lg:gap-12">
+                <DarkScrollReveal delay={0}>
+                  <div className="p-6 bg-[#111111] rounded-2xl border border-white/5">
+                    <h3 className="font-semibold text-lg mb-3">Simple is better</h3>
+                    <p className="text-white/50 text-sm leading-relaxed">
+                      We build focused tools that do one thing exceptionally well.
+                      No bloated feature sets. No overwhelming dashboards.
+                    </p>
+                  </div>
+                </DarkScrollReveal>
+
+                <DarkScrollReveal delay={100}>
+                  <div className="p-6 bg-[#111111] rounded-2xl border border-white/5">
+                    <h3 className="font-semibold text-lg mb-3">Transparent pricing</h3>
+                    <p className="text-white/50 text-sm leading-relaxed">
+                      One price. All features. No surprise bills, no per-minute
+                      charges, no premium tiers that hold features hostage.
+                    </p>
+                  </div>
+                </DarkScrollReveal>
+
+                <DarkScrollReveal delay={200}>
+                  <div className="p-6 bg-[#111111] rounded-2xl border border-white/5">
+                    <h3 className="font-semibold text-lg mb-3">Reliability first</h3>
+                    <p className="text-white/50 text-sm leading-relaxed">
+                      Your dialer can&apos;t drop calls. We invest heavily in
+                      infrastructure to ensure 99.9% uptime.
+                    </p>
+                  </div>
+                </DarkScrollReveal>
+
+                <DarkScrollReveal delay={300}>
+                  <div className="p-6 bg-[#111111] rounded-2xl border border-white/5">
+                    <h3 className="font-semibold text-lg mb-3">Built for SDRs</h3>
+                    <p className="text-white/50 text-sm leading-relaxed">
+                      Every feature is designed by and for sales development
+                      reps. We understand the grind.
+                    </p>
+                  </div>
+                </DarkScrollReveal>
+              </div>
+            </div>
+          </section>
+
+          {/* CTA */}
+          <section className="py-16 sm:py-20 md:py-24 border-t border-white/5">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+              <DarkScrollReveal>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-4">
+                  Ready to try OmniDial?
+                </h2>
+                <p className="text-white/50 mb-8">
+                  Join the waitlist and be first to experience the future of sales dialing.
+                </p>
+                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                  <Link href="/waitlist">
+                    <Button className="w-full sm:w-auto bg-white text-black hover:bg-white/90 rounded-xl px-8 h-12">
+                      Join waitlist
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </Link>
                   <Link href="/contact">
-                    <Button className="bg-[#111827] text-white hover:bg-black rounded-xl px-8 py-4 text-base font-medium h-14">
-                      Book a demo
+                    <Button variant="outline" className="w-full sm:w-auto border-white/20 text-white hover:bg-white/10 rounded-xl px-8 h-12">
+                      Contact us
                     </Button>
                   </Link>
                 </div>
-              </ScrollReveal>
+              </DarkScrollReveal>
             </div>
           </section>
         </main>
       </div>
-      <ExaFooter />
+
+      <DarkFooter />
     </div>
   );
 }

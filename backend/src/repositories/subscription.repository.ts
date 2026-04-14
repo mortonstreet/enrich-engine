@@ -1,15 +1,15 @@
-import { db } from "@/lib/db";
-import { withIdAndTimestamps } from "./utils";
+import { db } from '@/lib/db'
+import { withIdAndTimestamps } from './utils'
 
 export const getSubscriptionFromStripeSubscriptionId = async (
   subscriptionId: string,
 ) => {
   return await db
-    .selectFrom("subscription")
-    .where("stripeSubscriptionId", "=", subscriptionId)
+    .selectFrom('subscription')
+    .where('stripeSubscriptionId', '=', subscriptionId)
     .selectAll()
-    .executeTakeFirst();
-};
+    .executeTakeFirst()
+}
 
 export const createCreditTransaction = async (
   organizationId: string,
@@ -18,24 +18,32 @@ export const createCreditTransaction = async (
   metadata: any,
 ) => {
   return await db
-    .insertInto("credit_transaction")
+    .insertInto('credit_transaction')
     .values(
       withIdAndTimestamps({
         organizationId,
         paymentInvoiceId,
         amount: amount,
-        type: "interview",
+        type: 'interview',
         metadata: metadata,
       }),
     )
-    .execute();
-};
+    .execute()
+}
+
+export const getSubscriptionByReferenceId = async (referenceId: string) => {
+  return await db
+    .selectFrom('subscription')
+    .where('referenceId', '=', referenceId)
+    .selectAll()
+    .executeTakeFirst()
+}
 
 export const getOrganizationCreditBalance = async (organizationId: string) => {
   const result = await db
-    .selectFrom("credit_transaction")
-    .where("organizationId", "=", organizationId)
-    .select((eb) => eb.fn.sum<number>("amount").as("balance"))
-    .executeTakeFirst();
-  return result?.balance ?? 0;
-};
+    .selectFrom('credit_transaction')
+    .where('organizationId', '=', organizationId)
+    .select((eb) => eb.fn.sum<number>('amount').as('balance'))
+    .executeTakeFirst()
+  return result?.balance ?? 0
+}

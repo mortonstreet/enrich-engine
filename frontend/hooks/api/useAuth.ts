@@ -1,64 +1,18 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post } from '@/lib/api';
-import { signIn, signUp, signOut, sendVerificationEmail as sendVerificationEmailClient } from '@/lib/auth-client';
-import { ENDPOINTS } from '@/lib/config';
+import {
+  signIn,
+  signOut,
+} from '@/lib/auth-client';
+import { ENDPOINTS, QUERY_KEYS } from '@/lib/config';
+import type { CompleteOnboardingRequest, OnboardingStatusResponse } from '@shared/types/src/requests/user';
 
 // Types
-interface SignInEmailParams {
-  email: string;
-  password: string;
-}
-
-interface SignUpEmailParams {
-  email: string;
-  password: string;
-  name: string;
-  callbackURL?: string;
-}
-
-interface SendVerificationEmailParams {
+interface MagicLinkParams {
   email: string;
   callbackURL?: string;
-}
-
-interface ForgotPasswordParams {
-  email: string;
-  redirectTo: string;
-}
-
-interface ResetPasswordParams {
-  token: string;
-  newPassword: string;
-}
-
-interface ChangePasswordParams {
-  currentPassword: string;
-  newPassword: string;
-}
-
-interface VerifyEmailResponse {
-  success?: boolean;
-  error?: {
-    message: string;
-  };
-}
-
-// Sign in with email
-export function useSignInEmail() {
-  return useMutation({
-    mutationFn: async (params: SignInEmailParams) => {
-      return await signIn.email(params);
-    },
-  });
-}
-
-// Sign up with email
-export function useSignUpEmail() {
-  return useMutation({
-    mutationFn: async (params: SignUpEmailParams) => {
-      return await signUp.email(params);
-    },
-  });
+  newUserCallbackURL?: string;
+  errorCallbackURL?: string;
 }
 
 // Sign in with social provider (Google)
@@ -79,48 +33,35 @@ export function useSignOut() {
   });
 }
 
-// Send verification email
-export function useSendVerificationEmail() {
+// Send magic link - passwordless login/signup
+export function useMagicLink() {
   return useMutation({
-    mutationFn: async (params: SendVerificationEmailParams) => {
-      return await sendVerificationEmailClient(params);
+    mutationFn: async (params: MagicLinkParams) => {
+      return await signIn.magicLink(params);
     },
   });
 }
 
-// Verify email (mutation since it's a GET that changes state)
-export function useVerifyEmail() {
+// Complete onboarding questionnaire
+export function useCompleteOnboarding() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (token: string): Promise<VerifyEmailResponse> => {
-      return await get<VerifyEmailResponse>(`${ENDPOINTS.AUTH.VERIFY_EMAIL}?token=${token}`);
+    mutationFn: async (params: CompleteOnboardingRequest) => {
+      return await post<{ success: boolean }>(ENDPOINTS.USER.ONBOARDING, params);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(QUERY_KEYS.onboardingStatus(), { onboardingComplete: true });
     },
   });
 }
 
-// Forgot password
-export function useForgotPassword() {
-  return useMutation({
-    mutationFn: async (params: ForgotPasswordParams) => {
-      return await post(`${ENDPOINTS.AUTH.FORGOT_PASSWORD}`, params);
+// Check onboarding status
+export function useOnboardingStatus(enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.onboardingStatus(),
+    queryFn: async () => {
+      return await get<OnboardingStatusResponse>(ENDPOINTS.USER.ONBOARDING_STATUS);
     },
+    enabled,
   });
 }
-
-// Reset password
-export function useResetPassword() {
-  return useMutation({
-    mutationFn: async (params: ResetPasswordParams) => {
-      return await post(`${ENDPOINTS.AUTH.RESET_PASSWORD}`, params);
-    },
-  });
-}
-
-// Change password
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: async (params: ChangePasswordParams) => {
-      return await post(`${ENDPOINTS.AUTH.CHANGE_PASSWORD}`, params);
-    },
-  });
-}
-

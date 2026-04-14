@@ -3,10 +3,9 @@
 import { env } from './config';
 
 export const get = <T>(url: string, options?: RequestInit): Promise<T> =>
-  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'GET', credentials: 'include' }).then(async response => {
+  fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'GET', credentials: 'include' }).then(response => {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
+      throw new Error(response.statusText || `Request failed with status ${response.status}`);
     }
     return response.json();
   });
@@ -55,14 +54,9 @@ export const patch = <T>(url: string, data?: any, options?: RequestInit): Promis
       'Content-Type': 'application/json',
       ...options?.headers,
     },
-  }).then(async response => {
+  }).then(response => {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
-    }
-    // Handle 204 No Content responses
-    if (response.status === 204) {
-      return undefined as T;
+      throw new Error(response.statusText);
     }
     return response.json();
   });
@@ -70,12 +64,12 @@ export const patch = <T>(url: string, data?: any, options?: RequestInit): Promis
 export const del = <T>(url: string, options?: RequestInit): Promise<T> =>
   fetch(`${env.API_URL.toString()}${url}`, { ...options, method: 'DELETE', credentials: 'include' }).then(async response => {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
+      throw new Error(response.statusText || `Request failed with status ${response.status}`);
     }
-    // Handle 204 No Content responses
-    if (response.status === 204) {
-      return undefined as T;
+    // Handle 204 No Content or empty responses
+    const text = await response.text();
+    if (!text) {
+      return {} as T;
     }
-    return response.json();
+    return JSON.parse(text);
   });

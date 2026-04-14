@@ -2,7 +2,8 @@
 nixPkgs = ['nodejs_20', 'pnpm']
 
 [phases.install]
-cmds = ['pnpm install']
+cmds = ['pnpm install --filter backend --filter @shared/db --filter @shared/types --frozen-lockfile']
+cacheDirectories = ['/root/.local/share/pnpm/store']
 
 [phases.build]
 cmds = [
@@ -11,5 +12,9 @@ cmds = [
 ]
 
 [start]
-cmd = "NODE_ENV=production pnpm --filter @shared/db db:generate && pnpm --filter @shared/db db:deploy && NODE_ENV=production node backend/dist/server.mjs"
+cmd = "pnpm --filter @shared/db db:deploy && node backend/dist/server.mjs"
+
+[variables]
+HUSKY = '0'
+CI = 'true'
 

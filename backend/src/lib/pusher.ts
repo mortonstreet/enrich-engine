@@ -1,10 +1,10 @@
-import Pusher from "pusher";
-import { config } from "@/config";
+import Pusher from 'pusher'
+import { config } from '@/config'
 
-let pusherInstance: Pusher | null = null;
+let pusherInstance: Pusher | null = null
 
 export const getPusher = (): Pusher | null => {
-  if (!config.pusher.enabled) return null;
+  if (!config.pusher.enabled) return null
 
   if (!pusherInstance) {
     pusherInstance = new Pusher({
@@ -14,21 +14,22 @@ export const getPusher = (): Pusher | null => {
       host: config.pusher.host,
       port: String(config.pusher.port),
       useTLS: config.pusher.useTLS,
-    });
+    })
   }
 
-  return pusherInstance;
-};
+  return pusherInstance
+}
 
-export const sendPusherEvent = async (
-  channel: string,
+// Helper function to trigger events, silently no-ops if pusher is disabled
+export const trigger = async (
+  channel: string | string[],
   event: string,
-  data: unknown
+  data: unknown,
 ): Promise<void> => {
-  const pusher = getPusher();
-  if (!pusher) return;
+  const pusher = getPusher()
+  if (pusher) {
+    await pusher.trigger(channel, event, data)
+  }
+}
 
-  await pusher.trigger(channel, event, data);
-};
-
-export default getPusher;
+export default getPusher

@@ -1,5 +1,5 @@
 import { DBOrganization } from "@shared/types/src";
-import Modal from "../ui/Modal";
+import Modal from "../ui/modal";
 
 interface SelectOrganizationModalProps {
   isOpen: boolean;

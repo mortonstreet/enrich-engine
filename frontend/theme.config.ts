@@ -1,75 +1,94 @@
 // ==============================================
-// THEME CONFIG - Single source of truth
-// Edit this file to change your app's layout and theme
+// OmniDial - Monochromatic Design System
+// Editorial-Brutalist Dark Theme
+// No gradients, no accents, blacks and grays only
 // ==============================================
 
-export type LayoutType = "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar" | "app";
+export type LayoutType = "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar";
 
 export const themeConfig = {
-  // Layout: "sidebar" | "topnavWithSidebar" | "sidebarWithTopbar" | "app"
-  layout: "app" as LayoutType,
+  layout: "sidebarWithTopbar" as LayoutType,
 
-  // Theme colors (hex values) - Light mode
   colors: {
-    // Core
-    primary: "#111827",           // Black buttons
-    primaryForeground: "#ffffff", // White text on primary
-    secondary: "#f9fafb",
-    secondaryForeground: "#111827",
-    background: "#ffffff",        // Pure white
-    foreground: "#111827",        // Primary text - near black
-    card: "#ffffff",
-    cardForeground: "#111827",
-    muted: "#f9fafb",             // Slight grey for sections
-    mutedForeground: "#6b7280",   // Secondary text
-    accent: "#3b82f6",            // Blue for links, active states
-    accentForeground: "#ffffff",
-    destructive: "#ef4444",       // Red
-    destructiveForeground: "#ffffff",
-    border: "#e5e7eb",            // Default borders
-    input: "#e5e7eb",
-    ring: "#111827",
-    // Charts
-    chart1: "#111827",
-    chart2: "#374151",
-    chart3: "#6b7280",
-    chart4: "#9ca3af",
-    chart5: "#d1d5db",
+    // Core - Pure monochromatic
+    background: "#0a0a0a",
+    foreground: "#fafafa",
+
+    // Elevated surfaces
+    card: "#111111",
+    cardForeground: "#fafafa",
+
+    // Muted/Secondary
+    muted: "#171717",
+    mutedForeground: "#737373",
+
+    // Borders - hairline
+    border: "#262626",
+    input: "#262626",
+
+    // Focus/Ring
+    ring: "#404040",
+
+    // Interactive - white on black, inverted
+    primary: "#fafafa",
+    primaryForeground: "#0a0a0a",
+
+    // Secondary - subtle
+    secondary: "#262626",
+    secondaryForeground: "#fafafa",
+
+    // Accent - same as secondary for monochrome
+    accent: "#1a1a1a",
+    accentForeground: "#fafafa",
+
+    // Destructive - only color allowed
+    destructive: "#ef4444",
+    destructiveForeground: "#fafafa",
+
+    // Popover
+    popover: "#111111",
+    popoverForeground: "#fafafa",
+
+    // Charts - blue accent for data viz (ElevenLabs-inspired)
+    chart1: "#3b82f6", // Blue - primary metric
+    chart2: "#22c55e", // Green - success/connected
+    chart3: "#a3a3a3", // Gray - secondary
+    chart4: "#f59e0b", // Amber - warning/attention
+    chart5: "#ef4444", // Red - errors/missed
+
     // Sidebar
-    sidebar: "#ffffff",
-    sidebarForeground: "#111827",
-    sidebarPrimary: "#111827",
-    sidebarPrimaryForeground: "#ffffff",
-    sidebarAccent: "#f3f4f6",
-    sidebarAccentForeground: "#111827",
-    sidebarBorder: "#e5e7eb",
+    sidebar: "#0a0a0a",
+    sidebarForeground: "#737373",
+    sidebarPrimary: "#fafafa",
+    sidebarPrimaryForeground: "#0a0a0a",
+    sidebarAccent: "#171717",
+    sidebarAccentForeground: "#fafafa",
+    sidebarBorder: "#262626",
   },
 
-  // Border radius (in pixels)
   radius: {
-    sm: 6,
-    md: 6,
-    lg: 8,
-    xl: 12,
+    none: 0,
+    sm: 4,
+    md: 8,
+    lg: 12,
+    full: 9999,
   },
 
-  // Typography
   typography: {
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    fontMono: "'JetBrains Mono', 'Fira Code', monospace",
+    fontDisplay: "var(--font-plus-jakarta)",
+    fontSans: "var(--font-plus-jakarta)",
+    fontMono: "var(--font-jetbrains-mono)",
   },
 };
 
-// Helper to generate CSS variables from config
 export function generateCSSVariables(config: typeof themeConfig) {
   return {
-    // Colors
     "--color-background": config.colors.background,
     "--color-foreground": config.colors.foreground,
     "--color-card": config.colors.card,
     "--color-card-foreground": config.colors.cardForeground,
-    "--color-popover": config.colors.card,
-    "--color-popover-foreground": config.colors.cardForeground,
+    "--color-popover": config.colors.popover,
+    "--color-popover-foreground": config.colors.popoverForeground,
     "--color-primary": config.colors.primary,
     "--color-primary-foreground": config.colors.primaryForeground,
     "--color-secondary": config.colors.secondary,
@@ -96,13 +115,13 @@ export function generateCSSVariables(config: typeof themeConfig) {
     "--color-sidebar-accent-foreground": config.colors.sidebarAccentForeground,
     "--color-sidebar-border": config.colors.sidebarBorder,
     "--color-sidebar-ring": config.colors.ring,
-    // Radius
+    "--radius-none": `${config.radius.none}px`,
     "--radius-sm": `${config.radius.sm / 16}rem`,
     "--radius-md": `${config.radius.md / 16}rem`,
     "--radius-lg": `${config.radius.lg / 16}rem`,
-    "--radius-xl": `${config.radius.xl / 16}rem`,
-    // Typography
-    "--font-sans": config.typography.fontFamily,
+    "--radius-full": `${config.radius.full}px`,
+    "--font-display": config.typography.fontDisplay,
+    "--font-sans": config.typography.fontSans,
     "--font-mono": config.typography.fontMono,
   } as React.CSSProperties;
 }

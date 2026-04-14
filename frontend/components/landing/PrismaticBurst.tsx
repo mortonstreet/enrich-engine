@@ -1,7 +1,24 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Renderer, Program, Mesh, Triangle, Texture } from 'ogl';
+
+// Hook to detect mobile/tablet - disables WebGL animations
+function useIsMobileOrTablet() {
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth < 1024;
+      setIsMobileOrTablet(isTouchDevice || isSmallScreen);
+    };
+
+    checkDevice();
+  }, []);
+
+  return isMobileOrTablet;
+}
 
 type Offset = { x?: number | string; y?: number | string };
 type AnimationType = 'rotate' | 'rotate3d' | 'hover';
@@ -214,6 +231,7 @@ const PrismaticBurst = ({
   rayCount,
   mixBlendMode = 'lighten'
 }: PrismaticBurstProps) => {
+  const isMobileOrTablet = useIsMobileOrTablet();
   const containerRef = useRef<HTMLDivElement>(null);
   const programRef = useRef<Program | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
@@ -428,6 +446,20 @@ const PrismaticBurst = ({
     }
     program.uniforms.uColorCount.value = count;
   }, [intensity, speed, animationType, colors, distort, offset, rayCount]);
+
+  // Skip WebGL rendering on mobile/tablet - return a simple gradient fallback
+  if (isMobileOrTablet) {
+    return (
+      <div className="w-full h-full relative overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(255,120,50,0.15) 0%, rgba(255,80,30,0.08) 40%, transparent 70%)',
+          }}
+        />
+      </div>
+    );
+  }
 
   return <div className="w-full h-full relative overflow-hidden" ref={containerRef} />;
 };

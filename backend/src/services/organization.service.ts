@@ -1,25 +1,37 @@
-import { findMember } from "@/repositories/organization.repository";
-import { OrganizationRole } from "@shared/types/src/organization";
+import { findMember } from '@/repositories/organization.repository'
+import { getUserById } from '@/repositories/auth.repository'
+import { OrganizationRole } from '@shared/types/src/organization'
+
+const isSuperadmin = async (userId: string): Promise<boolean> => {
+  const user = await getUserById(userId)
+  return user?.role === 'superadmin'
+}
 
 export const isMemberOfOrganization = async (
   userId: string,
   organizationId: string,
 ) => {
-  const member = await findMember(organizationId, userId);
-  if (!member) {
-    return false;
+  if (await isSuperadmin(userId)) {
+    return true
   }
-  return true;
-};
+  const member = await findMember(organizationId, userId)
+  if (!member) {
+    return false
+  }
+  return true
+}
 
 export const doesMemberHaveRole = async (
   userId: string,
   organizationId: string,
   roles: OrganizationRole[],
 ) => {
-  const member = await findMember(organizationId, userId);
-  if (!member) {
-    return false;
+  if (await isSuperadmin(userId)) {
+    return true
   }
-  return roles.includes(member.role as OrganizationRole);
-};
+  const member = await findMember(organizationId, userId)
+  if (!member) {
+    return false
+  }
+  return roles.includes(member.role as OrganizationRole)
+}

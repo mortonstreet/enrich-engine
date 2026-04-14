@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus, Check, LogOut } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { PanelLeft, PanelLeftClose, ChevronDown, Plus, Check, LogOut } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
-import Link from "next/link";
 import { useSession, useActiveOrganization } from "@/lib/auth-client";
 import { useOrganizations, useSetActiveOrganizationMutation } from "@/hooks/api/useOrganization";
 import { toast } from "sonner";
@@ -12,17 +12,48 @@ interface TopnavWithSidebarLayoutProps {
   children: React.ReactNode;
   onLogout: () => void;
   onOpenCreateOrg: () => void;
+  canCreateOrg?: boolean;
 }
 
-export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg }: TopnavWithSidebarLayoutProps) {
+// Map routes to page names
+const getPageName = (pathname: string | null): string => {
+  if (!pathname) return "Dashboard";
+
+  const routes: Record<string, string> = {
+    "/dashboard": "Dashboard",
+    "/dashboard/crm": "CRM",
+    "/dashboard/campaigns": "Campaigns",
+    "/dashboard/leads": "Leads",
+    "/dashboard/lists": "Lists",
+    "/dashboard/dialer": "Dialer",
+    "/dashboard/settings": "Settings",
+    "/dashboard/admin": "Admin",
+  };
+
+  if (routes[pathname]) return routes[pathname];
+
+  for (const [route, name] of Object.entries(routes)) {
+    if (pathname.startsWith(route) && route !== "/dashboard") {
+      return name;
+    }
+  }
+
+  return "Dashboard";
+};
+
+export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg, canCreateOrg }: TopnavWithSidebarLayoutProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const pageName = getPageName(pathname);
 
   const { data: session } = useSession();
   const activeOrganization = useActiveOrganization();
   const { data: organizations } = useOrganizations();
   const setActiveMutation = useSetActiveOrganizationMutation();
 
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -52,9 +83,16 @@ export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg }:
     <div className="h-screen bg-muted/40 p-2 sm:p-3 md:p-4 flex flex-col gap-2 sm:gap-3 md:gap-4 overflow-hidden">
       {/* Top Navigation Bar */}
       <header className="h-14 flex-shrink-0 bg-card rounded-2xl border shadow-sm px-4 md:px-6 flex items-center justify-between">
-        <Link href="/dashboard" className="text-lg font-semibold tracking-tight text-foreground hover:opacity-80 transition">
-          Enrich Engine
-        </Link>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-2 hover:bg-muted rounded-lg transition text-muted-foreground hover:text-foreground"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          </button>
+          <span className="text-lg font-medium text-foreground">{pageName}</span>
+        </div>
 
         {/* User Menu */}
         <div className="relative" ref={userMenuRef}>
@@ -70,13 +108,16 @@ export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg }:
             <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
           </button>
 
+          {/* User Dropdown */}
           {userMenuOpen && (
             <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50">
+              {/* User Info */}
               <div className="p-3 border-b border-border">
                 <div className="font-medium text-foreground">{session?.user?.name || "User"}</div>
                 <div className="text-xs text-muted-foreground">{session?.user?.email}</div>
               </div>
 
+              {/* Organization Section */}
               <div className="p-2 border-b border-border">
                 <p className="text-xs font-medium text-muted-foreground px-2 mb-2">Workspace</p>
                 <div className="max-h-32 overflow-y-auto">
@@ -104,18 +145,21 @@ export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg }:
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    onOpenCreateOrg();
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Create workspace</span>
-                </button>
+                {canCreateOrg && (
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      onOpenCreateOrg();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create workspace</span>
+                  </button>
+                )}
               </div>
 
+              {/* Sign Out */}
               <div className="p-2">
                 <button
                   onClick={() => {
@@ -135,13 +179,16 @@ export function TopnavWithSidebarLayout({ children, onLogout, onOpenCreateOrg }:
 
       {/* Main Content Area with Sidebar */}
       <div className="flex-1 flex gap-2 sm:gap-3 md:gap-4 min-h-0">
-        {/* Sidebar - Desktop only, no mobile since we have topnav */}
-        <aside className="hidden sm:flex w-56 md:w-60 bg-card rounded-2xl border shadow-sm flex-col flex-shrink-0">
-          <Sidebar variant="embedded" />
+        {/* Sidebar - Desktop only */}
+        <aside className={`hidden sm:flex bg-card rounded-2xl border shadow-sm flex-col flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-56 md:w-60'}`}>
+          <Sidebar
+            variant="embedded"
+            collapsed={sidebarCollapsed}
+          />
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 min-h-0 overflow-hidden">
           <div className="h-full bg-card rounded-2xl border shadow-sm p-4 md:p-6 overflow-auto">
             {children}
           </div>

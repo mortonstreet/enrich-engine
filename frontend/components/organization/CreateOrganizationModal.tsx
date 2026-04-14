@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import Modal from "@/components/ui/Modal";
-import Input from "@/components/ui/Input";
-import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/modal";
+import { FormInput } from '@/components/ui/form-input';
+import { Button } from '@/components/ui/button';
 import { toast } from "sonner";
 import { useCreateOrganization } from "@/hooks/api/useOrganization";
 import { organization as authClientOrganization } from "@/lib/auth-client";
@@ -108,7 +108,7 @@ export default function CreateOrganizationModal({
       showCloseButton={allowClose}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
+        <FormInput
           label="Organization Name"
           value={name}
           onChange={(e) => setName(e.target.value)}

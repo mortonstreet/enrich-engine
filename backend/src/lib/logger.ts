@@ -1,16 +1,16 @@
-import pino from "pino";
-import { config } from "@/config";
-import { getRequestContext } from "@/lib/context";
+import pino from 'pino'
+import { config } from '@/config'
+import { getRequestContext } from '@/lib/context'
 
 const transport =
-  config.nodeEnv === "development"
+  config.nodeEnv === 'development'
     ? {
         transport: {
-          target: "pino-pretty",
+          target: 'pino-pretty',
           options: {
             colorize: true,
-            translateTime: "SYS:standard",
-            ignore: "pid,hostname",
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
           },
         },
       }
@@ -46,54 +46,68 @@ const transport =
         transport: {
           targets: [
             {
-              target: "@axiomhq/pino",
+              target: '@axiomhq/pino',
               options: {
                 dataset: config.logger.axiomDataset,
                 token: config.logger.axiomToken,
               },
-              level: "info",
+              level: 'info',
             },
             {
-              target: "pino-pretty",
+              target: 'pino-pretty',
               options: {
                 colorize: true,
-                translateTime: "SYS:standard",
-                ignore: "pid,hostname",
+                translateTime: 'SYS:standard',
+                ignore: 'pid,hostname',
               },
-              level: "info",
+              level: 'info',
             },
           ],
         },
-      };
+      }
 
 const baseLogger = pino({
-  level: config.nodeEnv === "development" ? "debug" : "info",
+  level: config.nodeEnv === 'development' ? 'debug' : 'info',
   ...transport,
   base: {
     env: config.nodeEnv,
   },
-});
+})
 
 const logger = new Proxy(baseLogger, {
   get(target: any, prop: any) {
-    if (typeof target[prop] === "function") {
+    if (typeof target[prop] === 'function') {
       return (...args: any[]) => {
-        const context = getRequestContext();
+        const context = getRequestContext()
         if (context) {
-          const { requestId, jobId, userId, sessionId } = context;
-          const contextData = { requestId, jobId, userId, sessionId };
+          const {
+            requestId,
+            jobId,
+            userId,
+            sessionId,
+            organizationId,
+            correlationId,
+          } = context
+          const contextData = {
+            requestId,
+            jobId,
+            userId,
+            sessionId,
+            organizationId,
+            correlationId,
+          }
 
-          if (args[0] && typeof args[0] === "object") {
-            args[0] = { ...args[0], ...contextData };
+          if (args[0] && typeof args[0] === 'object') {
+            args[0] = { ...args[0], ...contextData }
           } else {
-            args.unshift(contextData);
+            args.unshift(contextData)
           }
         }
-        return target[prop](...args);
-      };
+        return target[prop](...args)
+      }
     }
-    return target[prop];
+    return target[prop]
   },
-});
+})
 
-export default logger;
+export default logger

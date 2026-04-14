@@ -1,9 +1,11 @@
 declare global {
   namespace Express {
     interface Request {
-      validated?: any;
+      validated?: any
+      organizationId?: string
+      userId?: string
     }
   }
 }
 
-export {};
+export {}

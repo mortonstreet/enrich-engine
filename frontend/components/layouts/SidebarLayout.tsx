@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { PanelLeft, PanelLeftClose, ChevronDown, Plus, Check, LogOut } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
+import { MobileNavigation } from "@/components/layouts/MobileNavigation";
 import { useSession, useActiveOrganization } from "@/lib/auth-client";
 import { useOrganizations, useSetActiveOrganizationMutation } from "@/hooks/api/useOrganization";
 import { toast } from "sonner";
@@ -12,33 +13,40 @@ interface SidebarLayoutProps {
   children: React.ReactNode;
   onLogout: () => void;
   onOpenCreateOrg: () => void;
+  canCreateOrg?: boolean;
 }
 
 // Map routes to page names
 const getPageName = (pathname: string | null): string => {
-  if (!pathname) return "Scrape";
+  if (!pathname) return "Dashboard";
 
   const routes: Record<string, string> = {
-    "/dashboard": "Scrape",
+    "/dashboard": "Dashboard",
+    "/dashboard/crm": "CRM",
+    "/dashboard/campaigns": "Campaigns",
+    "/dashboard/leads": "Leads",
     "/dashboard/lists": "Lists",
-    "/dashboard/enrich": "Enrich",
+    "/dashboard/dialer": "Dialer",
+    "/dashboard/sales-floor": "Sales Floor",
+    "/dashboard/coaching": "Coaching",
     "/dashboard/settings": "Settings",
     "/dashboard/admin": "Admin",
-    "/dashboard/theme-builder": "Theme Builder",
   };
 
+  // Check for exact match first
   if (routes[pathname]) return routes[pathname];
 
+  // Check for partial match (for nested routes)
   for (const [route, name] of Object.entries(routes)) {
     if (pathname.startsWith(route) && route !== "/dashboard") {
       return name;
     }
   }
 
-  return "Scrape";
+  return "Dashboard";
 };
 
-export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLayoutProps) {
+export function SidebarLayout({ children, onLogout, onOpenCreateOrg, canCreateOrg }: SidebarLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -50,6 +58,7 @@ export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLa
   const { data: organizations } = useOrganizations();
   const setActiveMutation = useSetActiveOrganizationMutation();
 
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -86,7 +95,7 @@ export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLa
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-h-0 min-w-0 pt-16 sm:pt-0 flex flex-col">
+      <main className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
         {/* Content Header with Toggle + Page Name + User Menu */}
         <div className="hidden sm:flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
@@ -114,13 +123,16 @@ export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLa
               <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
             </button>
 
+            {/* User Dropdown */}
             {userMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50">
+                {/* User Info */}
                 <div className="p-3 border-b border-border">
                   <div className="font-medium text-foreground">{session?.user?.name || "User"}</div>
                   <div className="text-xs text-muted-foreground">{session?.user?.email}</div>
                 </div>
 
+                {/* Organization Section */}
                 <div className="p-2 border-b border-border">
                   <p className="text-xs font-medium text-muted-foreground px-2 mb-2">Workspace</p>
                   <div className="max-h-32 overflow-y-auto">
@@ -148,18 +160,21 @@ export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLa
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      onOpenCreateOrg();
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create workspace</span>
-                  </button>
+                  {canCreateOrg && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        onOpenCreateOrg();
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-2 text-sm text-primary hover:bg-muted/50 rounded-lg transition mt-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Create workspace</span>
+                    </button>
+                  )}
                 </div>
 
+                {/* Sign Out */}
                 <div className="p-2">
                   <button
                     onClick={() => {
@@ -177,15 +192,13 @@ export function SidebarLayout({ children, onLogout, onOpenCreateOrg }: SidebarLa
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 w-full bg-card rounded-2xl border shadow-sm p-4 md:p-6 overflow-auto">
+        <div className="flex-1 min-h-0 w-full bg-card rounded-2xl border shadow-sm p-4 md:p-6 overflow-auto pb-20 sm:pb-6">
           {children}
         </div>
       </main>
 
-      {/* Mobile Sidebar (uses built-in mobile nav) - absolute to not affect flex layout */}
-      <div className="sm:hidden absolute">
-        <Sidebar onLogout={onLogout} onOpenCreateOrg={onOpenCreateOrg} />
-      </div>
+      {/* Mobile Bottom Navigation */}
+      <MobileNavigation onLogout={onLogout} onOpenCreateOrg={onOpenCreateOrg} canCreateOrg={canCreateOrg} />
     </div>
   );
 }

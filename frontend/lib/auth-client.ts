@@ -1,27 +1,35 @@
 import { createAuthClient } from "better-auth/react";
-import { organizationClient } from "better-auth/client/plugins"
+import { organizationClient, magicLinkClient } from "better-auth/client/plugins"
 import { stripeClient } from "@better-auth/stripe/client"
 import { adminClient } from "better-auth/client/plugins"
 import { env } from "./config";
 
+const resolveAuthBaseUrl = (apiUrl: string): string => {
+  const normalizedApiUrl = apiUrl.replace(/\/+$/, "");
+  return normalizedApiUrl.endsWith("/auth")
+    ? normalizedApiUrl
+    : `${normalizedApiUrl}/auth`;
+};
+
 export const authClient = createAuthClient({
   plugins: [
-    organizationClient(), 
+    organizationClient(),
     stripeClient({
       subscription: true,
     }),
-    adminClient()
+    adminClient(),
+    magicLinkClient(),
   ],
-  baseURL: env.API_URL.toString() + "/auth",
+  baseURL: resolveAuthBaseUrl(env.API_URL.toString()),
   fetchOptions: {
     credentials: "include",
   }
 });
 
-export const { 
-  signIn, 
-  signUp, 
-  signOut, 
+export const {
+  signIn,
+  signUp,
+  signOut,
   useSession,
   sendVerificationEmail,
   organization,

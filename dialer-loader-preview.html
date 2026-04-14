@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dialer Loader Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #09090b;
+    color: #fafafa;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .loader-root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    animation: dl-enter 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+  }
+
+  .canvas-wrap {
+    width: 200px;
+    height: 200px;
+    margin-bottom: 2rem;
+    position: relative;
+  }
+
+  .canvas-wrap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .loader-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fafafa;
+    margin-bottom: 0.375rem;
+    opacity: 0;
+    animation: dl-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+  }
+
+  .loader-subtitle {
+    font-size: 0.8125rem;
+    color: #71717a;
+    letter-spacing: 0.01em;
+    margin-bottom: 2.5rem;
+    opacity: 0;
+    animation: dl-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.45s forwards;
+  }
+
+  .loader-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 260px;
+    opacity: 0;
+    animation: dl-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
+  }
+
+  .loader-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .loader-step--pending { opacity: 0.22; }
+  .loader-step--active { opacity: 1; }
+  .loader-step--done { opacity: 0.5; }
+
+  .step-indicator {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1.5px solid #27272a;
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .loader-step--done .step-indicator {
+    border-color: #fafafa;
+    background: #fafafa;
+  }
+
+  .loader-step--active .step-indicator {
+    border-color: #a1a1aa;
+  }
+
+  .step-check { width: 11px; height: 11px; color: #09090b; }
+
+  .step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fafafa;
+    animation: dot-pulse 1.6s ease-in-out infinite;
+  }
+
+  .step-label {
+    font-size: 0.8125rem;
+    color: #52525b;
+    transition: color 0.5s ease;
+  }
+
+  .loader-step--active .step-label { color: #e4e4e7; font-weight: 500; }
+  .loader-step--done .step-label { color: #52525b; }
+
+  @keyframes dl-enter {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes dl-fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.75); }
+  }
+</style>
+</head>
+<body>
+
+<div class="loader-root">
+  <div class="canvas-wrap">
+    <canvas id="logo3d"></canvas>
+  </div>
+
+  <h2 class="loader-title">OmniDial</h2>
+  <p class="loader-subtitle">Setting up your phone connection</p>
+
+  <div class="loader-steps" id="steps"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+const canvas = document.getElementById('logo3d');
+const dpr = Math.min(window.devicePixelRatio, 2);
+const size = 200;
+canvas.width = size * dpr;
+canvas.height = size * dpr;
+
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setSize(size, size);
+renderer.setPixelRatio(dpr);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.4;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+camera.position.set(0, 0, 6);
+
+// ---- Build extruded capsule (the slash) ----
+// Original SVG: path d="M100 20L60 140" in 160x160 viewport
+// Centered: from (0.25, 0.75) to (-0.25, -0.75)
+const dx = -0.5, dy = -1.5;
+const slashLen = Math.sqrt(dx * dx + dy * dy);
+const slashAngle = Math.atan2(dy, dx);
+const hw = 0.08; // half-width (stroke thickness)
+const hl = slashLen / 2;
+
+const shape = new THREE.Shape();
+shape.moveTo(-hl + hw, -hw);
+shape.lineTo(hl - hw, -hw);
+shape.absarc(hl - hw, 0, hw, -Math.PI / 2, Math.PI / 2, false);
+shape.lineTo(-hl + hw, hw);
+shape.absarc(-hl + hw, 0, hw, Math.PI / 2, Math.PI * 1.5, false);
+
+const geometry = new THREE.ExtrudeGeometry(shape, {
+  depth: 0.16,
+  bevelEnabled: true,
+  bevelThickness: 0.035,
+  bevelSize: 0.035,
+  bevelSegments: 12,
+  curveSegments: 48,
+});
+geometry.center();
+
+// Clean white ceramic/porcelain material
+const material = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  metalness: 0.0,
+  roughness: 0.15,
+  clearcoat: 0.8,
+  clearcoatRoughness: 0.1,
+  reflectivity: 0.6,
+  envMapIntensity: 0.8,
+});
+
+const mesh = new THREE.Mesh(geometry, material);
+mesh.rotation.z = slashAngle + Math.PI;
+scene.add(mesh);
+
+// ---- Clean white lighting ----
+
+// Key light — pure white, upper right
+const keyLight = new THREE.DirectionalLight(0xffffff, 3.0);
+keyLight.position.set(3, 4, 5);
+scene.add(keyLight);
+
+// Fill — soft warm white from lower left
+const fillLight = new THREE.DirectionalLight(0xf5f0e8, 1.0);
+fillLight.position.set(-4, -2, 3);
+scene.add(fillLight);
+
+// Rim — white from behind for edge definition
+const rimLight = new THREE.DirectionalLight(0xffffff, 2.0);
+rimLight.position.set(0, 1, -4);
+scene.add(rimLight);
+
+// Bottom bounce
+const bounceLight = new THREE.DirectionalLight(0xe8e8f0, 0.5);
+bounceLight.position.set(0, -4, 2);
+scene.add(bounceLight);
+
+// Ambient — very subtle
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambientLight);
+
+// ---- Environment map for reflections ----
+const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
+const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
+
+const envScene = new THREE.Scene();
+const envGeo = new THREE.SphereGeometry(5, 32, 32);
+const envMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: {},
+  vertexShader: `
+    varying vec3 vWorldPosition;
+    void main() {
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPos.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vWorldPosition;
+    void main() {
+      vec3 dir = normalize(vWorldPosition);
+      float t = dir.y * 0.5 + 0.5;
+      vec3 dark = vec3(0.03, 0.03, 0.04);
+      vec3 mid = vec3(0.08, 0.08, 0.1);
+      vec3 bright = vec3(0.2, 0.2, 0.22);
+      vec3 color = mix(dark, mid, t);
+      // Soft bright spot for specular highlight
+      float spot = smoothstep(0.6, 1.0, t) * smoothstep(0.3, 0.7, dir.x * 0.5 + 0.5);
+      color = mix(color, bright, spot * 0.5);
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+});
+envScene.add(new THREE.Mesh(envGeo, envMat));
+cubeCamera.update(renderer, envScene);
+material.envMap = cubeRenderTarget.texture;
+
+// ---- Animation ----
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.012;
+
+  // Smooth Y rotation — noticeably faster
+  mesh.rotation.y = time * 1.0;
+  // Gentle X tilt oscillation
+  mesh.rotation.x = Math.sin(time * 0.5) * 0.12;
+  // Subtle float
+  mesh.position.y = Math.sin(time * 0.6) * 0.03;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ---- Step progression ----
+const steps = [
+  { key: "authenticating", label: "Authenticating" },
+  { key: "connecting", label: "Connecting to phone system" },
+  { key: "registering", label: "Registering device" },
+  { key: "ready", label: "Ready" },
+];
+
+let activeIndex = -1;
+const container = document.getElementById("steps");
+
+function render() {
+  container.innerHTML = steps.map((step, i) => {
+    const isDone = i < activeIndex;
+    const isActive = i === activeIndex;
+    const cls = isDone ? "loader-step--done" : isActive ? "loader-step--active" : "loader-step--pending";
+
+    let indicator = "";
+    if (isDone) {
+      indicator = `<svg class="step-check" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    } else if (isActive) {
+      indicator = `<span class="step-dot"></span>`;
+    }
+
+    return `
+      <div class="loader-step ${cls}">
+        <div class="step-indicator">${indicator}</div>
+        <span class="step-label">${step.label}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+function advance() {
+  activeIndex++;
+  if (activeIndex >= steps.length) {
+    setTimeout(() => { activeIndex = -1; advance(); }, 2500);
+    return;
+  }
+  render();
+  setTimeout(advance, 1400 + Math.random() * 600);
+}
+
+setTimeout(advance, 1000);
+render();
+</script>
+
+</body>
+</html>

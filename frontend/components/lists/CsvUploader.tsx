@@ -3,9 +3,9 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, FileSpreadsheet, X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useUploadCSV } from "@/hooks/api/useLists";
+import { useUploadListCsv } from "@/hooks/api/useLists";
 import { toast } from "sonner";
 
 interface CsvUploaderProps {
@@ -15,7 +15,7 @@ interface CsvUploaderProps {
 
 export function CsvUploader({ listId, onUploadComplete }: CsvUploaderProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const uploadMutation = useUploadCSV();
+  const uploadMutation = useUploadListCsv();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -37,11 +37,11 @@ export function CsvUploader({ listId, onUploadComplete }: CsvUploaderProps) {
     if (!selectedFile) return;
 
     try {
-      const result = await uploadMutation.mutateAsync({
+      await uploadMutation.mutateAsync({
         listId,
         file: selectedFile,
       });
-      toast.success(result.message || "CSV uploaded successfully!");
+      toast.success("CSV uploaded! Processing will begin shortly.");
       setSelectedFile(null);
       onUploadComplete?.();
     } catch (error) {
@@ -130,7 +130,7 @@ export function CsvUploader({ listId, onUploadComplete }: CsvUploaderProps) {
       <div className="text-xs text-muted-foreground space-y-1">
         <p>
           <strong>Supported columns:</strong> first_name, last_name, email,
-          phone, company, title/role, linkedin_url
+          phone (required), company, title, linkedin_url, website
         </p>
         <p>Additional columns will be saved as custom fields.</p>
       </div>

@@ -103,9 +103,10 @@ export function useInviteMember() {
     mutationFn: async (params: { email: string; role: "member" | "admin" | "owner"; organizationId: string }) => {
       return await organization.inviteMember({ email: params.email, role: params.role as "member" | "admin" | "owner", organizationId: params.organizationId });
     },
-    onSuccess: (result: any) => {
-      if (result.data && activeOrganization) {
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.organizationInvitations(activeOrganization.data?.id) });
+    onSettled: () => {
+      // Always invalidate on both success and error to ensure UI reflects current state
+      if (activeOrganization?.data?.id) {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.organizationInvitations(activeOrganization.data.id) });
       }
     },
   });
@@ -119,9 +120,10 @@ export function useCancelOrganizationInvitation() {
     mutationFn: async (params: { invitationId: string }) => {
       return organization.cancelInvitation(params);
     },
-    onSuccess: (result: any) => {
-      if (result.data && activeOrganization) {
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.organizationInvitations(activeOrganization.data?.id) });
+    onSettled: () => {
+      // Always invalidate to ensure UI reflects current state
+      if (activeOrganization?.data?.id) {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.organizationInvitations(activeOrganization.data.id) });
       }
     }
   });
@@ -143,6 +145,46 @@ export const useRemoveOrganizationMember = () => {
   });
 }
 
+/**
+ * Resend an organization invitation
+ * Cancels the existing invitation and creates a new one with fresh expiration
+ */
+export function useResendOrganizationInvitation() {
+  const queryClient = useQueryClient();
+  const activeOrganization = useActiveOrganization();
+
+  return useMutation({
+    mutationFn: async (params: { invitationId: string; email: string; role: "member" | "admin" | "owner" }) => {
+      // First cancel the existing invitation
+      const cancelResult = await organization.cancelInvitation({ invitationId: params.invitationId });
+      if (cancelResult.error) {
+        throw new Error(cancelResult.error.message || 'Failed to cancel existing invitation');
+      }
+
+      // Then create a new invitation
+      const inviteResult = await organization.inviteMember({
+        email: params.email,
+        role: params.role,
+        organizationId: activeOrganization?.data?.id || '',
+      });
+
+      // Check if the invite failed and throw so onSettled still invalidates
+      if (inviteResult.error) {
+        throw new Error(inviteResult.error.message || 'Failed to send new invitation');
+      }
+
+      return inviteResult;
+    },
+    onSettled: () => {
+      // Always invalidate to ensure UI reflects current state (especially important
+      // since we cancel first, then invite - if invite fails, old one is gone)
+      if (activeOrganization?.data?.id) {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.organizationInvitations(activeOrganization.data.id) });
+      }
+    },
+  });
+}
+
 export function useOrganizationCreditBalance() {
   const activeOrganization = useActiveOrganization();
   const orgId = activeOrganization?.data?.id;
@@ -156,3 +198,4 @@ export function useOrganizationCreditBalance() {
     enabled: !!orgId,
   });
 }
+

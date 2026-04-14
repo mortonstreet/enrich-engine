@@ -1,8 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { cn } from "@/lib/utils"
-import EnrichEngineLogo from "@/components/landing/EnrichEngineLogo"
+import { OmniDialLogoStatic } from "@/components/landing/OmniDialLogo"
 
 type Size = "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl"
 
@@ -17,50 +16,57 @@ const sizeClass: Record<Size, string> = {
 
 export default function AuthCard({
   title,
+  subtitle,
   children,
   size = "md",
   className = "",
-  variant = "default",
 }: {
   title: string
+  subtitle?: string
   children: React.ReactNode
   size?: Size
   className?: string
-  variant?: "default" | "manus"
 }) {
-  const isManusStyle = variant === "manus"
+  const marketingHref = process.env.NEXT_PUBLIC_MARKETING_URL || "/"
 
   return (
-    <Card
-      className={cn(
-        "mx-auto w-full",
-        sizeClass[size],
-        isManusStyle && [
-          "w-[360px]",
-          "bg-white",
-          "border-[rgba(0,0,0,0.08)]",
-          "rounded-[12px]",
-          "shadow-[0px_1px_2px_-0.5px_rgba(0,0,0,0.12),0px_2px_4px_-1px_rgba(0,0,0,0.08)]",
-        ],
-        className
-      )}
-    >
-      <CardHeader className={cn(isManusStyle && "pb-2")}>
-        <div className="flex justify-center mb-4">
-          <EnrichEngineLogo size={48} animated />
+    <div className="min-h-screen w-full flex flex-col">
+      {/* Header with logo */}
+      <header className="p-6">
+        <a href={marketingHref} className="inline-flex items-center gap-2.5">
+          <OmniDialLogoStatic size={32} color="currentColor" className="text-foreground" />
+          <span className="font-medium text-lg tracking-tight text-foreground">OmniDial</span>
+        </a>
+      </header>
+
+      {/* Main content */}
+      <main className="flex-1 flex items-center justify-center px-6 pb-12">
+        <div className={cn("w-full", sizeClass[size], className)}>
+          {/* Title section */}
+          <div className="text-center mb-8">
+            <h1 className="text-2xl md:text-3xl font-medium text-foreground tracking-tight">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-2 text-muted-foreground font-light">
+                {subtitle}
+              </p>
+            )}
+          </div>
+
+          {/* Card container */}
+          <div className="rounded-2xl border border-border bg-card/50 p-6 md:p-8">
+            {children}
+          </div>
         </div>
-        <CardTitle
-          className={cn(
-            "text-center",
-            isManusStyle
-              ? "text-[24px] font-semibold text-[#1A1A1A] tracking-[-0.01em]"
-              : "text-2xl md:text-3xl"
-          )}
-        >
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className={cn(isManusStyle && "pt-2")}>{children}</CardContent>
-    </Card>
+      </main>
+
+      {/* Footer */}
+      <footer className="p-6 text-center">
+        <p className="text-xs text-muted-foreground">
+          &copy; {new Date().getFullYear()} OmniDial. All rights reserved.
+        </p>
+      </footer>
+    </div>
   )
 }

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>OmniDial</h1>
+    <p class="subtitle">Click-to-Call Settings</p>
+
+    <label for="dialerUrl">Dialer Base URL</label>
+    <input
+      type="url"
+      id="dialerUrl"
+      placeholder="http://localhost:3000"
+      spellcheck="false"
+    />
+    <p class="hint">The URL where your OmniDial is running</p>
+
+    <button id="save">Save</button>
+    <p id="status" class="status" hidden></p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

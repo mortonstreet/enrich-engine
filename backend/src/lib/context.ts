@@ -1,28 +1,30 @@
-import { AsyncLocalStorage } from "async_hooks";
+import { AsyncLocalStorage } from 'async_hooks'
 
 interface RequestContext {
-  requestId: string;
-  jobId: string;
-  userId?: string;
-  sessionId?: string;
+  requestId: string
+  jobId: string
+  userId?: string
+  sessionId?: string
+  organizationId?: string
+  correlationId?: string
 }
 
-export const asyncLocalStorage = new AsyncLocalStorage<RequestContext>();
+export const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()
 
 export const setRequestContext = (key: string, value: any) => {
-  let currentContext = asyncLocalStorage.getStore();
+  let currentContext = asyncLocalStorage.getStore()
   if (currentContext) {
-    currentContext[key as keyof RequestContext] = value;
+    currentContext[key as keyof RequestContext] = value
   } else {
     currentContext = {
-      requestId: "",
-      jobId: "",
-    };
-    currentContext[key as keyof RequestContext] = value;
+      requestId: '',
+      jobId: '',
+    }
+    currentContext[key as keyof RequestContext] = value
   }
-  asyncLocalStorage.enterWith(currentContext);
-};
+  asyncLocalStorage.enterWith(currentContext)
+}
 
 export const getRequestContext = (): RequestContext | undefined => {
-  return asyncLocalStorage.getStore();
-};
+  return asyncLocalStorage.getStore()
+}

@@ -1,55 +1,78 @@
 # Lists Feature Spec
 
 **Module Owner:** This session
-**Status:** Implemented
-**Dependencies:** None (foundation feature)
+**Status:** Complete - All Bug Fixes Applied
 
 ---
 
-## Implementation Status
+## Implementation Status (Updated Jan 2026)
 
-### Features
+### Completed Features
 - [x] Folder hierarchy with nesting
 - [x] List creation with name/description
-- [ ] CSV upload with async processing (BullMQ)
+- [x] CSV upload with async processing (BullMQ)
 - [x] Import status tracking (pending/processing/completed/failed)
 - [x] Lead management with inline editing
 - [x] Search across lists/folders
 - [x] Pagination for leads
 - [x] Export to CSV
 - [x] Move lists between folders
-- [ ] Breadcrumb navigation
-- [x] Favorites tab with star toggle
-- [x] Recents tab with last-opened-by-me timestamp
-- [x] Owner column and filter
-- [x] All folders display as grey
+- [x] Breadcrumb navigation
+- [x] List detail page working
+- [x] "Add to Campaign" modal shows ALL campaigns with status badges
+- [x] All folders display as grey (Clay-style)
+- [x] Color picker removed from folder create/edit dialogs
+- [x] Refresh button removed from list detail page
+- [x] "Tag..." option removed from dropdown menus
+- [x] "Duplicate" option removed from dropdown menus
 
-### Key Files (TBD)
-**Database:**
-- `shared/db/prisma/schema.prisma`
+### Key Files Updated
+- `FolderCard.tsx` - Uses FOLDER_GREY constant, color picker removed
+- `FolderSidebar.tsx` - Uses FOLDER_GREY, color picker removed from dialogs
+- `[id]/page.tsx` - Refresh button removed, campaigns dropdown works
 
-**Backend:**
-- `backend/src/api/routes/lists.ts`
-- `backend/src/api/controllers/list.controller.ts`
-- `backend/src/services/list.service.ts`
-- `backend/src/repositories/list.repository.ts`
-- `backend/src/repositories/listFolder.repository.ts`
-- `backend/src/repositories/listFavorite.repository.ts`
-- `backend/src/repositories/listOpen.repository.ts`
+### Features Completed (Jan 2026)
+- [x] **Favorites tab** - Users can favorite lists/folders, shown in Favorites tab
+- [x] **Recents tab** - Tracks recently opened lists AND folders per user
+- [x] **Star toggle in Tags column** - Click to add/remove favorites
+- [x] **Database migrations** - ListFavorite and ListOpen tables created
+- [x] **Backend API** - Full favorites and recents endpoints implemented
+- [x] **Frontend hooks** - useFavorites, useRecents, useToggleFavorite, etc.
 
-**Frontend:**
-- `frontend/app/dashboard/lists/page.tsx`
-- `frontend/app/dashboard/lists/[id]/page.tsx`
-- `frontend/components/lists/ListCard.tsx`
-- `frontend/components/lists/FolderCard.tsx`
-- `frontend/components/lists/CSVDropzone.tsx`
-- `frontend/hooks/api/useLists.ts`
+### Remaining (Lower Priority) - NOW COMPLETE
+- [x] **Owner filter** - Dropdown to filter lists by creator
+- [x] **Last opened by me** - Displays timestamp from recents tracking
+- [x] **Owner column** - Shows creator name from organization members
+
+### Bugs Fixed (Jan 2026)
+- [x] [HIGH] BUG: Favorites tab not displaying favorited items - Fixed: Recents data now used directly without lookup
+- [x] [HIGH] BUG: Owner column not displaying correctly - Fixed: Added createdById to findMany query
+- [x] [HIGH] BUG: "Last opened by me" column not showing accurate timestamps - Fixed: Added openedAtMap lookup for All/Favorites tabs
+
+### Bugs Fixed - Jan 2026 (Lead Management)
+- [x] [HIGH] BUG: First/Last name not synced when editing in Lists tab
+  - Fix: Cross-view query invalidation (same as leads.md)
+  - Files: useLists.ts - Already implemented with queryClient.invalidateQueries for leads
+- [x] [MEDIUM] BUG: 3-dot menu missing "Edit" option for full lead editing
+  - Fix: Add "Edit Details" menu item linking to /dashboard/leads/[id]
+  - Files: /dashboard/lists/[id]/page.tsx - Already implemented
+
+### Bugs Fixed - Jan 2026 (UI/UX)
+- [x] [LOW] BUG: "(root)" should say "Home"
+  - When moving files/folders via 3-dot menu
+  - Fixed: Changed "Home (root)" to "Home" in move dialog
+  - Files: frontend/app/dashboard/lists/page.tsx
+
+- [x] [MEDIUM] BUG: Lists tab missing title header
+  - Lists tab only shows "All Files" without a "Lists" title header
+  - Fixed: Added "Lists" title header above tabs to match other pages
+  - Files: frontend/app/dashboard/lists/page.tsx
 
 ---
 
 ## Overview
 
-The Lists feature provides lead organization through a hierarchical folder/list structure with CSV import and Clay-inspired UI. This is the foundation feature that both Scrape and Enrich features depend on.
+The Lists feature provides lead organization through a hierarchical folder/list structure with CSV import, campaign integration, and Clay-inspired UI.
 
 ---
 
@@ -93,7 +116,6 @@ The Lists feature provides lead organization through a hierarchical folder/list 
 - Import status badge (pending/processing/completed/failed)
 - Lead count display
 - Folder assignment
-- Source indicator: "Uploaded" or "Scraped"
 
 **List Dropdown Menu**
 ```
@@ -108,7 +130,7 @@ The Lists feature provides lead organization through a hierarchical folder/list 
 
 ### 4. Filter Bar
 
-**Layout**
+**Owner Filter**
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Owner: [All ▼]   ≡ Filters                              [Search...]  [+New]│
@@ -135,24 +157,53 @@ The Lists feature provides lead organization through a hierarchical folder/list 
 | Access | "Edit" indicator |
 | Actions | 3-dots dropdown menu |
 
-### 6. List Detail Page
+### 6. Add to Campaign Dialog
 
-**Header Actions**
+**Current Bug:** Campaign dropdown not populating
+
+**Fix Required**
+- Campaign dropdown must populate with ALL campaigns
+- Remove active-only filter
+- Keep Active/Inactive badge display on campaigns
+
+**Dialog**
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  ← My List  ● Completed                                          [Export ▼]│
-│  📄 Description text here                                                   │
-│  👥 2,677 leads  •  📁 in Marketing                                        │
+│  Add List to Campaign                                                   [X] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  All 2,677 leads from this list will be added to the selected campaign.    │
+│                                                                             │
+│  Campaign                                                                   │
+│  [Select a campaign ▼]                                                      │
+│    - Q1 Outreach (Active)                                                   │
+│    - West Coast VPs (Inactive)                                              │
+│    - Tech Startups (Active)                                                 │
+│                                                                             │
+│                                              [Cancel]  [Add to Campaign]    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 7. List Detail Page
+
+**Header Actions** (Remove Refresh button)
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ← test  ● Completed                                     [Export] [Add to ▼]│
+│  📄 2390940439                                                              │
+│  👥 2,677 leads  •  📁 in test                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - Export (CSV download)
+- Add to Campaign
 - More menu (Edit, Delete)
+- NO Refresh button
 
 **CSV Upload**
 - Drag & drop zone
 - 10MB max file size
-- Standard column mappings
+- Standard column mappings (phone required)
 - Custom fields support
 
 **Leads Table**
@@ -162,373 +213,175 @@ The Lists feature provides lead organization through a hierarchical folder/list 
 
 ---
 
-## API Endpoints
+## API Changes
 
-### Lists
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/lists` | Get all lists and folders |
-| POST | `/lists` | Create new list |
-| GET | `/lists/:id` | Get list details with leads |
-| PATCH | `/lists/:id` | Update list |
-| DELETE | `/lists/:id` | Delete list |
-| POST | `/lists/:id/upload` | Upload CSV to list |
-| GET | `/lists/:id/export` | Export list as CSV |
+### New Endpoints
 
-### Folders
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/lists/folders` | Create folder |
-| PATCH | `/lists/folders/:id` | Update folder |
-| DELETE | `/lists/folders/:id` | Delete folder |
+**Favorites**
+```
+POST   /api/lists/favorites           - Add to favorites (listId or folderId)
+DELETE /api/lists/favorites/:id       - Remove from favorites
+GET    /api/lists/favorites           - Get user's favorites
+```
 
-### Favorites
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/lists/favorites` | Add to favorites (listId or folderId) |
-| DELETE | `/lists/favorites/:id` | Remove from favorites |
-| GET | `/lists/favorites` | Get user's favorites |
-
-### Recents
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/lists/:id/open` | Track list open |
-| POST | `/lists/folders/:id/open` | Track folder open |
-| GET | `/lists/recents` | Get user's recently opened |
-
----
-
-## Database Schema
-
-### Prisma Models
-
-```prisma
-model LeadList {
-  id             String   @id @default(cuid())
-  organizationId String
-  createdById    String
-  name           String
-  description    String?
-  folderId       String?
-  importStatus   String   @default("completed") // pending, processing, completed, failed
-  leadCount      Int      @default(0)
-  source         String   @default("uploaded") // uploaded, scraped
-  scrapeJobId    String?  // Link to source scrape job if scraped
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User            @relation(fields: [createdById], references: [id])
-  folder         LeadListFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  leads          Lead[]
-  favorites      ListFavorite[]
-  opens          ListOpen[]
-
-  @@index([organizationId])
-  @@index([folderId])
-  @@index([createdById])
-}
-
-model LeadListFolder {
-  id             String   @id @default(cuid())
-  organizationId String
-  createdById    String
-  name           String
-  parentId       String?
-  order          Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User             @relation(fields: [createdById], references: [id])
-  parent         LeadListFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children       LeadListFolder[] @relation("FolderHierarchy")
-  lists          LeadList[]
-  favorites      ListFavorite[]
-  opens          ListOpen[]
-
-  @@index([organizationId])
-  @@index([parentId])
-}
-
-model ListFavorite {
-  id        String   @id @default(cuid())
-  userId    String
-  listId    String?
-  folderId  String?
-  createdAt DateTime @default(now())
-
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  list   LeadList?       @relation(fields: [listId], references: [id], onDelete: Cascade)
-  folder LeadListFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, listId])
-  @@unique([userId, folderId])
-  @@index([userId])
-}
-
-model ListOpen {
-  id        String   @id @default(cuid())
-  userId    String
-  listId    String?
-  folderId  String?
-  openedAt  DateTime @default(now())
-
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  list   LeadList?       @relation(fields: [listId], references: [id], onDelete: Cascade)
-  folder LeadListFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
-
-  @@index([userId, openedAt(sort: Desc)])
-}
-
-model Lead {
-  id             String   @id @default(cuid())
-  listId         String
-  organizationId String
-  firstName      String?
-  lastName       String?
-  email          String?
-  phone          String?
-  company        String?
-  role           String?
-  linkedinUrl    String?
-  customFields   Json     @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  list         LeadList     @relation(fields: [listId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([listId])
-  @@index([organizationId])
+**Request: Add to Favorites**
+```typescript
+interface AddFavoriteRequest {
+  listId?: string;
+  folderId?: string;
+  organizationId: string;
 }
 ```
 
----
-
-## TypeScript Types
-
+**Response: Favorites List**
 ```typescript
-// shared/types/src/requests/list.ts
-
-import { z } from 'zod';
-
-// Enums
-export type ListImportStatus = 'pending' | 'processing' | 'completed' | 'failed';
-export type ListSource = 'uploaded' | 'scraped';
-
-// Request schemas
-export const createListSchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().max(1000).optional(),
-  folderId: z.string().optional(),
-});
-
-export const updateListSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  description: z.string().max(1000).optional(),
-  folderId: z.string().nullable().optional(),
-});
-
-export const createFolderSchema = z.object({
-  name: z.string().min(1).max(255),
-  parentId: z.string().optional(),
-});
-
-export const updateFolderSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  parentId: z.string().nullable().optional(),
-  order: z.number().optional(),
-});
-
-export const addFavoriteSchema = z.object({
-  listId: z.string().optional(),
-  folderId: z.string().optional(),
-}).refine(data => (data.listId && !data.folderId) || (!data.listId && data.folderId), {
-  message: 'Must provide either listId or folderId, not both',
-});
-
-export const getListsQuerySchema = z.object({
-  folderId: z.string().optional(),
-  search: z.string().optional(),
-  ownerId: z.string().optional(),
-});
-
-export const getLeadsQuerySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(20),
-  search: z.string().optional(),
-});
-
-// Response types
-export interface ListResponse {
-  id: string;
-  name: string;
-  description: string | null;
-  folderId: string | null;
-  importStatus: ListImportStatus;
-  leadCount: number;
-  source: ListSource;
-  scrapeJobId: string | null;
-  createdById: string;
-  createdAt: string;
-  updatedAt: string;
-  isFavorite?: boolean;
-  lastOpenedAt?: string | null;
-  owner?: {
-    id: string;
-    name: string;
-    image: string | null;
-  };
-}
-
-export interface FolderResponse {
-  id: string;
-  name: string;
-  parentId: string | null;
-  order: number;
-  createdById: string;
-  createdAt: string;
-  updatedAt: string;
-  isFavorite?: boolean;
-  lastOpenedAt?: string | null;
-  owner?: {
-    id: string;
-    name: string;
-    image: string | null;
-  };
-}
-
-export interface LeadResponse {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  phone: string | null;
-  company: string | null;
-  role: string | null;
-  linkedinUrl: string | null;
-  customFields: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ListsPageResponse {
-  lists: ListResponse[];
-  folders: FolderResponse[];
-}
-
-export interface ListDetailResponse {
-  list: ListResponse;
-  leads: LeadResponse[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-export interface FavoriteResponse {
+interface FavoriteItem {
   id: string;
   type: 'list' | 'folder';
-  item: ListResponse | FolderResponse;
+  item: LeadList | LeadListFolder;
   createdAt: string;
 }
+```
 
-export interface RecentResponse {
+**Recents/Opens Tracking**
+```
+POST   /api/lists/:id/open           - Track list open
+POST   /api/lists/folders/:id/open   - Track folder open
+GET    /api/lists/recents            - Get user's recently opened
+```
+
+**Response: Recents List**
+```typescript
+interface RecentItem {
   id: string;
   type: 'list' | 'folder';
-  item: ListResponse | FolderResponse;
+  item: LeadList | LeadListFolder;
   openedAt: string;
 }
 ```
 
+### Modified Endpoints
+
+**GET /api/campaigns (for dropdown)**
+- Remove active-only default filter
+- Return ALL campaigns for organization
+
 ---
 
-## UI Components
+## Database Changes
 
-### Pages
-- `ListsPage` - Main page with tabs (All files, Recents, Favorites)
-- `ListDetailPage` - Detail view with leads table
+### New Table: ListFavorite
 
-### List Components
-- `ListCard` - List row in table with dropdown menu
-- `FolderCard` - Folder row in table with dropdown menu
-- `ListsTable` - Table with columns and sorting
-- `ListsFilterBar` - Search, owner filter, new button
+```sql
+CREATE TABLE "ListFavorite" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "userId" TEXT NOT NULL,
+  "listId" TEXT,
+  "folderId" TEXT,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE,
+  FOREIGN KEY ("listId") REFERENCES "LeadList"("id") ON DELETE CASCADE,
+  FOREIGN KEY ("folderId") REFERENCES "LeadListFolder"("id") ON DELETE CASCADE,
+  UNIQUE ("userId", "listId"),
+  UNIQUE ("userId", "folderId"),
+  CHECK (("listId" IS NOT NULL AND "folderId" IS NULL) OR ("listId" IS NULL AND "folderId" IS NOT NULL))
+);
 
-### Dialogs
-- `CreateListDialog` - Name, description inputs
-- `CreateFolderDialog` - Name, parent folder inputs
-- `MoveFolderDialog` - Select destination folder
-- `DeleteConfirmDialog` - Confirm deletion
+CREATE INDEX "ListFavorite_userId_idx" ON "ListFavorite"("userId");
+```
 
-### List Detail Components
-- `ListHeader` - Back button, name, status, actions
-- `LeadsTable` - Paginated leads with inline editing
-- `CSVDropzone` - Drag & drop upload zone
-- `LeadEditRow` - Inline editing for lead fields
+### New Table: ListOpen
 
-### Hooks
-- `useLists` - Fetch lists and folders
-- `useListDetail` - Fetch single list with leads
-- `useFavorites` - Fetch user's favorites
-- `useRecents` - Fetch user's recents
-- `useToggleFavorite` - Add/remove favorite
-- `useCreateList` - Create new list
-- `useCreateFolder` - Create new folder
-- `useUploadCSV` - Upload CSV to list
-- `useExportCSV` - Download list as CSV
+```sql
+CREATE TABLE "ListOpen" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "userId" TEXT NOT NULL,
+  "listId" TEXT,
+  "folderId" TEXT,
+  "openedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE,
+  FOREIGN KEY ("listId") REFERENCES "LeadList"("id") ON DELETE CASCADE,
+  FOREIGN KEY ("folderId") REFERENCES "LeadListFolder"("id") ON DELETE CASCADE,
+  CHECK (("listId" IS NOT NULL AND "folderId" IS NULL) OR ("listId" IS NULL AND "folderId" IS NOT NULL))
+);
+
+CREATE INDEX "ListOpen_userId_openedAt_idx" ON "ListOpen"("userId", "openedAt" DESC);
+```
+
+### Modify LeadListFolder Display
+
+- Ignore "color" column in frontend (always display grey)
+- No changes to database schema, just frontend rendering
+
+---
+
+## Files to Modify (Exclusive Ownership)
+
+### Frontend
+- `frontend/app/dashboard/lists/page.tsx` - Add tabs, owner filter, grey folders
+- `frontend/app/dashboard/lists/[id]/page.tsx` - Remove Refresh button
+- `frontend/components/lists/ListCard.tsx` - Update dropdown menu (remove Tag, Duplicate)
+- `frontend/components/lists/FolderCard.tsx` - Remove color picker, grey styling
+- `frontend/hooks/api/useLists.ts` - Add favorites, recents hooks
+
+### Backend
+- `backend/src/api/routes/lists.ts` - Add favorites, recents endpoints
+- `backend/src/api/controllers/list.controller.ts` - Add favorite/recents handlers
+- `backend/src/services/leadList.service.ts` - Add favorite/open tracking logic
+- `backend/src/repositories/listFavorite.repository.ts` - New repository
+- `backend/src/repositories/listOpen.repository.ts` - New repository
+
+### Shared
+- `shared/types/src/requests/list.ts` - Add favorite/recents types
 
 ---
 
 ## Implementation Order
 
-1. Database schema migrations
-2. Backend repositories (list, folder, favorite, open)
-3. Backend services (list management, CSV processing)
-4. Backend controllers and routes
-5. Shared types
-6. Frontend hooks
-7. Frontend pages (lists page, list detail)
-8. Frontend components (cards, dialogs, dropzone)
-9. CSV upload with BullMQ queue
-10. Real-time status updates
+1. Fix "Add to Campaign" dropdown (show all campaigns)
+2. Remove folder colors, make all grey
+3. Remove Refresh button from detail page
+4. Update 3-dots menu (remove Tag, Duplicate)
+5. Create database migrations for ListFavorite, ListOpen
+6. Build Favorites backend (repository, service, controller, routes)
+7. Build Favorites frontend (tab, star toggle, dropdown option)
+8. Build Recents backend (track opens, query recent)
+9. Build Recents frontend (tab, last opened column)
+10. Add Owner filter with user dropdown
 
 ---
 
 ## Testing Checklist
 
-### Core Features
-- [ ] Can create a new list
-- [ ] Can create a new folder
-- [ ] Can nest folders inside other folders
-- [ ] Can move list to different folder
-- [ ] Can rename list and folder
-- [ ] Can delete list and folder
+### Bug Fixes
+- [x] "Add to Campaign" dropdown shows all campaigns
+- [x] Can add list to inactive campaign
+- [x] Campaign status badges still display (Active/Inactive)
 
-### CSV Operations
-- [ ] Can upload CSV file (drag & drop)
-- [ ] Import status updates in real-time
-- [ ] Lead count updates after import
-- [ ] Can export list as CSV
+### Cosmetic Changes
+- [x] All folders display as grey (no colors)
+- [x] No color picker in folder create/edit dialogs
+- [x] Refresh button removed from detail page header
+- [x] No "Tag..." option in dropdown menus
+- [x] No "Duplicate" option in dropdown menus
 
-### Tabs & Filters
-- [ ] All files tab shows all items
-- [ ] Recents tab shows recently opened
-- [ ] Favorites tab shows favorited items
-- [ ] Star toggle adds/removes from favorites
-- [ ] Owner filter works correctly
-- [ ] Search filters results in real-time
+### New Features
+- [x] Favorites tab shows only favorited items
+- [x] Star icon in Tags column toggles favorite status
+- [x] "Add to favorites" in dropdown toggles correctly
+- [x] Recents tab shows recently opened items (sorted by time)
+- [x] Opening a list/folder records the open time
+- [x] "Last opened by me" column shows correct timestamp from recents
+- [x] Owner filter dropdown shows all team members
+- [x] Owner filter correctly filters the list
+- [x] Owner column shows creator name
 
-### Leads Table
-- [ ] Pagination works (20 per page)
-- [ ] Search within list works
-- [ ] Inline editing saves changes
-
-### UI/UX
-- [ ] Breadcrumb navigation works
-- [ ] Folder navigation works
-- [ ] All folders display as grey
-- [ ] Status badges display correctly
+### Existing Features (Regression)
+- [ ] CSV upload still works
+- [ ] Export still works
+- [ ] Move to folder still works
+- [ ] Rename still works
+- [ ] Delete with confirmation still works
+- [ ] Folder navigation still works
+- [ ] Search still works
+- [ ] Breadcrumbs still work

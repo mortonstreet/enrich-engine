@@ -1,15 +1,102 @@
-import { getRedis } from "@/lib/redis";
-import logger from "@/lib/logger";
-import { createErrorResponse, ErrorCodes } from "@/lib/errors";
+import { getRedis } from '@/lib/redis'
+import logger from '@/lib/logger'
+import { createHash } from 'crypto'
 
 export interface RateLimitOptions {
-  windowSeconds: number;
-  maxRequests: number;
-  keyGenerator: (req: any) => string;
-  message?: string;
-  onLimitReached?: (req: any, res: any, rateLimitInfo: any) => void;
-  skipSuccessfulRequests?: boolean;
-  skipFailedRequests?: boolean;
+  windowSeconds: number
+  maxRequests: number
+  keyGenerator: (req: any) => string
+  message?: string
+  onLimitReached?: (req: any, res: any, rateLimitInfo: any) => void
+  skipSuccessfulRequests?: boolean
+  skipFailedRequests?: boolean
+}
+
+const AUTH_SESSION_COOKIE_NAMES = [
+  'better-auth.session_token',
+  'better-auth.session-token',
+  '__Secure-better-auth.session_token',
+  '__Secure-better-auth.session-token',
+]
+
+const normalizeHeaderValue = (
+  value: string | string[] | undefined,
+): string | undefined => {
+  if (!value) {
+    return undefined
+  }
+
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+
+  return value
+}
+
+const hashIdentity = (value: string): string =>
+  createHash('sha256').update(value).digest('hex').slice(0, 24)
+
+const getCookieValue = (
+  cookieHeader: string | undefined,
+  cookieNames: string[],
+): string | undefined => {
+  if (!cookieHeader) {
+    return undefined
+  }
+
+  const cookies = cookieHeader.split(';')
+
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim()
+    const separatorIndex = trimmed.indexOf('=')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const name = trimmed.slice(0, separatorIndex).trim()
+    if (!cookieNames.includes(name)) {
+      continue
+    }
+
+    const rawValue = trimmed.slice(separatorIndex + 1).trim()
+    if (!rawValue) {
+      return undefined
+    }
+
+    try {
+      return decodeURIComponent(rawValue)
+    } catch {
+      return rawValue
+    }
+  }
+
+  return undefined
+}
+
+const resolvePerUserIdentity = (req: any): string => {
+  const userId = req.user?.id
+  if (userId) {
+    return `user:${userId}`
+  }
+
+  const authorization = normalizeHeaderValue(req.headers?.authorization)
+  if (authorization?.toLowerCase().startsWith('bearer ')) {
+    const token = authorization.slice(7).trim()
+    if (token) {
+      return `bearer:${hashIdentity(token)}`
+    }
+  }
+
+  const cookieHeader = normalizeHeaderValue(req.headers?.cookie)
+  const sessionCookie = getCookieValue(cookieHeader, AUTH_SESSION_COOKIE_NAMES)
+  if (sessionCookie) {
+    return `session:${hashIdentity(sessionCookie)}`
+  }
+
+  const forwardedFor = normalizeHeaderValue(req.headers?.['x-forwarded-for'])
+  const forwardedIp = forwardedFor?.split(',')[0]?.trim()
+  const ip = req.ip || forwardedIp || req.connection?.remoteAddress || 'unknown'
+  return `ip:${ip}`
 }
 
 export class RedisRateLimiter {
@@ -19,39 +106,37 @@ export class RedisRateLimiter {
    */
   static create(options: RateLimitOptions) {
     return async (req: any, res: any, next: any) => {
-      const key = `rate_limit:${options.keyGenerator(req)}`;
-      const now = Date.now();
-      const windowStart = now - options.windowSeconds * 1000;
+      const key = `rate_limit:${options.keyGenerator(req)}`
+      const now = Date.now()
+      const windowStart = now - options.windowSeconds * 1000
 
       try {
         // Use Redis pipeline for atomic operations
-        const pipeline = getRedis().pipeline();
+        const pipeline = getRedis().pipeline()
+
+        // Generate a unique member ID for this request (store it for later removal if needed)
+        const requestMember = `${now}-${Math.random()}`
 
         // Remove old entries outside the window
-        pipeline.zremrangebyscore(key, "-inf", windowStart);
+        pipeline.zremrangebyscore(key, '-inf', windowStart)
 
         // Count current requests in window
-        pipeline.zcard(key);
+        pipeline.zcard(key)
 
-        // Add current request
-        pipeline.zadd(key, now, `${now}-${Math.random()}`);
+        // Add current request with the stored member ID
+        pipeline.zadd(key, now, requestMember)
 
         // Set expiration
-        pipeline.expire(key, options.windowSeconds);
+        pipeline.expire(key, options.windowSeconds)
 
-        const results = await pipeline.exec();
-        const currentRequests = (results?.[1]?.[1] as number) || 0;
+        const results = await pipeline.exec()
+        const currentRequests = (results?.[1]?.[1] as number) || 0
 
         // Check if limit exceeded
         if (currentRequests >= options.maxRequests) {
-          logger.info(`Rate limit exceeded for key: ${key}`);
+          logger.info(`Rate limit exceeded for key: ${key}`)
           // Get the oldest request to calculate retry time
-          const oldestRequest = await getRedis().zrange(
-            key,
-            0,
-            0,
-            "WITHSCORES",
-          );
+          const oldestRequest = await getRedis().zrange(key, 0, 0, 'WITHSCORES')
           const retryAfter =
             oldestRequest.length > 0
               ? Math.ceil(
@@ -59,7 +144,7 @@ export class RedisRateLimiter {
                     (now - parseFloat(oldestRequest[1]))) /
                     1000,
                 )
-              : options.windowSeconds;
+              : options.windowSeconds
 
           const rateLimitInfo = {
             limit: options.maxRequests,
@@ -67,60 +152,60 @@ export class RedisRateLimiter {
             remaining: 0,
             resetTime: new Date(now + retryAfter * 1000),
             retryAfter,
-          };
+          }
 
           // Custom handler if provided
           if (options.onLimitReached) {
-            return options.onLimitReached(req, res, rateLimitInfo);
+            return options.onLimitReached(req, res, rateLimitInfo)
           }
 
-          // Default response using standardized format
-          return res.status(429).json(
-            createErrorResponse(
+          // Default response
+          return res.status(429).json({
+            error: 'Rate limit exceeded',
+            message:
               options.message ||
-                `Too many requests. Please try again in ${retryAfter} seconds.`,
-              ErrorCodes.RATE_LIMIT_EXCEEDED,
-              {
-                retryAfter,
-                limit: options.maxRequests,
-                windowSeconds: options.windowSeconds,
-              }
-            )
-          );
+              `Too many requests. Please try again in ${retryAfter} seconds.`,
+            retryAfter,
+            limit: options.maxRequests,
+            windowSeconds: options.windowSeconds,
+          })
         }
 
         // Add rate limit info to response headers
-        const resetTimestamp = Math.floor((now + options.windowSeconds * 1000) / 1000);
         res.set({
-          "X-RateLimit-Limit": options.maxRequests.toString(),
-          "X-RateLimit-Remaining": Math.max(
-            0,
-            options.maxRequests - currentRequests - 1
+          'X-RateLimit-Limit': options.maxRequests.toString(),
+          'X-RateLimit-Remaining': (
+            options.maxRequests -
+            currentRequests -
+            1
           ).toString(),
-          "X-RateLimit-Reset": resetTimestamp.toString(),
-        });
+          'X-RateLimit-Reset': new Date(
+            now + options.windowSeconds * 1000,
+          ).toISOString(),
+        })
 
         // Store original end function to conditionally count requests
-        const originalEnd = res.end;
+        const originalEnd = res.end
         res.end = function (...args: any[]) {
           // Remove the request from count if it should be skipped
           if (
             (options.skipSuccessfulRequests && res.statusCode < 400) ||
             (options.skipFailedRequests && res.statusCode >= 400)
           ) {
-            getRedis().zrem(key, `${now}-${Math.random()}`);
+            // Use the same requestMember that was added earlier
+            getRedis().zrem(key, requestMember)
           }
 
-          originalEnd.apply(res, args);
-        };
+          originalEnd.apply(res, args)
+        }
 
-        next();
+        next()
       } catch (error) {
-        console.error("Rate limit check failed:", error);
+        console.error('Rate limit check failed:', error)
         // Fail open - allow request if Redis is down
-        next();
+        next()
       }
-    };
+    }
   }
 
   /**
@@ -132,7 +217,7 @@ export class RedisRateLimiter {
       RedisRateLimiter.create({
         windowSeconds,
         maxRequests,
-        keyGenerator: (req) => `user:${req.user?.id || "anonymous"}`,
+        keyGenerator: (req) => resolvePerUserIdentity(req),
         message: `You can only make ${maxRequests} request(s) per ${windowSeconds} seconds`,
       }),
 
@@ -164,5 +249,5 @@ export class RedisRateLimiter {
           `user_endpoint:${req.user?.id}:${req.route?.path || req.path}`,
         message: `You're making too many requests to this endpoint`,
       }),
-  };
+  }
 }

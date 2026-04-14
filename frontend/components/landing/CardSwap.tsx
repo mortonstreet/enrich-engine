@@ -10,9 +10,29 @@ import React, {
   RefObject,
   useEffect,
   useMemo,
-  useRef
+  useRef,
+  useState
 } from 'react';
 import gsap from 'gsap';
+
+// Hook to detect mobile/tablet - disables complex animations
+function useIsMobileOrTablet() {
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      // Check for touch device and screen width
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth < 1024;
+      setIsMobileOrTablet(isTouchDevice || isSmallScreen);
+    };
+
+    checkDevice();
+    // Only check on mount - don't add resize listener to avoid jank
+  }, []);
+
+  return isMobileOrTablet;
+}
 
 export interface CardSwapProps {
   width?: number | string;
@@ -81,7 +101,9 @@ const CardSwap: React.FC<CardSwapProps> = ({
   easing = 'elastic',
   children
 }) => {
-  const config = useMemo(() => 
+  const isMobileOrTablet = useIsMobileOrTablet();
+
+  const config = useMemo(() =>
     easing === 'elastic'
       ? {
           ease: 'elastic.out(0.6,0.9)',
@@ -110,6 +132,9 @@ const CardSwap: React.FC<CardSwapProps> = ({
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Skip all GSAP animations on mobile/tablet
+    if (isMobileOrTablet) return;
+
     const total = refs.length;
     refs.forEach((r, i) => {
       if (r.current) placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount);
@@ -198,7 +223,7 @@ const CardSwap: React.FC<CardSwapProps> = ({
     }
 
     return () => clearInterval(intervalRef.current);
-  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing, config, refs]);
+  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing, config, refs, isMobileOrTablet]);
 
   const rendered = childArr.map((child, i) =>
     isValidElement<CardProps>(child)
@@ -213,6 +238,37 @@ const CardSwap: React.FC<CardSwapProps> = ({
         } as CardProps & React.RefAttributes<HTMLDivElement>)
       : child
   );
+
+  // On mobile/tablet, render a simple static stacked layout without GSAP animations
+  if (isMobileOrTablet) {
+    return (
+      <div
+        ref={container}
+        className="absolute bottom-0 right-0 transform translate-x-[25%] translate-y-[25%] origin-bottom-right overflow-visible scale-[0.65]"
+        style={{ width, height }}
+      >
+        {childArr.map((child, i) =>
+          isValidElement<CardProps>(child)
+            ? cloneElement(child, {
+                key: i,
+                className: `absolute top-1/2 left-1/2 rounded-xl border border-border bg-card ${child.props.className ?? ''}`,
+                style: {
+                  width,
+                  height,
+                  transform: `translate(-50%, -50%) translate(${i * 20}px, ${-i * 25}px)`,
+                  zIndex: childArr.length - i,
+                  ...(child.props.style ?? {})
+                },
+                onClick: (e: React.MouseEvent<HTMLDivElement>) => {
+                  child.props.onClick?.(e);
+                  onCardClick?.(i);
+                }
+              } as CardProps)
+            : child
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

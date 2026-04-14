@@ -2,45 +2,53 @@
 import { useSession } from "@/lib/auth-client";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
-import DotPatternBackground from "@/components/auth/DotPatternBackground";
+
+// Get the app URL for redirects
+const getAppUrl = () => {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl && !appUrl.includes("localhost")) {
+    return appUrl;
+  }
+  return "";
+};
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check if user is on a page that allows logged-in users
-  const isAcceptInvitationPage = pathname?.startsWith("/accept-invitation");
-  const isVerifyWithInvitation = pathname?.startsWith("/verify") &&
-    typeof window !== "undefined" && window.location.search.includes("inviteId");
+  // Pages under (auth) that logged-in users should be allowed to stay on
+  const allowLoggedIn =
+    pathname?.startsWith("/accept-invitation") ||
+    pathname?.startsWith("/onboarding") ||
+    (pathname?.startsWith("/verify") &&
+      typeof window !== "undefined" &&
+      window.location.search.includes("inviteId"));
 
   useEffect(() => {
-    // Redirect logged-in users to dashboard unless they're on specific pages
-    if (!isPending && session && !isAcceptInvitationPage && !isVerifyWithInvitation) {
-      router.push("/dashboard");
+    // Redirect logged-in users to dashboard unless they're on an allowed page
+    if (!isPending && session && !allowLoggedIn) {
+      const appUrl = getAppUrl();
+      if (appUrl) {
+        window.location.href = `${appUrl}/dashboard`;
+      } else {
+        router.push("/dashboard");
+      }
     }
-  }, [session, isPending, router, isAcceptInvitationPage, isVerifyWithInvitation]);
+  }, [session, isPending, router, allowLoggedIn]);
 
   if (isPending) {
     return (
-      <div className="min-h-screen grid place-items-center bg-[#F8F8F7]">
-        <DotPatternBackground />
-        <div className="relative z-10 text-muted-foreground">Loading...</div>
+      <div className="min-h-screen grid place-items-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
-  // Only return null if logged in AND being redirected (not on special pages)
-  if (session && !isAcceptInvitationPage && !isVerifyWithInvitation) {
+  // Only return null if logged in AND being redirected (not on allowed pages)
+  if (session && !allowLoggedIn) {
     return null; // Will redirect, so return nothing
   }
 
-  return (
-    <div className="min-h-screen bg-[#F8F8F7]">
-      <DotPatternBackground />
-      <div className="relative z-10">
-        {children}
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }
