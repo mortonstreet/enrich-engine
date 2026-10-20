@@ -23,9 +23,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.15.1",
   "dependencies": {
-    "@prisma/client": "^6.19.0",
-    "kysely": "^0.28.8",
-    "prisma": "^6.19.0",
-    "prisma-kysely": "^2.2.1"
+    "@prisma/client": "^7.10.1",
+    "kysely": "^0.29.6",
+    "prisma": "^7.10.1",
+    "prisma-kysely": "^3.2.1"
   }
 }
